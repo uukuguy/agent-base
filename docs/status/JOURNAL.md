@@ -24,3 +24,17 @@
 - 15:20 五个自检目标全绿：validate / validate-selftest / gates-selftest / trace-selftest / gateway-selftest
 - 15:20 假网关残留风险：响应体的非标准字段 created:0 与 fake_gateway 若被严格 SDK 拒绝，以 x-fake-gateway-* 响应头为准
 - 15:20 假网关未覆盖项：AGENT_TRACE_DEST 写文件仅手工验证过，selftest 刻意不造仓库内临时文件
+- 15:50 S2 预检：pi 0.87.1 与 dsh 0.1.7-rc.1 版本与设计基线一致
+- 15:50 🔴 实测 pi 无 MCP：docs/README/CHANGELOG 零提及，无 mcp.json / allowInstall / hostConfigDiscovery → 设计 §10.2 该行不成立
+- 15:50 实测 dsh 原生支持 MCP：@deepseek-ai/dsh-mcp-client + dsh-mcp-resources 存在 → 设计 §11.2 成立
+- 15:50 🔴 结论：connectors（N2 四大业务概念之一）在 pi 侧无原生实现 → J1 的「可移植核心」承诺需收窄或由业务级增强补
+- 15:50 实测 pi rpc {"type":"get_commands"} 零凭据枚举实际加载技能（source=skill + path）→ §6.3 技能硬断言可实现
+- 15:50 实测复现 §10.1 约束 3：$HOME/.agents/skills 的 leaked 技能真的混进命令列表
+- 15:50 新发现：pi 还有第二隐式源 .agents/skills（沿 cwd 祖先发现、止于仓库根）——设计未记录
+- 15:50 实测 --no-skills --skill <dir> 可得到「只有声明」的技能集（设计称配置无法排除；CLI flag 可排除）
+- 15:50 实测 PI_CODING_AGENT_DIR 可直接指向渲染产物（不必伪造 $HOME/.pi/agent）；get_state 报 corp-gateway/corp-think
+- 15:50 实测复现 §10.1 约束 2：pi 连 --list-models 都会写 <agent-dir>/{models-store.json,auth.json}
+- 15:50 实测 §10.1 约束 1 与上游文档一致：models.json 只插值 apiKey/headers，baseUrl 不插值
+- 15:50 修正 §14 风险 12：pi 0.87.1 包内有 39 篇 docs（原称「npm 包内无 docs 目录」已过时）
+- 15:50 实测 dsh --dump-config 零凭据输出组合后的 profile 树 → dsh 侧自证原语；shipped 模板 acp/headless/sdk/sdk-minimal/web
+- 15:50 待用户裁决：connectors 在 pi 侧的落点（业务级增强 / 收窄可移植核心 / 第三方包 / 重估主力定位）

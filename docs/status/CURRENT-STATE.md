@@ -27,12 +27,14 @@
 
 ## Open Problems (theme-level)
 
+- 🔴 **pi 侧无 MCP**（实测）：pi 0.87.1 的 docs/README/CHANGELOG 零提及 MCP，无 `mcp.json`/`allowInstall`/`hostConfigDiscovery`；dsh 侧原生有 `@deepseek-ai/dsh-mcp-client`。connectors 是 N2 四大业务概念之一 → 直接冲击 J1「同一份定义两个 harness 都能跑通」与 P2 的 `contract-review`（"带 MCP，演示双 harness"）。**待裁决 `connectors` 在 pi 侧的落点**（见 RESUME 的 Open decisions）
 - `adapters/{pi,dsh}/` 尚不存在 —— 因此闸门 2–4 无实现可跑，`usable` 目前恒为 false（只有闸门 1 实现了）
 - 闸门 2 的三个硬断言（技能集合 / 连接器集合 / 已加载扩展 id 集合）尚无真实 harness 可断言 —— 要等 S2 的 `doctor`
 - `conformance/C1–C10`（新 harness 准入门槛）尚未落地；C5（静默失败检测力）与 C8（参数层隔离）是灵魂
+- §6.3 硬断言 3 的集合口径需澄清：pi 常驻内置扩展（如 `llama`，source=extension），不能算「未声明的增强混入产物」——断言集应只含制品来源的增强
 - 上游版本漂移：dsh `0.1.7-rc.1` 是预发布，pi 迭代快 —— pin 之外的回归保障（conformance）未建立
 - 业务级 harness 增强（§4.5：`harness/shared/` 纯算法 + `harness/<h>/` 薄外壳 + `enhancements.yaml`）尚无最小示例验证其可写性；`capabilities.yaml` 里该组字段的 `verified: false` 即此缺口
-- 两份 harness 的实测约束（含各自静默失败表）散落在两份上位文档 §10/§11，未沉淀为可执行的断言
+- pi 的第二隐式技能源（`.agents/skills` 沿 cwd 祖先发现）设计未记录；实测 `--no-skills --skill <dir>` 与隔离 HOME 两条路都能收干净
 - 假网关的响应体带非标准字段（`created: 0`、`fake_gateway`），若某 SDK 严格拒绝未知字段，以 `x-fake-gateway-*` 响应头为准 —— 接真实 harness 时需实测
 - 等待外部输入（不阻塞实现）：企业 LLM 网关地址协议与 tools/流式保真度、内网能否直连 npm 与公共基础镜像、首批业务智能体场景
 - 仓库交付物标准（企业可接手）：模板必须开箱可跑、无 TODO；`examples/` 可整删后基座仍须 `validate` + `conformance` 全绿
