@@ -228,6 +228,7 @@ function main() {
     connectorsNote: "pi 原生无 MCP 客户端；声明了连接器时渲染会直接失败（failures.md F10）",
     runArgs,
     modelRoutes: [agent.model.route],
+    mcpClient: readYaml(path.join(HERE, "adapter.yaml")).capabilities?.mcpClient ?? "unknown",
     labelsProvided,
     definitionDigest: digestDirectory(agentDir),
   };

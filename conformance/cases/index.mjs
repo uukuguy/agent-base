@@ -245,7 +245,24 @@ const cases = [
   {
     id: "C6",
     title: "零凭据闸门 3/4：假网关下探针与冒烟通过（N14）",
-    run: () => pending("依赖 probe / smoke 实现（S3）。**未实现不算通过** —— C1–C10 全为阻断性门槛，跳过会让 'conformance 全绿' 变成空话"),
+    run: () => {
+      const problems = [];
+      const evidence = [];
+      for (const h of adaptersPresent()) {
+        const base = tmpdir(`c6-${h}`);
+        const agent = makeFullAgent(path.join(base, "agent"), { harness: h });
+        const out = path.join(base, "out");
+        const rr = render(h, agent, out);
+        if (rr.status !== 0) { problems.push(`${h}: render 失败（${String(rr.stderr).slice(-120)}）`); continue; }
+        // 不传 --endpoint ⇒ 探针/冒烟自行起零凭据假网关（N14）
+        const probe = run(["tools/probe.mjs", out, "--json"]);
+        if (probe.status !== 0) problems.push(`${h}: 闸门 3 未通过（退出码 ${probe.status}）${String(probe.stderr).slice(-200)}`);
+        const smoke = run(["tools/smoke.mjs", out, "--json"]);
+        if (smoke.status !== 0) problems.push(`${h}: 闸门 4 未通过（退出码 ${smoke.status}）${String(smoke.stderr).slice(-200)}`);
+        if (probe.status === 0 && smoke.status === 0) evidence.push(`${h}: 假网关下闸门 3/4 均通过`);
+      }
+      return problems.length ? bad(problems.join("；")) : ok(evidence.join("；") || "无适配器");
+    },
   },
 
   // -------------------------------------------------------------------------

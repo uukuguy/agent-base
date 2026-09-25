@@ -4,10 +4,10 @@
 
 - Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，当前主力 pi）
 - Current branch: `main`
-- Theme-level focus: pi 适配器（render + doctor + 轨迹映射）已落地并自检全绿 —— 剩 conformance C1–C10 与 dsh 适配器
+- Theme-level focus: **四道闸门全过、usable 首次为真**；pi 侧 conformance 9/10 —— S3 余 template/new-agent/镜像，dsh 适配器待做
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi）
-- Active work package: `S2`（pi 轨道 + conformance 已交付；余下：`adapters/dsh/`；C6/C9 待 S3）
+- Active work package: `S3`（probe/smoke/verify 已交付；余下 template + new-agent + 基座镜像）
 
 ## Current Architecture
 
@@ -65,6 +65,9 @@
 - `core/image/preinstall.yaml` —— **独立可升级的预装清单**：验证基座镜像预装什么 + 开发者面向的引用名（`namedReferences`，11 个名字）。目的是让**开发智能体**便捷；`make validate` 的 `preinstall/*` 组（10 项）守它不烂
 - `core/gates/` —— 四闸门框架：`orchestrator.mjs` 编排（首个失败即短路）、`assertions.mjs` 断言语言（12 种，含 `fails` = 静默通过即判失败）、`report.mjs` §6.7 报告与 `ok`/`usable` 之分、`exit-codes.mjs` 唯一定义处、`digest.mjs` 确定性摘要、`selftest.mjs` 框架自检
 - `core/trace/schema.json` —— 统一轨迹事件 schema（JSONL，七类事件 + `native.raw` 兜底必带 reason）；`trace/selftest.mjs` 为自检
+- `tools/{probe,smoke,verify}.mjs` —— ✅ 闸门 3/4 与四道闸门编排（**usable 由此变为可达**）
+- `adapters/pi/run.mjs` —— ✅ 运行器（暂存可写副本 + 启动期参数渲染 + 关 stdin），probe/smoke/自检共用
+- `core/gates/cli.mjs` —— ✅ 统一的 CLI 参数解析（同一类吞参数 bug 出现过两次，已治本）
 - `tools/fake-gateway/` —— 零凭据假网关：`core.mjs` 协议无关核心 + `protocols/openai.mjs` 适配 + `server.mjs`（导出 `startFakeGateway({port:0})` → `{url, port, traceLines, close()}`）；`tools` 计数与 `stream` 在三处独立暴露（响应体 / `x-fake-gateway-*` 头 / 轨迹）
 - `tools/validate.mjs` —— 闸门 1 唯一入口：基座自洽（schema ↔ 能力目录 ↔ 参数层清单对账）+ 定义校验 + `--selftest` 注入式负向用例
 - `core/spec/{agent,connectors}.schema.json` —— 中性定义唯一真源（**public contract**；`additionalProperties: false` 让未知字段成为硬错误）
@@ -73,8 +76,8 @@
 - `core/spec/fixtures/` —— 1 个合法样本 + 8 个注入式非法样本（每个 `expect.yaml` 声明它必须撞上的失败项）
 - `package.json` / `package-lock.json` —— 基座工具链依赖（`ajv`、`yaml`，精确 pin；`node_modules/` 已 gitignore）
 - `adapters/pi/` —— ✅ `adapter.yaml`·`render.mjs`·`doctor.mjs`·`trace.mjs`·`seed/`·`failures.md`·`exemptions.yaml`·`trace-mapping.md`·`selftest.mjs`（探针/smoke 待 S3）
-- `adapters/dsh/` —— 同构（**待做**）
-- `conformance/` —— ✅ C1–C5、C7、C8、C10 全绿；C6（零凭据闸门 3/4）与 C9（安全下限一致）待 S3。**未实现记 pending 并非零退出**，不做「跳过即通过」
+- `adapters/dsh/` —— 声明已交付，`render/doctor/trace` **待做**（实现前需定 Q1–Q3，见路线图 §7）
+- `conformance/` —— pi 侧 **C1–C8、C10 全绿（9/10）**；仅 C9（容器内安全实测）待 S3。**未实现记 pending 并非零退出**，不做「跳过即通过」
 - `core/image/` —— 基座镜像与 debug 变体（待 S3+）
 
 ## Resume Instructions

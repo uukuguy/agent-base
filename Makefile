@@ -70,14 +70,14 @@ pi-trace-selftest: ## pi 事后映射自检：不许丢事件 / 推算值必须�
 pi-trace-ext-selftest: ## 基座轨迹扩展自检（回调式主路径）：真实 tools/stream、配对、判定口径
 	@node adapters/pi/trace-ext-selftest.mjs
 
-probe: ## 闸门 3：集成探针（默认假网关，零凭据）（S3）
-	$(call NOT_YET,S3)
+probe: ## 闸门 3：集成探针（默认零凭据假网关，需 RENDER_DIR）
+	@node tools/probe.mjs $(RENDER_DIR) $(if $(JSON),--json,) $(if $(ENDPOINT),--endpoint $(ENDPOINT),)
 
-smoke: ## 闸门 4：端到端冒烟（S3）
-	$(call NOT_YET,S3)
+smoke: ## 闸门 4：端到端冒烟（需 RENDER_DIR）
+	@node tools/smoke.mjs $(RENDER_DIR) $(if $(JSON),--json,) $(if $(ENDPOINT),--endpoint $(ENDPOINT),)
 
-verify: ## 四闸门 + 等价性比对 → --json（S2/S5）
-	$(call NOT_YET,S2/S5)
+verify: ## 四道闸门编排 → §6.7 报告 + usable（需 AGENT_DIR）
+	@node tools/verify.mjs $(AGENT_DIR) --harness $(HARNESS) $(if $(OUT),--out $(OUT),) $(if $(JSON),--json,)
 
 image: ## 产出智能体镜像（S3）
 	$(call NOT_YET,S3)
@@ -85,7 +85,7 @@ image: ## 产出智能体镜像（S3）
 debug: ## 构建 debug 变体并进诊断 shell（§8.5 第 ④ 道）（S3）
 	$(call NOT_YET,S3)
 
-conformance: ## 对适配器跑合规套 C1–C10（阻断性门槛；C6/C9 待 S3 才可能全绿）
+conformance: ## 对适配器跑合规套 C1–C10（阻断性门槛；C9 待 S3 容器内安全实测）
 	@node conformance/run.mjs $(if $(JSON),--json,) $(if $(HARNESS_ONLY),--harness $(HARNESS_ONLY),)
 
 dev-env: ## 按 pin 安装/校验两个 harness 到一致版本（§9.3）（S3）

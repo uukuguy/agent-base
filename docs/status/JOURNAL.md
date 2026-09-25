@@ -128,4 +128,11 @@
 - 21:55 🔴 conformance 自身抓到我的用例 bug：helpers 的 makeFullAgent 用 adaptersPresent()[0] 决定增强放哪个 harness 目录 —— 加入第二个适配器后它悄悄指向 dsh，造成「增强没进产物」的假失败。已改为显式传被测 harness
 - 21:55 conformance 增 --harness 过滤：使「某适配器是否合规」可独立断言，不被另一个未实现拖累
 - 21:55 ✅ pi 侧 conformance 全绿（C1–C5、C7、C8、C10）；dsh 侧 C2–C5/C7/C8 未通过（render/doctor/trace 未实现，预期）；C6/C9 全局待 S3
+- 22:30 🎯 里程碑：**四道闸门首次全过，usable: true** —— make verify 从静态校验一路跑到冒烟全绿（基座核心目标第一次成为可执行事实）
+- 22:30 交付 tools/probe.mjs（闸门 3：probe/model 断言真实 tools>0 与 stream、probe/skills、probe/connectors）、tools/smoke.mjs（闸门 4：退出码/输出标记/轨迹 schema/未声明工具）
+- 22:30 交付 tools/verify.mjs：只做编排与汇总，不重新实现任何检查（保证"verify 说通过"与"单跑闸门说通过"永远一致）
+- 22:30 交付 adapters/pi/run.mjs：运行器（暂存可写副本 + 启动期参数渲染 + 关 stdin），probe/smoke/自检共用同一套运行期契约
+- 22:30 ✅ conformance C6 落地：pi 侧 C1–C8、C10 全绿（9/10），仅 C9（容器内安全实测）待 S3
+- 22:30 🔴 同一类 bug 第二次出现：--out/--endpoint 缺失时 indexOf+1===0 吞掉第一个位置参数。已抽出 core/gates/cli.mjs（取值旗标显式声明）+ 5 条自检治本
+- 22:30 作废早前结论：假网关**不必**独立进程（真正的原因是子进程 stdin 没关）；probe/smoke 现在同进程起网关
 

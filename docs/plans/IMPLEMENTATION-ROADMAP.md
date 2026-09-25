@@ -29,7 +29,7 @@
 | **S0** | A | 中性定义契约：schema + 能力目录 + 参数层清单 | — | **done** |
 | **S1** | A | 四闸门框架 + 假网关 + 统一轨迹 schema | S0 | **done** |
 | **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | **active** |
-| **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` | S2 | pending |
+| **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` | S2 | **active**（probe+smoke+verify 已交付；余 template/new-agent/镜像） |
 | **S4** | A + B + C | `examples/idea-to-proof` 全绿（含 C5/C8） | S3 | pending |
 | **S5** | A + B + C | `examples/contract-review`（带 MCP，双 harness 等价性） | S4 | pending |
 | **S6** | A | `docs/` 全 12 篇 | S4 | pending |
@@ -228,3 +228,18 @@ mcpServers:
 3. `doctor.mjs`（靠 `--dump-config` 组合树；**必须补上 patch target id 校验**，那是 D1 唯一的防线）
 4. `trace.mjs` + `conformance/fixtures/dsh-native-events.jsonl`（按 7.1 的轨迹类型表；`tool/result` 的 callId 配对要写进 trace-mapping.md）
 5. 跑 `make conformance` 直到 dsh 的 C2–C5/C7/C8 转绿；C6/C9 仍待 S3
+
+---
+
+## 8. S3 进展（2026-09-25）
+
+**已交付**：`tools/probe.mjs`（闸门 3）、`tools/smoke.mjs`（闸门 4）、`tools/verify.mjs`（四道闸门编排 → §6.7 报告 + `usable`）、`adapters/pi/run.mjs`（运行器，三个消费者共用）。
+
+**里程碑**：**四道闸门首次全过，`usable: true`** —— 基座「帮助业务智能体把想法验证走通」这句话第一次成为可执行的事实，而不再只是设计承诺。
+实测路径：`make verify AGENT_DIR=<agent>` → 闸门 1 静态 → 渲染 → 闸门 2 自证 → 闸门 3 探针 → 闸门 4 冒烟全绿；冒烟里 `tools.deny: [bash]` 也被验证生效（只用了 `read`）。
+
+**conformance 状态**：pi 侧 **C1–C8、C10 全绿**（含 C6 零凭据闸门 3/4），仅 **C9**（容器内安全实测）待 S3 的镜像与加固参数。
+
+**S3 余项**：`template/` + `new-agent`（开箱可跑）、`core/image/`（基座镜像 + debug 变体）、`make dev-env` / `run-local`、`image` / `debug`。C9 依赖其中的容器内加固。
+
+**由此暴露的一类 bug 已治本**：`--out`/`--endpoint` 缺失时把第一个位置参数误当旗标值吞掉 —— 同一行写法出现了**两次**（`render` 与 `probe`）。已抽出 `core/gates/cli.mjs` 统一解析，并加了 5 条自检，防止第三次。

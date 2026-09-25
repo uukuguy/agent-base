@@ -138,6 +138,23 @@ console.log("\n── usable 严格等于「四道闸门全过」（§6.8）─�
 }
 
 // ---------------------------------------------------------------------------
+console.log("\n── CLI 参数解析（这个 bug 出现过两次，值得单独立check）──");
+{
+  const { parseArgs } = await import("./cli.mjs");
+  // 关键回归：取值旗标缺失时，第一个位置参数**不能**被吞
+  const a = parseArgs(["AGENT_DIR", "--json"], { valueFlags: ["--out"] });
+  check("取值旗标缺失时位置参数仍在", a.positionals[0] === "AGENT_DIR", JSON.stringify(a.positionals));
+  const b = parseArgs(["--out", "OUTDIR", "AGENT_DIR"], { valueFlags: ["--out"] });
+  check("取值旗标的值被吃掉，位置参数不受影响", b.positionals[0] === "AGENT_DIR" && b.values["--out"] === "OUTDIR", JSON.stringify([b.positionals, b.values]));
+  const c = parseArgs(["--harness", "example", "--out", "OUT", "AGENT_DIR"], { valueFlags: ["--harness", "--out"] });
+  check("多个取值旗标并存时位置参数正确", c.positionals[0] === "AGENT_DIR", JSON.stringify(c.positionals));
+  const d = parseArgs(["--out", "--json", "AGENT_DIR"], { valueFlags: ["--out"] });
+  check("取值旗标缺少值时给出错误而不是吞掉下一个旗标", d.errors.length === 1 && d.positionals[0] === "AGENT_DIR", JSON.stringify(d));
+  const e = parseArgs(["A", "--json", "B"]);
+  check("未声明的 --x 按开关处理，不吞参数", e.positionals.join(",") === "A,B" && e.flags.has("--json"), JSON.stringify(e));
+}
+
+// ---------------------------------------------------------------------------
 console.log("\n── 摘要确定性（N19）──");
 {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-base-digest-"));
