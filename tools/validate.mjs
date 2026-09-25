@@ -241,6 +241,28 @@ function checkBase(report) {
     report.pass(GATE, "core/harness-name", "core/ 的代码与 schema 内无 harness 名（catalog/ 与文档按 §4.6 / §12.1 豁免）");
   }
 
+  // 手写「跳过旗标值」的索引过滤 —— 这个写法在本项目里错过**三次**（render / probe / labels）：
+  //   const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out") + 1);
+  // 旗标缺席时 indexOf 返回 -1，-1+1===0 会把**第一个位置参数**吞掉，命令直接报用法错误。
+  // 单看这行很难发现，所以这里静态拦住：统一用 core/gates/cli.mjs 的 parseArgs。
+  {
+    const naive = /i\s*!==\s*[A-Za-z_$][\w$.]*\s*\+\s*1/;
+    const offenders = [];
+    const scanDir = (d) => {
+      if (!fs.existsSync(d)) return;
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) { if (!["node_modules", "dist"].includes(e.name)) scanDir(p); continue; }
+        if (!/\.mjs$/.test(e.name)) continue;
+        if (e.name === "cli.mjs") continue;   // 统一解析器自己的注释里就有这个反例
+        if (naive.test(fs.readFileSync(p, "utf8"))) offenders.push(path.relative(REPO, p));
+      }
+    };
+    for (const d of ["core", "tools", "adapters", "conformance"]) scanDir(path.join(REPO, d));
+    if (offenders.length) report.fail(GATE, "cli/no-naive-flag-skip", `手写旗标值跳过（会吞掉位置参数，已出错三次）：${offenders.join(", ")} —— 改用 core/gates/cli.mjs 的 parseArgs`);
+    else report.pass(GATE, "cli/no-naive-flag-skip", "没有手写「跳过旗标值」的索引过滤（统一用 parseArgs）");
+  }
+
   // A6 预装清单
   checkPreinstall(report);
 

@@ -337,3 +337,47 @@ mcpServers:
 **Makefile 状态**：30 个目标，**0 个未实现**（不再有 `NOT_YET` 桩）。
 
 **S3 之后**：`examples/`（S4/S5，首批走通示例）· dsh 适配器（比较轨）· 镜像推送路径（待 I2）。
+
+---
+
+## 12. S4：首个示例走通（`examples/idea-to-proof`）
+
+**判据（设计原文）**：示例四道闸门全绿（含 C5/C8）。**实测达成** —— `make examples-check` 全绿，
+其中「四道闸门 → 可用（退出码 0）」。
+
+### 12.1 交付内容
+
+| 文件 | 说明 |
+|---|---|
+| `agent.yaml` | 人设（三条不可松的纪律）+ 模型 + 边界 `tools.deny: [bash, write, edit]` |
+| `connectors.yaml` | 空 —— 纯技能型 |
+| `trace-labels.yaml` | 业务给轨迹起的说法（基座不解释，只机械查找后呈现） |
+| `skills/{claim-extraction,falsifier-design,evidence-grading}/SKILL.md` | 三个真正干活用的技能，串成完整工作流 |
+| `skills/evidence-grading/scripts/check-table.mjs` | 技能脚本（带 `--selftest`）：校验产出表格的结构，专治"看起来完整、实则漏项" |
+| `examples/README.md` + 示例内 `README.md` | 怎么跑、怎么改、四道闸门各证明什么 |
+| `tools/examples-check.mjs`（`make examples-check`） | 结构 + 四道闸门 + 技能脚本自检 + **不变量 N5** |
+
+### 12.2 这个示例刻意不做的事
+
+**没有 `harness/<runtime>/` 目录。** 它的价值正是证明「纯中性定义 + 技能」已经够用 ——
+等真需要自定义工具/钩子时再加业务级增强。把增强塞进第一个示例会掩盖"什么情况下才需要它"。
+
+### 12.3 顺带钉死的一个 bug 类别
+
+`examples-check` 一开始就撞上参数解析问题 —— 而这**已经是同一类 bug 的第三次**（`render` / `probe` / `labels`）：
+
+```js
+const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out") + 1);
+```
+
+旗标缺席时 `indexOf` 返回 -1，`-1 + 1 === 0` 会把**第一个位置参数**吞掉，命令直接报用法错误。
+
+处置不是"再修一次"，而是治本三连：
+1. 统一到 `core/gates/cli.mjs` 的 `parseArgs`（按"旗标吃掉它的值"推进，不会误吞）；
+2. `render.mjs` 里那个打过补丁的老写法也一并改掉 —— 留着等于第二种写法；
+3. **闸门 1 增加静态检查 `cli/no-naive-flag-skip`**，扫到这种写法即失败（含自检：它确实抓到了 `render.mjs`）。
+
+### 12.4 不变量 N5 的验证方式
+
+`examples-check` 静态确认 `core/` `tools/` `adapters/` 中**没有任何对 `examples/` 的引用**，
+并单独跑一次基座自洽（不带任何智能体定义）—— 于是"整个 `examples/` 可删"不是一句口号。

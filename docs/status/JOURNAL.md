@@ -158,4 +158,8 @@
 - 20:18 ✅ **Makefile 30 个目标全部实现，不再有 NOT_YET 桩**；12 个自检目标全绿；conformance --harness pi 仍 10/10
 - 20:18 S3 闭环：上手路径三段（派生→本地→容器边界）各有可重复判据
 - 20:18 修 builder 选择：单架构/调试必须用 docker 驱动 builder（调试变体 FROM 本地基础镜像，container builder 看不到本地镜像库）；多平台才用 container builder —— 每类构建显式指定，不再依赖"当前 builder"
+- 20:56 交付 examples/idea-to-proof（S4）：agent.yaml + 三个技能 + trace-labels.yaml + 技能脚本（带自检）+ README；**刻意不加 harness/ 增强**，以证明"纯中性定义+技能"够用
+- 20:56 ✅ make examples-check 全绿：闸门 1 + 标签表形状 + 技能脚本自检 + **四道闸门 → 可用** + 不变量 N5（core/tools/adapters 无 examples/ 引用）
+- 20:56 🔴 同一类参数 bug **第三次**出现（render/probe/labels）：`i !== args.indexOf("--x") + 1` 在旗标缺席时吞掉第一个位置参数。治本三连：统一 parseArgs + 改掉 render 的补丁写法 + **闸门 1 加静态检查 cli/no-naive-flag-skip**（它当场抓到了 render.mjs）
+- 20:56 加 tools/examples-check.mjs（make examples-check）：把"示例可删（N5）"从口号变成静态可验
 

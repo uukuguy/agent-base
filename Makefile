@@ -119,6 +119,9 @@ run-local: ## 本地交互入口（先渲染，再用临时 HOME 跑制品；PRO
 new-agent: ## 从 template/ 派生一个智能体（需 NAME=x；默认派生到基座之外的同级目录）
 	@NAME=$(NAME) node tools/new-agent.mjs $(if $(DESCRIPTION),--description "$(DESCRIPTION)",) $(if $(OUT),--out $(OUT),)
 
+examples-check: ## 逐个校验 examples/：结构 + 四道闸门 + 技能脚本自检 + 不变量 N5
+	@node tools/examples-check.mjs $(if $(FAST),--fast,)
+
 local-selftest: ## 本地开发环境自检：dev-env 版本一致 + run-local 隔离与跑通
 	@node tools/local-selftest.mjs
 

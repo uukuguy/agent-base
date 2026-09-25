@@ -1,0 +1,9 @@
+apiVersion: agent-base/v1
+
+# 纯技能型示例：不连任何外部系统。
+#
+# 需要连系统时在这里加（按名引用基座预装条目即可）：
+#   mcpServers:
+#     - ref: filesystem
+#       enabled: true
+mcpServers: []

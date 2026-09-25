@@ -1,0 +1,14 @@
+apiVersion: agent-base/v1
+
+# 业务给"机械轨迹"起的说法。基座**不解释**这些词，只按定位符机械查找后原样呈现。
+# 换一个业务、换一套词，基座与查看器一行都不用改。
+#
+# 定位符语法（基座定义）：agent | model:<route> | skill:<name> | connector:<name>
+#                        | tool:<原始工具名> | log:<日志命名空间> | gate:<闸门名>
+labels:
+  "agent":                        想法到证据的分析助手
+  "skill:claim-extraction":       把想法拆成可独立证伪的断言
+  "skill:falsifier-design":       为每条断言设计证伪条件
+  "skill:evidence-grading":       给证据分级并排出验证顺序
+  "gate:probes":                  连通性检查
+  "gate:smoke":                   端到端冒烟

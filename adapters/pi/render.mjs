@@ -22,7 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { DEFAULT_EXCLUDES, EXIT_CODES, digestDirectory, sha256 } from "../../core/gates/index.mjs";
+import { DEFAULT_EXCLUDES, EXIT_CODES, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -77,14 +77,15 @@ export function envPrefixFor(route) {
 
 // ---------------------------------------------------------------------------
 function main() {
-  const args = process.argv.slice(2);
-  const json = args.includes("--json");
-  const outIdx = args.indexOf("--out");
-  const outArg = outIdx >= 0 ? args[outIdx + 1] : null;
-  // 注意：outIdx 为 -1 时 outIdx + 1 === 0，会把第一个位置参数误当成 "--out 的值"而丢掉。
-  const positional = args.filter((a, i) => !a.startsWith("--") && (outIdx < 0 || i !== outIdx + 1));
+  // 统一解析器：手写"跳过旗标值"的索引过滤在本项目里错过三次（旗标缺席时会把第一个
+  // 位置参数吞掉）。这里曾经用 `outIdx < 0 ||` 打过补丁 —— 能跑，但等于留下第二种写法。
+  const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), { valueFlags: ["--out"] });
+  const json = flags.has("--json");
+  const outArg = values["--out"] ?? null;
+  const positional = positionals;
+  if (errors.length) { log(errors.join("；")); process.exit(EXIT_CODES.usage); }
 
-  if (!positional.length || args.includes("--help") || args.includes("-h")) {
+  if (!positional.length || flags.has("--help") || flags.has("-h")) {
     log("用法: node adapters/pi/render.mjs <AGENT_DIR> [--out <DIR>] [--json]");
     process.exit(positional.length ? EXIT_CODES.ok : EXIT_CODES.usage);
   }

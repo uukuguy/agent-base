@@ -40,7 +40,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { digestDirectory } from "../../core/gates/index.mjs";
+import { digestDirectory, parseArgs } from "../../core/gates/index.mjs";
 
 export const LABELS_FILE = "trace-labels.yaml";
 
@@ -182,10 +182,14 @@ export function coverage(events, labels = {}) {
 
 // ---------------------------------------------------------------------------
 function main() {
+  // 用统一解析器：手写"跳过旗标值"的索引过滤在本项目里已出错三次（`indexOf` 返回 -1 时
+  // 会算成 -1+1=0，把第一个位置参数吞掉）。统一解析器按"旗标吃掉它的值"推进，不会误吞。
+  const { values, flags, positionals } = parseArgs(process.argv.slice(2), { valueFlags: ["--timeline"] });
   const args = process.argv.slice(2);
-  const ti = args.indexOf("--timeline");
-  const agentDir = args.find((a, i) => !a.startsWith("--") && i !== ti + 1);
-  if (!agentDir || args.includes("--help")) {
+  const timelinePath = values["--timeline"] ?? null;
+  const ti = timelinePath ? args.indexOf(timelinePath) : -1;
+  const agentDir = positionals[0];
+  if (!agentDir || flags.has("--help") || flags.has("-h")) {
     process.stderr.write("用法: node tools/trace-view/labels.mjs <AGENT_DIR> [--timeline <轨迹 JSONL>]\n");
     process.exit(agentDir ? 0 : 2);
   }
@@ -195,8 +199,8 @@ function main() {
     process.exit(10);
   }
   const { labels, problems } = loadLabels(dir);
-  if (ti >= 0) {
-    const events = fs.readFileSync(args[ti + 1], "utf8").split("\n").filter(Boolean)
+  if (timelinePath) {
+    const events = fs.readFileSync(timelinePath, "utf8").split("\n").filter(Boolean)
       .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
     process.stdout.write(renderTimeline(events, labels));
     const c = coverage(events, labels);
