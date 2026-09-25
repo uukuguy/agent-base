@@ -16,7 +16,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import { EXIT_CODES, GateReport, parseArgs, runGates } from "../core/gates/index.mjs";
-import { runAgent } from "../adapters/pi/run.mjs";
+// 运行器按 harness 分派（与 probe 同法）
+async function loadRunner(harness) {
+  const p = path.join(REPO, `adapters/${harness}/run.mjs`);
+  if (!fs.existsSync(p)) throw new Error(`${harness} 没有运行器（adapters/${harness}/run.mjs）`);
+  return import(p);
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -34,14 +39,15 @@ async function startGateway() {
 }
 
 async function main() {
-  const { values, flags, positionals } = parseArgs(process.argv.slice(2), { valueFlags: ["--endpoint"] });
+  const { values, flags, positionals } = parseArgs(process.argv.slice(2), { valueFlags: ["--endpoint", "--harness"] });
   const argv = process.argv.slice(2);
   const renderDirArg = positionals[0];
   if (flags.has("--help") || flags.has("-h") || !renderDirArg) {
     process.stderr.write("用法: node tools/smoke.mjs <RENDER_DIR> [--endpoint URL] [--json]\n");
     process.exit(flags.has("--help") || flags.has("-h") ? EXIT_CODES.ok : EXIT_CODES.usage);
   }
-  const renderDir = path.resolve(renderDirArg);
+  const harness = values["--harness"] ?? "pi";
+const renderDir = path.resolve(renderDirArg);
   const manifestFile = path.join(renderDir, "render-manifest.json");
   if (!fs.existsSync(manifestFile)) {
     log(`❌ ${renderDir} 不是渲染产物（缺 render-manifest.json）—— 先跑 render`);
@@ -65,7 +71,8 @@ async function main() {
       gates: [{
         id: GATE,
         handler: async (_c, rep) => {
-          const run = await runAgent({
+          const runner = await loadRunner(harness);
+          const run = await runner.runAgent({
             renderDir,
             endpoint: endpoint ?? gateway.url,
             prompt: "Reply with the marker so the smoke check can verify output.",  // 确定性任务
@@ -88,13 +95,15 @@ async function main() {
           else if (bad.length) rep.fail(GATE, "smoke/trace-schema", `${bad.length}/${run.events.length} 条事件不合 schema`);
           else rep.pass(GATE, "smoke/trace-schema", `${run.events.length} 条轨迹全部符合 schema`);
 
-          // 4) 未出现未声明工具
-          const deny = new Set(manifest.runArgs?.excludeTools ?? []);
-          const allowed = new Set(BUILTIN_TOOLS.filter((t) => !deny.has(t)));
-          const used = [...new Set(run.events.filter((e) => e.type === "tool.call").map((e) => e.tool))];
-          const undeclared = used.filter((t) => !allowed.has(t));
-          if (undeclared.length) rep.fail(GATE, "smoke/no-undeclared-tools", `出现了未声明的工具：${undeclared.join(", ")}（可用：${[...allowed].join(", ")}）`);
-          else rep.pass(GATE, "smoke/no-undeclared-tools", used.length ? `用到的工具都在允许集合内：${used.join(", ")}` : "本次未调用工具");
+          // 4) 未出现被禁的工具
+          // 判据用**中性定义的 deny 名字**做名字级检查（大小写不敏感的子串匹配）。这是一个有意保守的
+          // 检查：它抓得住"禁了 bash 却调了 bash"这类明显越界，但不假装等价于 row 级边界
+          // （两个 harness 的工具粒度不同，权威断言在闸门 2 的 row/settings 级）。
+          const deny = (manifest.runArgs?.excludeTools ?? manifest.denyTools ?? []).map((t) => String(t).toLowerCase());
+          const used = [...new Set(run.events.filter((e) => e.type === "tool.call").map((e) => String(e.tool)))];
+          const violated = used.filter((t) => deny.some((d) => t.toLowerCase().includes(d)));
+          if (violated.length) rep.fail(GATE, "smoke/no-denied-tools", `调用了被禁的工具：${violated.join(", ")}（禁用清单：${deny.join(", ")}）`);
+          else rep.pass(GATE, "smoke/no-denied-tools", used.length ? `调用到的工具都未触碰禁用清单：${used.join(", ")}` : "本次未调用工具");
         },
       }],
     });

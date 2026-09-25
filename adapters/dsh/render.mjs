@@ -42,6 +42,8 @@ import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/i
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HARNESS = "dsh";
+/** 基座声明的模型路由目录（`model.route` 的合法取值 + 协议形状）。 */
+const ROUTES_PATH = path.join(HERE, "../../core/catalog/routes.yaml");
 const log = (m) => process.stderr.write(m + "\n");
 
 /** 技能在**镜像内**的固定路径（Q2）：渲染期路径与运行期路径解耦。 */
@@ -143,11 +145,34 @@ const TOOL_ROW = {
   search: "tool-fs-search",
 };
 
-function buildPatch({ agent, connectors, enhancements }) {
+function buildPatch({ agent, connectors, enhancements, route }) {
   const p = [];
 
   // ① 模型：完整 config（不是增量）
   p.push({ id: "agent-default-model", config: { provider: agent.model.route, model: agent.model.name } });
+
+  // ①b **把路由本身配出来** —— 这一步不能省。
+  //     只写 `agent-default-model.provider: <route>` 只是"选了哪个路由"；路由**存不存在**由
+  //     provider 适配器决定。本 harness 的自定义路由走 `llm-pi-ai` 的 `providers` 字典
+  //     （键=路由名，值声明 api 形状 / 端点 / 凭据引用名 / 模型目录）。
+  //     不配这一步的后果很隐蔽：`--dump-config` 依然成功（组合树里就是选了个不存在的路由），
+  //     直到真跑才报错 —— 而这正属 failures.md 要治的"静默失败"。
+  if (route) {
+    p.push({
+      id: "llm-pi-ai",
+      config: {
+        providers: {
+          [route.id]: {
+            displayName: route.id,
+            api: route.api,                              // 协议形状（与 pi 的 models.json.api 同名）
+            apiKeyEnv: route.credentialParam,            // **只写引用名**，真值由部署期注入
+            baseURL: new JsExpr(`process.env.${route.baseUrlParam}`),   // 参数下放，不写死端点
+            models: [{ id: agent.model.name, name: agent.model.name }],
+          },
+        },
+      },
+    });
+  }
 
   // ② 人设：启用"工作区指令文件发现器"（人设本身在 workspace/AGENTS.md，见 Q1）
   p.push({ id: "agent-instructions", disabled: false, config: { maxBytes: 65536 } });
@@ -259,9 +284,17 @@ function main() {
   copyTree(path.join(agentDir, "harness", HARNESS), path.join(outRoot, "harness", HARNESS));
 
   // ---- profile 四件套 ----
+  // 路由必须由基座声明（闸门 1 已校验）；渲染器据此产出 provider 配置
+  const routesDoc = fs.existsSync(ROUTES_PATH) ? readYaml(ROUTES_PATH) : { routes: [] };
+  const route = (routesDoc.routes ?? []).find((r) => r.id === agent.model?.route) ?? null;
+  if (!route) {
+    log(`❌ model.route「${agent.model?.route}」不在基座路由目录里（core/catalog/routes.yaml）—— 先跑 make validate 看可用取值`);
+    process.exit(EXIT_CODES.static);
+  }
+
   let built;
   try {
-    built = buildPatch({ agent, connectors: enabled, enhancements });
+    built = buildPatch({ agent, connectors: enabled, enhancements, route });
   } catch (e) {
     log(`❌ ${e.message}`);
     process.exit(EXIT_CODES.static);
@@ -308,8 +341,13 @@ function main() {
     denyRows,
     denyNote: "工具粒度不同：中性的 read/write/edit 在这边是同一个 tool-fs row，禁用其一即禁用三者（见 exemptions.yaml）",
     modelRoutes: [agent.model.route],
+    modelRouteApi: route.api,
+    // 端点/凭据的**参数引用名**：运行期靠这两个名字注入真值（参数下放）
+    modelRouteBaseUrlParam: route.baseUrlParam,
+    modelRouteCredentialParam: route.credentialParam,
     mcpClient: adapter.capabilities?.mcpClient ?? "unknown",
     skillsInImage: SKILLS_IN_IMAGE,
+    skillsInProduct: "skills",   // 技能在产物内的相对位置（与 skillsInImage 是两回事）
     workspaceInImage: WORKSPACE_IN_IMAGE,
     dshHomeInImage: DSH_HOME_IN_IMAGE,
     labelsProvided,

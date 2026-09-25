@@ -183,4 +183,11 @@
 - 21:57 🔴 用户澄清纠正我的误读：「**只有运行时段必须无外网**」，构建期不严格 → 我把 I2 读成"运行环境不能出内网"并据此新增了「气隙构建」包（含内网镜像仓库/vendored tarball/搬运包），**读过头了**
 - 21:57 S8 已缩回真实规模：架构本就是「构建期装齐、运行期断网」（已实现且 C9 实测过）；只剩三件小事 —— 关静默联网（pi 已关，dsh 待核）、构建期装齐的反向检查、真用到连接器的端到端断网证据
 - 21:57 明确不再做：气隙构建 / vendored tarball / 内网镜像仓库替换入口（保留 ARG NODE_IMAGE 这条零成本能力备用）
+- 22:12 新增 core/catalog/routes.yaml（模型路由目录）+ 闸门 1 五项校验：此前 `model.route` 无任何声明处，写错路由名渲染照样成功、运行时才炸。负向用例已验（报错并列出可用取值）
+- 22:12 dsh 渲染器补 **provider 路由**：只写 agent-default-model.provider 只是"选了路由"，路由存不存在由 provider 适配器决定（llm-pi-ai 的 providers 字典）。不配的失效很隐蔽：--dump-config 照样成功
+- 22:12 交付 adapters/dsh/run.mjs（暂存副本 + 镜像内路径改写 + 环境变量注入端点 + 非交互显式放行策略）—— 实测退出码 0，12 原生事件 → 12 统一事件，callId 正确配对
+- 22:12 交付 adapters/dsh/trace.mjs + fixture → **C7 绿**：映射 `--json` 的 run events（带 callId、免 zstd 解码），而不是 zstd 会话文件
+- 22:12 ✅ **C6 两个 harness 都绿**：probe/smoke 改为按 harness 分派运行器；模型断言改为**端点侧取证**（读假网关记录"它收到了几个工具、是否流式"）——比原判据更强且天然跨 harness
+- 22:12 🔴 我自己造的回归：probe 的技能检查猜了 `renderDir/skills`，而 pi 的技能在 `agent-dir/skills` 下 → 改为由清单声明 `skillsInProduct`；另 smoke 里 `harness` 未绑定导致 crash
+- 22:12 dsh conformance **9/10**（仅剩 C3）；pi 仍 10/10
 

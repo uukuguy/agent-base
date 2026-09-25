@@ -282,9 +282,9 @@ const cases = [
         const rr = render(h, agent, out);
         if (rr.status !== 0) { problems.push(`${h}: render 失败（${String(rr.stderr).slice(-120)}）`); continue; }
         // 不传 --endpoint ⇒ 探针/冒烟自行起零凭据假网关（N14）
-        const probe = run(["tools/probe.mjs", out, "--json"]);
+        const probe = run(["tools/probe.mjs", out, "--json", "--harness", h]);
         if (probe.status !== 0) problems.push(`${h}: 闸门 3 未通过（退出码 ${probe.status}）${String(probe.stderr).slice(-200)}`);
-        const smoke = run(["tools/smoke.mjs", out, "--json"]);
+        const smoke = run(["tools/smoke.mjs", out, "--json", "--harness", h]);
         if (smoke.status !== 0) problems.push(`${h}: 闸门 4 未通过（退出码 ${smoke.status}）${String(smoke.stderr).slice(-200)}`);
         if (probe.status === 0 && smoke.status === 0) evidence.push(`${h}: 假网关下闸门 3/4 均通过`);
       }

@@ -55,7 +55,7 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 
 ## Open Problems (theme-level)
 
-- **dsh 适配器：`render` + `doctor` 已交付并验证**；conformance **7/10**（未过 C3 渲染完整性 / C6 零凭据闸门 3/4 / C7 轨迹合规）。C5 与 C4 的「按 pi 形状写死」问题已在检查侧治本修复（声明式注入 + 适配器声明增强形态）
+- **dsh 适配器：`render` + `doctor` 已交付并验证**；conformance **9/10**（仅剩 C3 渲染完整性；C6 零凭据闸门 3/4 与 C7 轨迹合规已过）。C5 与 C4 的「按 pi 形状写死」问题已在检查侧治本修复（声明式注入 + 适配器声明增强形态）
 - **C3 是最后一个「按 pi 产物形状写死」的检查**（认死 `AGENTS.md`/`settings.json`/`extensions`）→ 需要泛化成「以 manifest 为映射」的中性契约；不改的话第二个 harness 永远过不了
 - **`tools/probe.mjs` / `smoke.mjs` 目前只走 pi**（依赖 `adapters/pi/run.mjs`）→ dsh 的 C6 要等 `adapters/dsh/run.mjs`
 - **G1 只剩一半**：回调能看到「harness 发了几个工具」，看不到「网关收到后有没有吞」。三条互补路径已定（链路观测 / 响应侧不一致检测 / 响应头回显对照，后者已实现但仅在网关回显时生效）
@@ -105,7 +105,7 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 - `core/gates/` —— 四闸门框架：编排 / 断言语言（12 种）/ §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / 统一 CLI 解析
 - `core/trace/` —— 统一轨迹：`schema.json`（真源）· `emit.mjs`（会被拷进产物，故自包含）· 业务级 logger · 两份自检 · `README.md` 分层与协议
 - `core/spec/` —— 中性定义 schema（**public contract**，`additionalProperties: false`）+ fixtures（1 合法 + 10 注入式非法）
-- `core/catalog/{capabilities,params}.yaml` —— 两个执法点：字段所属层 + 参数层允许/禁止清单
+- `core/catalog/{capabilities,params,routes}.yaml` —— 三个执法点：字段所属层 · 参数层允许/禁止清单 · **模型路由目录**（`model.route` 的合法取值 + 协议形状；闸门 1 会校验智能体写的 route 确实已声明）
 - `core/image/preinstall.yaml` —— 独立可升级的预装清单（开发者面向引用名 + 精确 pin + 存活实测 + 排除项理由）
 - `conformance/` —— **pi 侧 C1–C10 全绿（10/10）**；准入门槛全阻断，未实现记 pending 并非零退出；`--harness` 可单独断言某适配器
 - 本机容器环境：**OrbStack 2.2.3** 管理 Docker（context `orbstack`，只有 `docker` 驱动 ⇒ 多架构打包需自建 `docker-container` builder `ab-multi`；x86_64 走 Rosetta）。详见路线图 §10.2

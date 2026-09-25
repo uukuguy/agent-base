@@ -229,6 +229,8 @@ function main() {
     connectorsNote: "pi 原生无 MCP 客户端；声明了连接器时渲染会直接失败（failures.md F10）",
     runArgs,
     modelRoutes: [agent.model.route],
+    // 技能在**产物内**的相对位置：让上层工具（probe / C3）不必知道某 harness 的目录形状
+    skillsInProduct: "agent-dir/skills",
     mcpClient: readYaml(path.join(HERE, "adapter.yaml")).capabilities?.mcpClient ?? "unknown",
     labelsProvided,
     definitionDigest: digestDirectory(agentDir),

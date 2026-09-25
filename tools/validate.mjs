@@ -263,6 +263,41 @@ function checkBase(report) {
     else report.pass(GATE, "cli/no-naive-flag-skip", "没有手写「跳过旗标值」的索引过滤（统一用 parseArgs）");
   }
 
+  // A5b 路由目录自洽：引用名必须符合约定，且被参数层允许清单覆盖
+  {
+    const routesFile = path.join(CATALOG, "routes.yaml");
+    if (!fs.existsSync(routesFile)) {
+      report.fail(GATE, "routes/present", "缺 core/catalog/routes.yaml —— `model.route` 的合法取值将无人校验");
+    } else {
+      const doc = loadYaml(routesFile);
+      const list = doc.routes ?? [];
+      if (!list.length) report.fail(GATE, "routes/present", "routes.yaml 里没有声明任何路由");
+      else report.pass(GATE, "routes/present", `${list.length} 个路由已声明（${list.map((r) => r.id).join(", ")}）`);
+
+      const prefixOf = (id) => String(id).toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      const badId = list.filter((r) => !/^[a-z][a-z0-9-]{1,30}$/.test(r.id ?? "")).map((r) => r.id ?? "(缺 id)");
+      const badNames = [];
+      for (const r of list) {
+        const want = { baseUrlParam: `${prefixOf(r.id)}_BASE_URL`, credentialParam: `${prefixOf(r.id)}_API_KEY` };
+        for (const [k, expect] of Object.entries(want)) {
+          if (r[k] !== expect) badNames.push(`${r.id}.${k}=${r[k] ?? "(缺)"}，按约定应为 ${expect}`);
+        }
+      }
+      const allowedNames = new Set((params.allowed ?? []).flatMap((a) => (a.refNames ?? [])));
+      const notAllowed = [];
+      for (const r of list) for (const k of ["baseUrlParam", "credentialParam"]) {
+        const n = r[k];
+        if (n && allowedNames.size && !allowedNames.has(n)) notAllowed.push(`${r.id}.${k}=${n}`);
+      }
+      if (badId.length) report.fail(GATE, "routes/id", `路由名不合法（^[a-z][a-z0-9-]{1,30}$）：${badId.join(", ")}`);
+      else report.pass(GATE, "routes/id", "路由名全部合法");
+      if (badNames.length) report.fail(GATE, "routes/param-convention", `引用名不符合约定：${badNames.join("；")}`);
+      else report.pass(GATE, "routes/param-convention", "端点/凭据引用名全部符合 <PREFIX>_BASE_URL / <PREFIX>_API_KEY 约定");
+      if (notAllowed.length) report.fail(GATE, "routes/param-allowed", `引用名未被参数层允许清单覆盖：${notAllowed.join(", ")}`);
+      else report.pass(GATE, "routes/param-allowed", "路由引用名都在参数层允许清单内");
+    }
+  }
+
   // A6 预装清单
   checkPreinstall(report);
 
@@ -271,7 +306,14 @@ function checkBase(report) {
     try { preinstall = loadPreinstall(); } catch { preinstall = null; }
   }
 
-  return { ajv, agentSchema, connectorsSchema, caps, params, preinstall };
+  // 模型路由目录（基座层）：`model.route` 写的必须是这里声明过的路由
+  let routes = null;
+  const routesFile = path.join(CATALOG, "routes.yaml");
+  if (fs.existsSync(routesFile)) {
+    try { routes = loadYaml(routesFile); } catch { routes = null; }
+  }
+
+  return { ajv, agentSchema, connectorsSchema, caps, params, preinstall, routes };
 }
 
 // ---------------------------------------------------------------------------
@@ -554,6 +596,18 @@ function checkAgent(report, ctx, agentDir) {
     const d = path.join(agentDir, "harness", h);
     return fs.existsSync(d) && fs.readdirSync(d).length > 0;
   });
+  // route 必须由基座声明（P-a：能力在基座、选择在智能体）。此前不校验 ⇒ 写错路由名渲染照样成功，
+  // 等到运行时才炸，且报错看不懂。这里当场拦住并给出可用取值。
+  {
+    const routes = ctx.routes?.routes ?? [];
+    const declared = new Set(routes.map((r) => r.id));
+    const route = agent.model?.route;
+    if (!routes.length) report.fail(GATE, "route/declared", "core/catalog/routes.yaml 没有可用路由，无法校验 model.route");
+    else if (!route) report.fail(GATE, "route/declared", "缺 model.route");
+    else if (!declared.has(route)) report.fail(GATE, "route/declared", `model.route「${route}」不是基座声明的路由。可用：${[...declared].sort().join(", ")}`);
+    else report.pass(GATE, "route/declared", `model.route「${route}」是基座声明的路由（${routes.find((r) => r.id === route).api}）`);
+  }
+
   report.pass(GATE, "portability/report",
     `本智能体可移植性：${used.length ? `核心 + ${used.join(" / ")} 增强（不可移植）` : "核心（可移植到所有受支持 harness）"}`);
 

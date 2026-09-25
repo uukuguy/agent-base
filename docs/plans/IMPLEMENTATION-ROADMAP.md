@@ -391,7 +391,7 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 `DSH_HOME=<产物>/dsh-home dsh <name> --dump-config` → 退出码 0，且组合树逐项对上了
 （模型覆盖、人设发现启用、技能目录指向镜像内固定路径、安全姿态以 `!!js` 表达式保留、工具边界禁用生效）。
 
-**conformance 现状**：dsh **7/10 通过**（C1 声明完整性 · C2 渲染确定性 · C4 解析自证 · C5 静默失败检测力 · C8 参数层隔离 · C9 安全下限 · C10 退出码契约）；未过 **C3 / C6 / C7**。pi 侧仍 10/10（无回归）。
+**conformance 现状**：dsh **9/10 通过**（除 C3 外全过，含 C6 零凭据闸门 3/4 与 C7 轨迹合规）；只剩 **C3 渲染完整性**。pi 侧 10/10。
 
 ### 13.1 两处实测推翻/修正
 
@@ -505,3 +505,44 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 | **I1** 企业 LLM 网关 | **没有网关**，验证性 E2E 应用直接调 API；保真转发记为将来风险 | G1 后半「网关吞 tools」**降级为已记录风险**，不建检测、不进准入门槛。门 3/4 仍用零凭据假网关 |
 | **I2** 网络 | **仅运行期无外网**；构建期不严格 | 本包（S8），规模如上缩小 |
 | **I3** 业务场景 | **暂无成熟场景** | 示例保持参考实现定位；能力覆盖面以契约完整性为准，不按某个场景裁剪 |
+
+---
+
+## 15. dsh 打通：从 7/10 到 9/10（2026-09-25）
+
+### 15.1 新增的基座构件：模型路由目录
+
+**发现**：`model.route` 的语义是「**基座声明**的路由名」（agent.schema.json），但仓库里**没有这份声明** ——
+两个渲染器各自硬编码协议形状、参数引用名靠约定推算。后果：智能体写错路由名**渲染照样成功**，
+等到运行时才炸，且报错看不懂。
+
+**处置**：新增 `core/catalog/routes.yaml`（基座层能力目录，P-a 的"能力在基座"）+ 闸门 1 四项校验：
+
+| 检查 | 作用 |
+|---|---|
+| `routes/present` | 路由目录必须存在且非空 |
+| `routes/id` | 路由名合法 |
+| `routes/param-convention` | 端点/凭据引用名符合 `<PREFIX>_BASE_URL` / `<PREFIX>_API_KEY` |
+| `routes/param-allowed` | 引用名被参数层允许清单覆盖 |
+| `route/declared` | **智能体写的 route 必须是已声明的**（负向用例已验：报错并列出可用取值） |
+
+### 15.2 dsh 的运行路径打通（三件）
+
+| 构件 | 说明 |
+|---|---|
+| **provider 路由渲染** | 只写 `agent-default-model.provider: <route>` 只是"选了哪个路由"；路由**存不存在**得由 provider 适配器决定。本 harness 走 `llm-pi-ai` 的 `providers` 字典（`api` / `baseURL` / `apiKeyEnv` / `models`）。不配这一步的失效方式很隐蔽：`--dump-config` 依然成功，直到真跑才报错 |
+| **`adapters/dsh/run.mjs`** | 运行器：暂存副本 + **镜像内固定路径改写为暂存路径** + 端点靠环境变量注入 + 非交互显式放行策略（审批无应答者时是 **fail closed 等人**，不是报错 —— D4）。实测：退出码 0，12 条原生事件 → 12 条统一事件，`tool.call`/`tool.result` 按 `callId` 配对 |
+| **`adapters/dsh/trace.mjs`** | 映射 **`--json` 的 run events**（而不是 zstd 会话文件）：这条通道**带 `callId`**、不需要 zstd 解码。C7 已绿（12 进 12 出、全过 schema、不丢事件） |
+
+### 15.3 两处检查的泛化（都在检查侧，没去迁就）
+
+| 用例 | 泛化 |
+|---|---|
+| **C6** | probe/smoke 改为按 harness 分派运行器；模型断言改成**端点侧取证** —— 断言"端点实际收到了几个工具/是否流式"（读假网关的记录），而不是"harness 说自己发了什么"。这比原判据更强，且天然跨 harness |
+| **C3 的前置** | 渲染器在清单里声明 `skillsInProduct`（技能在产物内的相对位置）—— 上层工具不必知道某 harness 的目录形状。踩到的教训：probe 里我一开始猜 `renderDir/skills`，而 pi 的技能在 `agent-dir/skills` 下 |
+
+### 15.4 剩余：C3（唯一还"按 pi 形状写死"的检查）
+
+C3 认死 `AGENTS.md` / `settings.json` / `extensions` 这些**文件名**。修法已定：
+渲染器在清单里声明 **`expresses` 映射**（定义字段路径 → 产物内位置），检查只验证"声明的位置存在且内容对"。
+**认死文件名等于把第一个 harness 的形状当成契约。**

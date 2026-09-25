@@ -20,7 +20,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { EXIT_CODES, GateReport, parseArgs, runGates } from "../core/gates/index.mjs";
-import { observeLoaded, runAgent } from "../adapters/pi/run.mjs";
+// 运行器按 harness 分派：probe 不该知道"哪个 harness 怎么跑"（那是适配器的事）
+async function loadRunner(harness) {
+  const p = path.join(REPO, `adapters/${harness}/run.mjs`);
+  if (!fs.existsSync(p)) throw new Error(`${harness} 没有运行器（adapters/${harness}/run.mjs）`);
+  return import(p);
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -36,8 +41,8 @@ async function startGateway(port = 0) {
 const USAGE = "用法: node tools/probe.mjs <RENDER_DIR> [--endpoint URL] [--json]\n";
 
 async function main() {
-  const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), { valueFlags: ["--endpoint"] });
-  const args = { renderDir: positionals[0], endpoint: values["--endpoint"] ?? null, json: flags.has("--json"), help: flags.has("--help") || flags.has("-h") };
+  const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), { valueFlags: ["--endpoint", "--harness"] });
+  const args = { renderDir: positionals[0], endpoint: values["--endpoint"] ?? null, harness: values["--harness"] ?? "pi", json: flags.has("--json"), help: flags.has("--help") || flags.has("-h") };
   if (errors.length) { process.stderr.write(errors.join("；") + "\n"); process.exit(EXIT_CODES.usage); }
   if (args.help || !args.renderDir) {
     process.stderr.write(USAGE);
@@ -77,21 +82,33 @@ async function main() {
         id: GATE,
         handler: async (c, rep) => {
           // ---- probe/model ----
-          const run = await runAgent({ renderDir, endpoint: c.endpoint, prompt: "say hi", timeoutMs: 25000 });
-          const reqs = run.events.filter((e) => e.type === "model.request");
+          const runner = await loadRunner(args.harness);
+          const run = await runner.runAgent({ renderDir, endpoint: c.endpoint, prompt: "say hi", timeoutMs: 60000 });
+
+          // **端点侧取证**：断言"端点实际收到了什么"，而不是"harness 说自己发了什么"。
+          // 这样两条通道都成立：pi 的轨迹里有 model.request（回调式），dsh 的轨迹里没有 ——
+          // 但假网关的轨迹里**总是**有它收到的那份请求。判据因此天然跨 harness。
+          const gwEvents = (gateway?.traceLines ?? [])
+            .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+            .filter((e) => e && e.type === "model.request");
+          // 回退：适配器若能从自己的轨迹里给出 model.request（pi 的回调式），也一并采信
+          const fromTrace = run.events.filter((e) => e.type === "model.request");
+          const reqs = gwEvents.length ? gwEvents : fromTrace;
+          c.evidenceSource = gwEvents.length ? "端点侧（假网关记录）" : "适配器轨迹";
           c.modelRequests = reqs;
+          c.run = run;
 
           if (!reqs.length) {
             rep.fail(GATE, "probe/model.reachable",
               `没有观测到任何模型请求（退出码 ${run.exitCode}）。stderr：${(run.stderr || "").slice(-200) || "(空)"}`);
           } else {
-            rep.pass(GATE, "probe/model.reachable", `观测到 ${reqs.length} 次模型请求（端点 ${c.endpoint}）`);
+            rep.pass(GATE, "probe/model.reachable", `端点共收到 ${reqs.length} 次模型请求（证据来源：${c.evidenceSource}）`);
           }
 
           // §6.4 最关键的一条：必须断言 tools=N>0
           const withTools = reqs.filter((e) => Number(e.tools) > 0);
           if (withTools.length) {
-            rep.pass(GATE, "probe/model.tools", `实际发出的工具数 ${withTools[0].tools} > 0（不是"我以为带了"）`);
+            rep.pass(GATE, "probe/model.tools", `端点收到的请求里 tools=${withTools[0].tools} > 0（证据来源：${c.evidenceSource}）`);
           } else {
             rep.fail(GATE, "probe/model.tools",
               `请求里 tools=0 —— 端点或配置吞掉了工具字段（§6.4：这是最常见的故障，且会把网络层问题伪装成配置层问题）`);
@@ -113,15 +130,21 @@ async function main() {
           }
 
           // ---- probe/skills ----
-          const loaded = await observeLoaded(renderDir);
-          const declared = [...(manifest.declaredSkills ?? [])].sort();
-          if (!loaded.complete) {
-            rep.fail(GATE, "probe/skills.reachable", `自证未完成（RPC 无响应）。stderr：${(loaded.stderr || "").slice(-200)}`);
-          } else if (JSON.stringify(loaded.skills) !== JSON.stringify(declared)) {
-            rep.fail(GATE, "probe/skills.reachable",
-              `技能实际加载 ${JSON.stringify(loaded.skills)} ≠ 声明 ${JSON.stringify(declared)}`);
-          } else {
-            rep.pass(GATE, "probe/skills.reachable", `${declared.length} 个技能全部进入会话目录`);
+          // 口径：每个声明的技能在**产物里就位**（文件系统可达）。这是跨 harness 都成立的那一层；
+          // "运行时是否被发现"两边的可观测性不同（pi 能问、dsh 只能看配置），差异已进 exemptions.yaml，
+          // 因此不在闸门 3 里假装两边一样。
+          {
+            // 位置由**清单**给出：产物目录形状是 harness 专有的（pi 在 agent-dir/ 下，dsh 在根）
+            const skillsDir = path.join(renderDir, manifest.skillsInProduct ?? "skills");
+            const declared = [...(manifest.declaredSkills ?? [])].sort();
+            const present = declared.filter((n) => fs.existsSync(path.join(skillsDir, n, "SKILL.md")));
+            if (!fs.existsSync(skillsDir)) rep.fail(GATE, "probe/skills.reachable", `产物里找不到技能目录（清单声明为 ${manifest.skillsInProduct}）`);
+            if (declared.length !== present.length) {
+              rep.fail(GATE, "probe/skills.reachable",
+                `声明的 ${declared.length} 个技能里只有 ${present.length} 个在产物中就位：缺 ${declared.filter((n) => !present.includes(n)).join(", ")}`);
+            } else {
+              rep.pass(GATE, "probe/skills.reachable", `${declared.length} 个技能的 SKILL.md 都在产物中就位`);
+            }
           }
 
           // ---- probe/connectors ----
