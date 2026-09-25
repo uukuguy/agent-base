@@ -203,4 +203,7 @@
 - 22:52 实测证据：**不带连接器时端点收到 4 个工具，带 filesystem 连接器时收到 7 个**（MCP 服务器的工具真的注册进来了），退出码 0 无报错；负向（本地未提供扩展路径）运行器**响亮拒绝**
 - 22:52 复用既有装包机制：扩展进 preinstall.yaml（npm 12 条）→ 构建锁 → 构建期全局安装，运行期不需要网络；镜像已重建并在容器内确认版本 2.37.0
 - 22:52 同步更新声明与文档：adapter.yaml（mcpClient unsupported→extension，含证据）、exemptions（改为"机制不同"）、failures.md F10、docs 02/05/10、CHANGELOG；C9 复跑十项全绿
+- 23:03 🔴 改行为后 C5 立刻变红 —— 不是回归，是**注入用例的预期陈旧了**：F10 原来注入"声明连接器 → 渲染必须失败"，而现在 pi 能渲染连接器
+- 23:03 处置：不删用例，换成**新的静默失败面**「声明了连接器但客户端不在」→ 闸门 2 新增断言 `resolution/connectors-client`，C5 新增通用注入 `connectors-without-client`；实测 F10→20
+- 23:03 ✅ 两侧完整 conformance 复跑 **pi 10/10 · dsh 10/10** 全绿
 

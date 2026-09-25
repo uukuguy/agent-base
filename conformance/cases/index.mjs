@@ -275,6 +275,21 @@ const cases = [
               result = r2.status === 0 ? doctor(h, out) : { status: r2.status, stderr: r2.stderr };
             } else if (c.kind === "thinking-clamp") {
               result = doctor(h, out); // agentOptions 里声明了 reasoningEffort
+            } else if (c.kind === "connectors-without-client") {
+              // 先声明一个连接器并正常渲染，再按 c.inject 摘掉客户端声明
+              fs.writeFileSync(path.join(agent, "connectors.yaml"),
+                "apiVersion: agent-base/v1\nmcpServers:\n  - ref: filesystem\n    enabled: true\n");
+              const r2 = render(h, agent, out);
+              if (r2.status !== 0) { problems.push(`${h}/${c.id}: 注入前渲染就失败了`); continue; }
+              const inj = c.inject ?? {};
+              const files = globUnder(out, inj.file ?? "");
+              if (!files.length) { problems.push(`${h}/${c.id}: 注入目标不存在（${inj.file}）`); continue; }
+              for (const f of files) {
+                const obj = JSON.parse(fs.readFileSync(f, "utf8"));
+                delete obj[inj.key];
+                fs.writeFileSync(f, JSON.stringify(obj, null, 2) + "\n");
+              }
+              result = doctor(h, out);
             } else if (c.inject?.file) {
               // **通用注入**：注入位置由适配器在 failure-cases.yaml 里声明（glob + 追加文本），
               // 检查侧只负责执行。这样加第二个 harness 不必再改检查代码 —— 之前的写法

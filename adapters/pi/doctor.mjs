@@ -222,7 +222,26 @@ async function main() {
           report.fail(GATE, "resolution/harness-version",
             `实际 harness 版本 ${version} 与渲染时记录的 ${manifest.harnessVersion} 不一致——render 产物的可复现性依赖版本 pin`);
         } else {
-          report.pass(GATE, "resolution/harness-version", `harness 版本 ${version}（与渲染时一致）`);
+          // 声明了连接器 ⇒ 产物必须声明 MCP 客户端扩展。
+  // 这一条对治的正是 F10 的新形态：pi 原生没有 MCP 客户端，靠基座种子扩展补上；
+  // 如果产物里有 mcpServers 却没有扩展声明，运行起来就是"连接器被静默忽略"。
+  {
+    const declared = manifest.connectors ?? [];
+    const adapterPath = manifest.mcpAdapterInImage;
+    const stagedSettings = path.join(staging, "settings.json");
+    const packages = fs.existsSync(stagedSettings) ? (JSON.parse(fs.readFileSync(stagedSettings, "utf8")).packages ?? []) : [];
+    if (declared.length && !adapterPath) {
+      report.fail(GATE, "resolution/connectors-client", `声明了 ${declared.length} 个连接器，但清单没记录 MCP 客户端扩展路径 —— 会渲染出一个没有客户端的智能体`);
+    } else if (declared.length && !packages.some((x) => String(x).includes("pi-mcp-adapter"))) {
+      report.fail(GATE, "resolution/connectors-client", `声明了 ${declared.length} 个连接器，但产物的 settings.packages 里没有 MCP 客户端扩展 —— 连接器会被静默忽略`);
+    } else if (declared.length) {
+      report.pass(GATE, "resolution/connectors-client", `${declared.length} 个连接器 + MCP 客户端扩展声明齐备`);
+    } else {
+      report.pass(GATE, "resolution/connectors-client", "未声明连接器，无需客户端扩展");
+    }
+  }
+
+  report.pass(GATE, "resolution/harness-version", `harness 版本 ${version}（与渲染时一致）`);
         }
 
         const rpc = await piRpc({
