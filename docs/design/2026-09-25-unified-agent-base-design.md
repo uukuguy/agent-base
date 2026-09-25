@@ -7,7 +7,7 @@
 | 制品 | `agent-base/`（基座仓库） |
 | 覆盖 harness | pi `@earendil-works/pi-coding-agent@0.87.1`、dsh `0.1.7-rc.1` |
 | 环境 | Node.js v24.20.0、npm 11.19.0、Docker 29.4.0（本机实测版本） |
-| 上位文档 | [`2026-09-25-dsh-agent-base-design.md`](2026-09-25-dsh-agent-base-design.md)、[`2026-09-25-pi-agent-base-design.md`](2026-09-25-pi-agent-base-design.md) |
+| 上位文档 | [`2026-09-25-dsh-harness-design.md`](2026-09-25-dsh-harness-design.md)、[`2026-09-25-pi-harness-design.md`](2026-09-25-pi-harness-design.md) |
 | 本设计的关系 | **取代**两份单 harness 设计的"架构与决策"部分；**保留**两份原文作为 harness 专有实测证据的来源 |
 
 ---
@@ -1342,16 +1342,21 @@ make verify HARNESS=pi,dsh     # 同一份定义，两个 harness，四闸门 + 
 
 ### 12.6 仓库改名（J4 的一次性动作）
 
-当前工作目录为 `~/sandbox/agentic-2026/dsh-agent-base`。改名到 `agent-base` 是**一次性运维动作**，不影响本设计的任何内容：
+**项目名已统一为 `agent-base`**：仓库内的命名（README、本文、全部引用）均已收敛；上游两份单 harness 设计文档也已改名为 `-dsh-harness-design.md` / `-pi-harness-design.md`，文件名不再带旧项目名。
+
+**唯一待执行的是物理目录改名。** 本仓库**没有远端**（`git remote -v` 为空），所以只涉及本地目录：
 
 ```bash
-# 在会话工作目录之外执行（本仓库当前是会话根目录，改名会中断会话）
-git -C ~/sandbox/agentic-2026/dsh-agent-base remote -v          # 1. 确认远端
-mv ~/sandbox/agentic-2026/dsh-agent-base ~/sandbox/agentic-2026/agent-base
-git -C ~/sandbox/agentic-2026/agent-base remote set-url origin <new-url>
+# 必须在会话工作目录之外执行：本仓库就是会话根目录，
+# 就地改名会让会话的工作目录与文件沙箱边界同时失效。
+cd ~/sandbox/agentic-2026
+mv dsh-agent-base agent-base
+git -C agent-base status --short        # 验证：应显示工作区干净
 ```
 
-改名前的替代方案：`README.md` 已按 `agent-base` 命名，仓库名与目录名的不一致由本节显式记录。
+改名后从新路径重新进入即可（`cd ~/sandbox/agentic-2026/agent-base`）。**因为没有远端，不需要 `remote set-url`**。
+
+> 两份上位文档正文里的制品名（`dsh-agent-base/`、`pi-agent-base/`）是当时**单 harness 设计**的名称，已由统一制品 `agent-base` 取代；其正文按历史原件保留，不做改写。
 
 ---
 

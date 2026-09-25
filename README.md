@@ -6,8 +6,8 @@
 同一个智能体定义可以被任意一个受支持的 harness 渲染并运行。
 企业在它之上派生各自的智能体应用——**应用派生到基座之外，不回头修改基座**。
 
-> 仓库目录当前仍叫 `dsh-agent-base`（会话根目录不能就地改名）；改名为 `agent-base` 是一次性运维动作，
-> 步骤见统一设计 §12.6。
+> 项目名已统一为 **`agent-base`**：仓库内的命名（README、设计文档、全部引用）均已按此收敛。
+> **物理目录改名**是唯一待执行的运维动作（当前会话根目录就是该目录），一条命令即可，见统一设计 §12.6。
 
 ## 当前状态
 
@@ -15,9 +15,9 @@
 
 | 文档 | 状态 | 作用 |
 |---|---|---|
-| [`docs/design/2026-09-25-unified-agent-base-design.md`](docs/design/2026-09-25-unified-agent-base-design.md) | **最终稿（v2）** | 统一基座 + 适配契约。§0.2 的四个骨架级决策与 §15.1 的其余取舍**均已裁决**；§15.2 仅剩 3 项需要外部输入（企业网关协议、内网私仓、首批业务场景），不阻塞实现。已整合 `-dsh`/`-pi` 两份候选稿（取舍见附录 D） |
-| [`docs/design/2026-09-25-dsh-agent-base-design.md`](docs/design/2026-09-25-dsh-agent-base-design.md) | 上位依据（已整合） | dsh 专有实测机制仍以此为准 |
-| [`docs/design/2026-09-25-pi-agent-base-design.md`](docs/design/2026-09-25-pi-agent-base-design.md) | 上位依据（已整合） | pi 专有实测约束仍以此为准 |
+| [`docs/design/2026-09-25-unified-agent-base-design.md`](docs/design/2026-09-25-unified-agent-base-design.md) | **最终稿（v2.4）** | 统一基座 + 适配契约。§0.2 的四个骨架级决策与 §15.1 的其余取舍**均已裁决**；§15.2 仅剩 3 项需要外部输入（企业网关协议、内网私仓、首批业务场景），不阻塞实现。已整合 `-dsh`/`-pi` 两份候选稿（取舍见附录 D） |
+| [`docs/design/2026-09-25-dsh-harness-design.md`](docs/design/2026-09-25-dsh-harness-design.md) | 上位依据（已整合） | dsh 专有实测机制仍以此为准 |
+| [`docs/design/2026-09-25-pi-harness-design.md`](docs/design/2026-09-25-pi-harness-design.md) | 上位依据（已整合） | pi 专有实测约束仍以此为准 |
 
 ## 已裁决的四个骨架级决策
 
