@@ -796,6 +796,15 @@ pi 的示例（来自 pi 约束 1/3）：
 
 **假网关是 harness 无关的**（pi §2.3 已确认），只需按 harness 的协议适配。它让闸门 1–3 在**零凭据**下可跑，这是 N14 的实现方式，也是基座自身回归能脱离外部依赖的前提。
 
+> **实现期实测补充（2026-09-25）：`probe/model` 需要链路观测，不能只靠 harness 自报。**
+>
+> 实测确认：pi 的事件流里**没有** wire 级的 `tools` 计数与 `stream` 标志（见 §8.3 缺口 G1）。而"企业网关最常见的故障是吞掉 `tools` 字段或降级流式"恰恰只有**在链路上**才看得见。
+>
+> 因此 `probe/model` 的形态是：**把一个记录代理放在智能体与真实端点之间**，由代理观测并断言 `tools=N>0` 与 `stream=true`。这带来两个好处：① 断言针对的是真实发出的请求，不是 harness 的自我描述；② 同一份代理逻辑可以复用假网关的协议适配层（`tools/fake-gateway/protocols/`），假网关退化为"答得确定的代理"。
+>
+> **反过来说**：只用假网关而不做链路观测，能验证"模型可达"，但验证不了"网关没吞 tools"——那正是最需要验的一条。
+
+
 ### 6.5 闸门 4：端到端冒烟
 
 - 输入：定义里声明的冒烟任务（默认模板给一个确定性任务，不依赖真实外部系统）。
@@ -989,7 +998,22 @@ my-agent:<ver> 镜像文件系统
 
 ### 8.3 统一轨迹与审计事件（N24，G3）
 
-**为什么必须统一**：企业要回答"这个智能体为什么这么决策"（dsh §4.10），而 pi 是扩展打 stderr 一行、dsh 是会话轨迹。审计工具不能按 harness 分叉。
+**为什么必须统一**：企业要回答"这个智能体为什么这么决策"（dsh §4.10），而两个 harness 的原生轨迹形状不同：dsh 是会话轨迹 + 日志插件，pi 是**会话 JSONL 文件 + 结构化事件流**。审计工具不能按 harness 分叉。
+
+> **实现期实测修正（2026-09-25）**：本节原文写"pi 是扩展打 stderr 一行"——**这不准确**。实测 pi 0.87.1 有两套原生轨迹能力：
+> ① `--mode json` 输出**结构化 JSONL 事件流**（`session` 头 + `agent_start`/`turn_*`/`message_*`/`tool_execution_*`/`compaction_*`/`auto_retry_*`/`thinking_level_changed` 等），且 stdout 专供 JSONL、诊断走 stderr —— 与 §8.2 的进程契约天然一致；RPC 模式复用同一套事件形状。
+> ② 版本化**会话文件**（`~/.pi/agent/sessions/--<path>--/<ts>_<id>.jsonl`，v3，用 `id`/`parentId` 构成树，支持就地分支）。
+> 因此 pi 适配器**不需要自建审计扩展**来做基本轨迹 —— 它的职责是**映射**（原生事件 → 统一 schema），见 `adapters/pi/trace-mapping.md`。
+
+**三处必须写清的缺口（否则"统一轨迹"会变成假的安全感）**：
+
+| # | 缺口 | 后果 | 处置 |
+|---|---|---|---|
+| G1 | 事件流里**没有 wire 级的 `tools` 计数与 `stream` 标志**（实测：19,215 条事件里无顶层 `tools` 字段；`toolsAdded` 只是 harness 侧的工具集合，不是发往端点的那份） | §6.4 门 3 最关键的两条断言（网关吞 `tools`、静默降级流式）**无法**由 harness 事件流支撑 | **必须在链路上观测**：本地记录代理，或网关侧埋点。见 §6.4 的补充 |
+| G2 | `tool_execution_end` **没有耗时字段**（实测字段只有 `isError`/`result`/`toolCallId`/`toolName`/`type`） | `tool.result.ms` 只能按事件到达时间推算 | 统一轨迹里该字段必须标注为**推算值**，不许当实测值用于性能结论 |
+| G3 | `tool.call.decision`（allow/deny/ask）**没有原生字段** | 审批语义缺失，"谁放行了这次调用"答不上来 | 在补上审批扩展之前，只能记为 `allow`（执行了即放行）——这是**诚实近似，不是等价**，须进 `exemptions.yaml` |
+
+**未被统一 schema 覆盖的原生事件**（`compaction_*` / `auto_retry_*` / `queue_update` / `entry_appended` / `thinking_level_changed`）：按 P1 决策**先全部走 `native.raw` 并带 `reason`**，不急着升格为正式类型 —— 等真的出现"要按类型查询"的需求再提升（P-c 后验统一）。
 
 **约定**：JSONL，一行一个事件，字段如下（`core/trace/schema.json` 为真源）：
 
@@ -1141,6 +1165,10 @@ registry/agent-base:<h>-debug                           ← 只加调试层：sh
 | `harness/pi/`（业务级增强） | `enhancements.yaml` → `settings.json` 的 `packages` / 注册；`extensions/` → `agent-dir/extensions/`；`agents/`、`prompts/` 原样合并 | 一等公民（§4.5）；扩展 id 集合进闸门 2 断言 |
 
 **基座种子与插件树**：插件树（约 84MB）用**软链**共享而非每次拷贝（pi §3.3 已实测）。基座镜像里只保留 pin 住的上游包，仓库不囤代码。
+
+> **实现期实测修正（2026-09-25）**：上表"基座不变量"行里的 `audit-log.ts` 扩展**不是必需的** —— pi 原生就有结构化事件流与会话文件（§8.3 的实现期修正），轨迹应由 `adapters/pi/trace.mjs` **映射**而不是由扩展**产出**。
+> 该扩展仍然有用的场景只有一个：**补 G3**（`tool.call.decision` —— 审批语义）与写保护的联动。它因此从"基座必备种子"降级为"**按需增强**"，在补上之前 `tool.call.decision` 记为 `allow` 并进 `exemptions.yaml`。
+
 
 ### 10.3 pi 侧已知缺口（必须在实现阶段补齐）
 

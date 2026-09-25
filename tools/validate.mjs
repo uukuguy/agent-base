@@ -39,6 +39,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import Ajv2020 from "ajv/dist/2020.js";
 import { EXIT_CODES, GateReport, digestDirectory } from "../core/gates/index.mjs";
+import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../core/image/resolve-preinstall.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -243,9 +244,8 @@ function checkBase(report) {
   checkPreinstall(report);
 
   let preinstall = null;
-  const preinstallFile = path.join(CORE, "image", "preinstall.yaml");
-  if (fs.existsSync(preinstallFile)) {
-    try { preinstall = loadYaml(preinstallFile); } catch { preinstall = null; }
+  if (fs.existsSync(PREINSTALL_PATH)) {
+    try { preinstall = loadPreinstall(); } catch { preinstall = null; }
   }
 
   return { ajv, agentSchema, connectorsSchema, caps, params, preinstall };
@@ -452,38 +452,27 @@ function checkAgent(report, ctx, agentDir) {
       report.pass(GATE, "cred/not-in-params", "全部 urlRef / credentialRef 都在参数层允许清单内");
     }
 
-    // 报告需要的参数层引用名（**只放名字，不放值**，§6.7）
-    for (const s of connectors.mcpServers ?? []) {
-      for (const k of ["urlRef", "credentialRef"]) if (s[k]) report.paramNames.push(s[k]);
-    }
-    if (agent.model?.route) report.paramNames.push(agent.model.route);
-    report.paramNames = [...new Set(report.paramNames)].sort();
+    // 参数层引用名由解析器统一给出（完整形态取字段、ref 形态取预装条目）—— 见下方 B3'
   }
 
-  // B3' ref 解析：按名引用必须能查到，且凭证引用名要进报告的 paramNames
-  //     未知 ref 必须**显式失败** —— 否则开发者会以为连接器生效了（§4.3 设计点 4）
+  // B3' 连接器解析：ref 形态必须能解析到，且解析结果里的凭据引用名进 §6.7 报告的 paramNames。
+  //     未知 ref 必须**显式失败** —— 否则开发者会以为连接器生效了（§4.3 设计点 4）。
+  //     解析逻辑在 core/image/resolve-preinstall.mjs（harness 无关），这里只消费结果。
   if (connectors) {
-    const named = ctx.preinstall?.namedReferences ?? {};
-    const entriesById = new Map((ctx.preinstall?.entries ?? []).map((e) => [e.id, e]));
-    const unknownRefs = [];
-    for (const s of connectors.mcpServers ?? []) {
-      if (!s.ref) continue;
-      const entryId = named[s.ref];
-      if (!entryId) {
-        unknownRefs.push(`${s.ref}（可用：${Object.keys(named).join(", ") || "无"}）`);
-        continue;
-      }
-      const entry = entriesById.get(entryId);
-      if (entry?.credentialRef) report.paramNames.push(entry.credentialRef);
-    }
+    const resolved = resolveConnectors(connectors, ctx.preinstall);
+    if (agent.model?.route) report.paramNames.push(agent.model.route);
+    report.paramNames.push(...resolved.paramNames);
     report.paramNames = [...new Set(report.paramNames)].sort();
-    if (unknownRefs.length) {
+
+    if (resolved.problems.length) {
       report.fail(GATE, "ref/unknown-ref",
-        `引用了基座预装清单里不存在的名字（core/image/preinstall.yaml 的 namedReferences）：${unknownRefs.join("；")}`);
+        resolved.problems.map((p) => `${p.server}: ${p.detail}`).join("；"));
     } else {
-      const refCount = (connectors.mcpServers ?? []).filter((s) => s.ref).length;
-      if (refCount) report.pass(GATE, "ref/unknown-ref", `${refCount} 个 ref 都能在预装清单里解析到`);
-      else report.pass(GATE, "ref/unknown-ref", "没有使用 ref 形态（全部为完整形态）");
+      const refCount = resolved.servers.filter((s) => s.origin === "ref").length;
+      report.pass(GATE, "ref/unknown-ref",
+        refCount
+          ? `${refCount} 个 ref 都能在预装清单里解析到`
+          : "没有使用 ref 形态（全部为完整形态）");
     }
   }
 

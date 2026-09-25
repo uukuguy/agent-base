@@ -56,3 +56,13 @@
 - 17:10 capabilities.yaml 增 mcpServers[].ref（能力目录现覆盖 schema 全部 20 个字段路径）
 - 17:10 validate 新增 ref/unknown-ref 检查：未知 ref 显式失败；ref 命中的预装条目凭据进 paramNames
 - 17:10 新负向样本 09-unknown-ref / 10-ref-override；闸门 1 现 27 项检查 + 11 个自检样本全绿
+- 17:30 S2 进行中：core/image/resolve-preinstall.mjs（harness 无关的 ref 解析）+ adapters/pi/adapter.yaml + failures.md + trace-mapping.md + render.mjs
+- 17:30 实测 §10.1 约束 2/3 全部复现；另发现 pi 第二隐式技能源（cwd 祖先的 .agents/skills）
+- 17:35 🔴 实测修正设计 §8.3：pi **原生**有结构化事件流与会话文件，原文「pi 是扩展打 stderr 一行」不成立 → traceEmit 由 extension 改为 native
+- 17:35 实测 pi 事件流 19,215 条 0 解析失败；toolsAdded/（provider,model,api）/tool_execution_* 字段已核实
+- 17:35 🔴 缺口 G1：pi 事件流**无 wire 级 tools 计数与 stream 标志** → §6.4 门 3 的两条关键断言必须靠链路观测（记录代理），已写进设计 §6.4
+- 17:35 缺口 G2：tool_execution_end 无耗时字段 → 统一轨迹的 ms 只能标注为推算值
+- 17:35 缺口 G3：tool.call.decision 无原生字段 → 暂记 allow 并进 exemptions；audit-log 扩展从基座必备降级为按需增强
+- 17:35 实测 F5 闭环：settings 的 defaultThinkingLevel 与 CLI --thinking 都被静默钳到 off（模型无 thinking 元数据）
+- 17:40 实测 tools.deny → --exclude-tools 生效（请求里 4 个工具降为 3 个）；且 pi 能零凭据打到我们的假网关（N14 闭环）
+- 17:40 实测发现：假网关在带 tools 时会一直返回工具调用 → pi 无限循环；门 3/4 需要「会话终止」语义（记入待办）

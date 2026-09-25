@@ -1,0 +1,106 @@
+harness: pi
+version: "0.87.1"          # 精确 pin（本机实测版本）
+adapterVersion: "0.1.0"
+
+renders:
+  output: agent-dir        # 渲染产物形态
+  deterministic: true      # 同输入同输出（conformance/C2 会验证）
+
+# ============================================================================
+# 能力声明（统一设计 §5.2）
+# 每项取值：supported | partial | unsupported | extension
+#   · partial      —— 能用但有限制，限制必须写进 note，且必须进 failures.md 的检测清单
+#   · extension    —— 靠扩展实现（基座自带或以业务级增强补）
+#   · absent       —— 该 harness 原生没有这个能力，属"要接就得补"的事实，不是缺陷
+#
+# 每条 note 都标注依据：【实测】= 本机跑出来的；【文档】= 上游 docs；【待实测】= 尚未证实
+# ============================================================================
+capabilities:
+  nativeParamInterpolation: unsupported
+  nativeParamInterpolationNote: >
+    models.json 只对 apiKey 与 headers 做环境插值，baseUrl 不做【实测 + 文档 models.md】。
+    处置：渲染器产出 models.json.tmpl，entrypoint 在启动期用参数层渲染 —— 这正是「行为烤、参数下放」的实现。
+
+  runtimeWritableConfig: supported
+  runtimeWritableConfigNote: >
+    连 --list-models 都会写 <agent-dir>/{models-store.json,auth.json}【实测】。
+    处置：只读种子 + 启动期暂存为可写副本。
+
+  implicitSkillSources: partial
+  implicitSkillSourcesNote: >
+    两个隐式源，配置键都关不掉【实测】：
+      ① $HOME/.agents/skills
+      ② <cwd 祖先>/.agents/skills（沿工作目录向上发现，止于仓库根）—— **第二源常被忽略**
+    处置：文件系统隔离（固定 HOME + 中立化 cwd）+ `--no-skills --skill <声明目录>` 双保险。
+
+  configInclude: unsupported
+  configIncludeNote: >
+    settings.json 无 include/extends，不能多文件拼接。处置：构建期扁平化，渲染器产出完整最终值。
+
+  hmr: unsupported
+  hmrNote: 改配置需重启。处置：本地迭代用交互模式，见 §9.1。
+
+  childAgents: partial
+  childAgentsNote: subagent 扩展已加载，未跑真实委派（N20 的解除条件）。
+
+  osSandbox: unsupported
+  osSandboxNote: 无 OS 级沙箱（Linux 下也没有等价物）。处置：容器层承担硬下限（§7.2）。
+
+  permissionModel: extension
+  permissionModelNote: 靠 protected-paths 扩展。
+
+  traceEmit: native
+  traceEmitNote: >
+    **原生支持，不需要自建审计扩展**（实测修正：原文曾标为 extension）。
+    两条原生轨迹通道：
+      ① `--mode json` 的结构化 JSONL 事件流（stdout 专供 JSONL，诊断走 stderr，与 §8.2 天然一致）；
+         RPC 模式复用同一套事件形状。
+      ② 版本化会话文件 `~/.pi/agent/sessions/--<path>--/<ts>_<id>.jsonl`（v3，id/parentId 树，可分支）。
+    适配器职责是**映射**而非发明：见 trace-mapping.md。
+    三处缺口必须显式处理：G1 事件流无 wire 级 tools 计数与 stream 标志（门 3 需链路观测）；
+    G2 tool_execution_end 无耗时字段（ms 只能推算）；G3 tool.call.decision 无原生字段（暂记 allow）。
+
+  mcpClient: absent
+  mcpClientNote: >
+    **pi 原生没有 MCP 客户端**【实测】：docs/README/CHANGELOG 零提及，包内无 mcp.json / allowInstall /
+    hostConfigDiscovery，bundle 里的 mcpServers 全是 Gemini SDK 内部字段。
+    处置：基座提供客户端能力（npm 上已有成熟第三方 pi MCP 扩展，见
+    docs/research/2026-09-25-mcp-ecosystem-survey.md），用 conformance C1–C10 选型后进 seed。
+    **在选定之前，声明了 connectors 的智能体在 pi 上必须渲染失败（响亮），不许静默忽略。**
+
+  runModes: [interactive, oneshot, rpc, debug]
+
+failures: failures.md
+exemptions: exemptions.yaml
+
+# ============================================================================
+# 运行期契约（适配决策，全部来自实测；S3 的 run-local / entrypoint 照此实现）
+# ============================================================================
+runtime:
+  configDir:
+    env: PI_CODING_AGENT_DIR
+    value: <render 产物>/agent-dir
+    why: >
+      直接把配置目录指向渲染产物，**不必伪造 $HOME/.pi/agent**【实测：get_state 读到了渲染的
+      models.json/settings.json，报 provider=corp-gateway model=corp-think】。
+  isolation:
+    home: 固定到空目录（杀掉 $HOME/.agents/skills 隐式源）
+    cwd: 中立目录（杀掉 cwd 祖先的 .agents/skills 隐式源）
+    why: P-b —— 隔离靠文件系统，不靠配置
+  skills:
+    flags: ["--no-skills", "--skill", "<每个声明目录>"]
+    why: >
+      --no-skills 关掉发现，--skill 显式加载声明目录【实测：命令列表里只剩声明的 skill:example，
+      隐式源的 skill:leaked 消失】。与文件系统隔离叠加使用（双保险）。
+  offline:
+    env: PI_OFFLINE
+    value: "1"
+    why: 启动期不做网络操作（模型目录刷新、版本检查），使闸门 1–2 真正零网络。
+  session:
+    flags: ["--no-session"]
+    why: 验证场景不留会话文件，保证可重复。
+  rpc:
+    requestShape: '{"type":"get_commands"} / {"type":"get_state"}'
+    why: >
+      零凭据自证原语【实测】。注意：不是 JSON-RPC 的 method 字段，用错会得到
+      {"success":false,"error":"Unknown command: undefined"}。
