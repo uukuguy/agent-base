@@ -847,7 +847,7 @@ registry/<agent-name>:<ver>@sha256:<digest>             ← 智能体镜像：�
 | **退出码** | §6.7 的表（验证工具与运行时共用同一套语义） |
 | **stdout** | **只放结果**：批处理模式下是任务输出；验证模式下是 `verify --json` |
 | **stderr** | 人读日志 + 统一轨迹事件（JSONL） |
-| **`AGENT_RUN_MODE`** | `interactive`（默认，人用）/ `oneshot`（`-p` 语义，CI 用）/ `rpc`（常驻，平台接入）/ `debug`（交互排查，**仅 debug 变体镜像**，§8.5） |
+| **`AGENT_RUN_MODE`** | `interactive`（默认，人用）/ `oneshot`（`-p` 语义，CI 用）/ `rpc`（常驻，平台接入）/ `debug`（交互式调试运行时，**仅 debug 变体镜像**，§8.5） |
 | **参数分派** | 无参数 = `interactive`；`-` 开头 = 透传 harness 原生参数；其它 = 命令（pi entrypoint 已实测的做法，通用化） |
 | **EPIPE** | 客户端提前关闭 stdout 会让子进程崩溃（pi 实测）→ RPC 客户端必须持续读取；基座侧捕获 EPIPE 并给出明确错误而非崩溃 |
 
@@ -886,14 +886,22 @@ registry/<agent-name>:<ver>@sha256:<digest>             ← 智能体镜像：�
 
 ### 8.5 调试手段
 
-基座镜像本身携带三道**零侵入**调试面，第四道走**调试变体镜像**。原则：**调试面按侵入性递增；生产镜像只含前三道，交互排查工具绝不进生产镜像**——否则违反 §7.2 的最小权限 / 只读根 / 默认离线，并把调试行为与交付行为混进同一制品。
+基座镜像本身携带三道**零侵入**调试面，第四道走**调试变体镜像**。原则：**调试面按侵入性递增；生产镜像只含前三道，交互式调试运行时及其工具绝不进生产镜像**——否则违反 §7.2 的最小权限 / 只读根 / 默认离线，并把调试行为与交付行为混进同一制品。
 
 | 道 | 手段 | 何时用 | 侵入性 |
 |---|---|---|---|
 | ① 自证 | 容器内 `make doctor`（闸门 2 解析自证，零网络） | 先问"harness 实际加载了什么" | 无（已在基座） |
 | ② 轨迹 + 退出码 | 统一轨迹 JSONL 到 stderr（`docker logs -f` 即读）+ §6.7 退出码定位失败层 | "它做了什么、在哪一步失败" | 无（已在基座） |
 | ③ 诊断重放 | 容器内 `make probe HARNESS=…` 单跑闸门 3 探针 | 把"网络层 vs 配置层"问题分开（§6.4） | 无（已在基座） |
-| ④ 交互排查 | `agent-base:<h>-debug` 变体 + `AGENT_RUN_MODE=debug` 进诊断 shell | 前三道不够，要进容器手动查 | 有（仅 debug 变体） |
+| ④ 交互式调试运行时 | `agent-base:<h>-debug` 变体 + `AGENT_RUN_MODE=debug`：agent 交互会话 + 人在环审批 + 诊断 shell | 前三道只回答"过没过"，④回答"为什么这样、换种做法会怎样" | 有（仅 debug 变体） |
+
+**④ 不是"跑更多测试"，而是一个交互式运行环境**——前三道（① 自证 / ② 轨迹 / ③ 重放）是**验证**，回答"过没过"；④ 是**交互**，回答"为什么这样、我想让它换种做法会怎样"。它由三个能力组成：
+
+| 能力 | 干什么 | 对应机制 |
+|---|---|---|
+| **交互式 agent 会话** | 发消息 / 派任务，实时看工具调用与结果、已加载技能、模型路由 | harness 原生 `interactive`/tui + 轨迹实时流到 stderr |
+| **人在环审批** | 逐条 approve / deny 工具调用，调试危险或不可逆操作 | dsh 权限预设 / pi 审批 |
+| **诊断 shell** | 查文件、进程、生效配置 | 调试层工具（shell / curl / ripgrep / jq） |
 
 **调试变体镜像（④）**：
 
@@ -901,7 +909,7 @@ registry/<agent-name>:<ver>@sha256:<digest>             ← 智能体镜像：�
 registry/agent-base:<h>-<ver>@sha256:<digest>          ← 生产基座镜像
         │  FROM（同 digest）
         ▼
-registry/agent-base:<h>-debug                           ← 只加调试层：shell + curl/ripgrep/jq + 诊断脚本
+registry/agent-base:<h>-debug                           ← 只加调试层：shell/curl/ripgrep/jq + 交互调试入口
 ```
 
 | 规则 | 说明 |
@@ -911,6 +919,8 @@ registry/agent-base:<h>-debug                           ← 只加调试层：sh
 | **临时放开仅限 debug 镜像** | 可写层、出站网络只在 debug 变体里放开（且需显式挂载），生产镜像仍保持只读根 + 默认离线（§7.2） |
 | **不进生产镜像** | 调试工具（shell、curl 等）有攻击面（出站、shell 逃逸），**绝不烤进生产基座镜像**；`conformance/C9` 断言生产镜像不含调试工具 |
 | **入口脚本拒绝越权** | 生产镜像的 entrypoint 遇到 `AGENT_RUN_MODE=debug` 必须失败（退出码 2）；只有 debug 变体的 entrypoint 接受它 |
+
+**与本地 `run-local` 的关系**：§9.3 的 `run-local` 是**本地开发期**的交互；④ 是**容器里**的同一能力，用来复现"只在容器出现"的问题——Linux 沙箱、隔离 `HOME`、只读根文件系统、默认断网（§9.2 差异表）。同一个 harness `interactive` 能力，两个环境各一个入口，两者跑的是**同一份渲染产物**（本地挂载 / 容器烤入）。
 
 **崩溃取证**：退出码 50（harness 崩溃）时，entrypoint 把轨迹最后 N 行摘要 + `effectiveConfigDigest` 打到 stderr 后退出，保证"连 shell 都进不去"时也有可读线索。
 
@@ -1292,7 +1302,7 @@ git -C ~/sandbox/agentic-2026/agent-base remote set-url origin <new-url>
 | 两个示例场景（P2） | `idea-to-proof`（纯技能型）+ `contract-review`（带 MCP，正好演示双 harness） | §2.4 |
 | `conformance` 严格度（P3） | **C1–C10 全为阻断性门槛** | §5.6 |
 | 第三个 harness（P4） | **不预留、不造桩**；通过 `conformance` 即可接入 | §5.7 |
-| 调试手段 | 四道调试面（自证 / 轨迹 / 探针 / 交互排查）；交互排查走 `agent-base:<h>-debug` 变体，调试工具不进生产镜像 | §8.5 / §7.2 |
+| 调试手段 | 四道调试面：①②③ 验证（自证 / 轨迹 / 探针）+ ④ 交互式调试运行时（agent 会话 + 人在环 + 诊断 shell）；④ 走 `agent-base:<h>-debug` 变体，不进生产镜像 | §8.5 / §7.2 |
 | 本地开发环境 | `make dev-env` 按 pin 装 harness 到一致版本；`run-local` 用临时 HOME/DSH_HOME 挂 render 产物 | §9.3 |
 
 ### 15.2 需要外部输入（评审无法代决）
