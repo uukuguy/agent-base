@@ -26,14 +26,16 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const log = (m) => process.stderr.write(m + "\n");
 
-const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), { valueFlags: ["--harness", "--out"] });
+const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), { valueFlags: ["--harness", "--out", "--endpoint"] });
 const json = flags.has("--json");
 const harness = values["--harness"] ?? "pi";
+// 不传 = 用零凭据假网关（默认，不需要任何密钥）；传了 = 针对真实端点跑闸门 3/4
+const endpointArg = values["--endpoint"] ? ["--endpoint", values["--endpoint"]] : [];
 const agentDirArg = positionals[0];
 
 if (errors.length) { process.stderr.write(errors.join("；") + "\n"); process.exit(EXIT_CODES.usage); }
 if (flags.has("--help") || flags.has("-h") || !agentDirArg) {
-  process.stderr.write("用法: node tools/verify.mjs <AGENT_DIR> [--harness pi] [--out RENDER_DIR] [--json]\n");
+  process.stderr.write("用法: node tools/verify.mjs <AGENT_DIR> [--harness pi] [--out RENDER_DIR] [--endpoint URL] [--json]\n");
   process.exit(flags.has("--help") || flags.has("-h") ? EXIT_CODES.ok : EXIT_CODES.usage);
 }
 
@@ -90,7 +92,7 @@ for (const [gateId, tool, label] of [
   ["smoke", "tools/smoke.mjs", "闸门 4：端到端冒烟"],
 ]) {
   log(`── ${label} ──`);
-  const res = runTool([path.join(REPO, tool), renderDir, "--json"]);
+  const res = runTool([path.join(REPO, tool), renderDir, "--json", ...(tool.includes("probe") || tool.includes("smoke") ? endpointArg : [])]);
   addGate(gatesOf(res.parsed), gateId);
   const okNow = collected.every((g) => (g.checks ?? []).every((c) => c.status === "pass"));
   if (!okNow) break; // 首个失败即停：闸门 1 都不过时，闸门 3 的结论毫无意义
