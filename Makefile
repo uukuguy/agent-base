@@ -89,6 +89,10 @@ image-all: ## 每架构分别构建（原生优先，失败隔离），再合并
 	@node core/image/build.mjs --all $(if $(DEBUG),--debug,)
 	@node core/image/build.mjs --manifest
 
+image-push: ## 构建并推送多架构镜像到 registry（需 IMAGE_REF=host/ns/name:tag）—— 本机标准路径
+	@test -n "$(IMAGE_REF)" || { echo "需要 IMAGE_REF，例如 IMAGE_REF=registry.example.com/ns/agent-base:0.1.0"; exit 2; }
+	@node core/image/build.mjs --push $(IMAGE_REF)
+
 image-manifest: ## 只产出多架构 manifest list（OCI 归档落盘，不推 registry）
 	@node core/image/build.mjs --manifest
 

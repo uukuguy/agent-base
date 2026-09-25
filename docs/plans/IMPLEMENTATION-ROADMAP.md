@@ -289,7 +289,8 @@ mcpServers:
 
 | 事实 | 后果 |
 |---|---|
-| context 只有 `docker` 驱动（`default` 与 `orbstack` 两个 builder 都是） | 该驱动**不支持 OCI 导出** ⇒ 多架构打包**只能**用自建的 `docker-container` 驱动 builder（`ab-multi`）。这不是多此一举，是本环境下的唯一路径 |
+| context 只有 `docker` 驱动（`default` 与 `orbstack` 两个 builder 都是） | **该驱动连多平台构建都不支持**。实测两条报错：<br>· `docker buildx build --platform linux/amd64,linux/arm64` ⇒ `Multi-platform build is not supported for the docker driver`<br>· 加 `--load` ⇒ `docker exporter does not currently support exporting manifest lists`<br>**同一条命令加 `--builder ab-multi`（docker-container 驱动）即退出码 0。** 所以多架构**只能**用自建的 container builder —— 这不是多此一举，是本环境下的唯一路径（另一条路是打开 containerd 镜像存储，但 OrbStack 未暴露该开关：`orb config get` 查无此键） |
+| 三个终点各有前提 | `--load` 单架构可用 / `--push` 需配好的 registry（本地 HTTP registry 还要 insecure 配置）/ `--output type=oci` 无需 registry。**"构建成功"与"落到哪里"是两件事**，别混 |
 | x86_64 走 Rosetta 模拟（比 QEMU 快） | amd64 镜像构建/实测代价可接受（实测 base+debug 约 2.5 分钟） |
 | builder 是容器形态，OrbStack 重启后可能未就绪 | `--manifest` 复用 builder 前先 `inspect --bootstrap` 确保就绪，否则会拿到含糊的 "no builder" 失败 |
 

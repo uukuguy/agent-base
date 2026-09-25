@@ -148,4 +148,6 @@
 - 18:25 删掉"预热 npx 缓存"这一伪步骤（npm cache add 无效；真正生效的是按精确 pin 全局安装）
 - 18:45 用户澄清：本机 Docker **一直由 OrbStack 管理**（2.2.3）。核实：orbstack context 只有 docker 驱动 ⇒ 不支持 OCI 导出 ⇒ 自建 docker-container builder 是本环境唯一路径（非多余）；x86_64 走 Rosetta
 - 18:45 加固：--manifest 复用 builder 前先 inspect --bootstrap（OrbStack 重启后 builder 可能未就绪）；并真正走 make image-manifest 验证通过（1.68 GB 归档）
+- 18:55 澄清"docker buildx 行不行"：**buildx 本身能用，本机当前 builder 不行**。实测同一条多平台命令：orbstack context ⇒ `Multi-platform build is not supported for the docker driver`；加 `--builder ab-multi` ⇒ 退出码 0。已把这两个报错与三个终点的前提写进路线图 §10.2
+- 18:55 诚实标注：本地 HTTP registry 推送未验证成功（buildkit 对 host.docker.internal:5000 走 HTTPS ⇒ TLS 报错），需要 insecure 配置；推送路径本身只是 buildx `--push` 的薄封装
 
