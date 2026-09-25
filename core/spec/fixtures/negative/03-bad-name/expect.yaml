@@ -1,0 +1,2 @@
+expectFailure: schema/agent
+why: name 决定镜像名与 dsh profile 名，必须匹配 ^[a-z][a-z0-9-]{1,30}$。

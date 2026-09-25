@@ -1,0 +1,2 @@
+expectFailure: ref/skillsDir
+why: 引用完整性是闸门 1 的必查项（§6.2）；目录不存在必须在静态阶段报错，不能等到渲染。

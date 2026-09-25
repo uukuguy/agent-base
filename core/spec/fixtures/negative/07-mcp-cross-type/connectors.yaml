@@ -1,0 +1,6 @@
+apiVersion: agent-base/v1
+mcpServers:
+  - name: jira
+    transport: streamable-http
+    command: node
+    description: http 却给了 command

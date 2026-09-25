@@ -1,0 +1,2 @@
+expectFailure: cred/not-in-params
+why: 凭据只写引用名，且引用名必须落在 catalog/params.yaml 的允许清单内（N18）；否则部署期无人知道该注入什么。

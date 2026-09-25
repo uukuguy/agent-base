@@ -1,0 +1,8 @@
+apiVersion: agent-base/v1
+name: bad-agent
+description: 凭据引用名不在参数层清单内
+persona:
+  instructions: 测试
+model:
+  route: corp-gateway
+  name: corp-think

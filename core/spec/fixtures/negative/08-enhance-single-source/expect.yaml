@@ -1,0 +1,2 @@
+expectFailure: enhance/single-source
+why: 增强不得与中性定义重复表达同一字段（§4.5）——两个真源必然漂移，validate 直接拒绝。

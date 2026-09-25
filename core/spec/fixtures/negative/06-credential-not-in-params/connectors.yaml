@@ -1,0 +1,7 @@
+apiVersion: agent-base/v1
+mcpServers:
+  - name: jira
+    transport: streamable-http
+    urlRef: AGENT_JIRA_ENDPOINT_PROD
+    credentialRef: JIRA_CREDS
+    description: 工单系统

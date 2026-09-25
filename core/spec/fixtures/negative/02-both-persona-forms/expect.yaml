@@ -1,0 +1,2 @@
+expectFailure: schema/agent
+why: instructions 与 instructionsFile 互斥（§4.2）；两个都给会让「真源」变成两处。

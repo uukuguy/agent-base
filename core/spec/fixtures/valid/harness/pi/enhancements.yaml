@@ -1,0 +1,7 @@
+apiVersion: agent-base/v1
+harness: pi
+enhancements:
+  - kind: tool
+    id: corp-risk-score
+    entry: extensions/corp-risk-score.ts
+    description: 企业风险评分工具

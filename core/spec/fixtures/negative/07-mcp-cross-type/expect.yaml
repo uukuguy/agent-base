@@ -1,0 +1,2 @@
+expectFailure: schema/connectors
+why: transport 分型是互斥的：streamable-http 必须给 urlRef、stdio 必须给 command。跨型字段静默忽略会让「配了没生效」变成常态。

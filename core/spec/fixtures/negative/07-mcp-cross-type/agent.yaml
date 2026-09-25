@@ -1,0 +1,8 @@
+apiVersion: agent-base/v1
+name: bad-agent
+description: 连接器跨型字段
+persona:
+  instructions: 测试
+model:
+  route: corp-gateway
+  name: corp-think

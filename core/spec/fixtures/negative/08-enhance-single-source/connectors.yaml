@@ -1,0 +1,14 @@
+apiVersion: agent-base/v1
+mcpServers:
+  - name: jira
+    transport: streamable-http
+    urlRef: AGENT_JIRA_ENDPOINT_PROD
+    credentialRef: JIRA_TOKEN
+    enabled: true
+    description: 工单系统
+  - name: gitlab
+    transport: stdio
+    command: npx
+    args: ["-y", "@corp/gitlab-mcp@1.2.3"]
+    credentialRef: GITLAB_TOKEN
+    description: 代码托管

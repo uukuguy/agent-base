@@ -1,0 +1,9 @@
+apiVersion: agent-base/v1
+name: bad-agent
+description: 人设两种形式同时出现
+persona:
+  instructions: 内联人设
+  instructionsFile: prompts/system.md
+model:
+  route: corp-gateway
+  name: corp-think

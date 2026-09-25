@@ -1,0 +1,18 @@
+{
+  "name": "agent-base",
+  "version": "0.1.0",
+  "private": true,
+  "description": "统一企业智能体基座：中性智能体定义 + harness 适配契约 + 四道验证闸门。本 package.json 只承载基座工具链自身的依赖，不进入任何智能体制品。",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "validate": "node tools/validate.mjs",
+    "selftest": "node tools/validate.mjs --selftest"
+  },
+  "dependencies": {
+    "ajv": "8.17.1",
+    "yaml": "2.6.1"
+  }
+}

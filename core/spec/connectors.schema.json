@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-base/spec/connectors.schema.json",
+  "title": "connectors.yaml —— 中性连接器定义",
+  "description": "统一设计 §4.3 的唯一真源。两个设计点：① urlRef / credentialRef 只写引用名，取值来自参数层（N18）；② stdio 的 command/args 属制品层——它决定「能连什么」，且是可执行内容，必须可评审、可 pin 版本。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "mcpServers"],
+  "properties": {
+    "apiVersion": {
+      "const": "agent-base/v1"
+    },
+    "mcpServers": {
+      "type": "array",
+      "description": "连接器列表。不写 = 无连接器；写空数组等价于无连接器。",
+      "items": { "$ref": "#/$defs/server" }
+    }
+  },
+  "$defs": {
+    "refName": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,63}$",
+      "description": "参数层引用名（环境变量名形态）。取值来自 core/catalog/params.yaml 允许清单里的条目。"
+    },
+    "server": {
+      "description": "按 transport 分型：streamable-http 必须给 urlRef，stdio 必须给 command。两个分型各自 additionalProperties:false，因此跨型字段（如 http 里写 command）会被直接拒绝。",
+      "oneOf": [
+        { "$ref": "#/$defs/httpServer" },
+        { "$ref": "#/$defs/stdioServer" }
+      ]
+    },
+    "httpServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "transport", "urlRef"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "description": "必填。对齐 harness 侧的 serverName 命名空间约束（各 harness 的支持度见能力目录）。"
+        },
+        "transport": { "const": "streamable-http" },
+        "urlRef": {
+          "$ref": "#/$defs/refName",
+          "description": "endpoint 是参数层：只写引用名（§4.3 设计点 1）。"
+        },
+        "credentialRef": {
+          "$ref": "#/$defs/refName",
+          "description": "凭据是参数层：只写引用名。无鉴权的内部服务器可省略。"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "「有哪些连接器」改变行为 → 属制品层。闸门 2 断言 enabled:true 的集合 == 声明集合（§6.3）。"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "进能力目录与系统提示词。"
+        }
+      }
+    },
+    "stdioServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "transport", "command"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,32}$"
+        },
+        "transport": { "const": "stdio" },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "可执行名或镜像内固定路径。属制品层。"
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "参数列表。引用自研连接器时用相对路径（如 mcp-servers/corp-internal/index.js），渲染器解析成镜像内固定路径（§4.3 设计点 3、§8.1）。"
+        },
+        "credentialRef": {
+          "$ref": "#/$defs/refName"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+apiVersion: agent-base/v1
+name: bad-agent
+description: 含未知字段
+persona:
+  instructions: 测试
+model:
+  route: corp-gateway
+  name: corp-think
+temperature: 0.7

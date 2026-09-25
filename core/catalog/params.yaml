@@ -1,0 +1,163 @@
+apiVersion: agent-base/v1
+
+# ============================================================================
+# 参数层允许/禁止清单（统一设计 §2.3）—— 「行为烤、参数下放」(J2) 的第一个执法点
+#
+# 判据（§2.2 的执法线，只有一句话）：
+#   这个字段改了，同一个输入会不会得到不同行为？
+#     · 会   → 必须进制品（构建期渲染、可评审、可回滚、可签名）
+#     · 不会 → 允许参数层（端点、凭据、探针参数等部署期差异）
+#
+# 谁读这份清单：
+#   · tools/validate.mjs        —— 校验 credentialRef / urlRef 是否都在允许清单里；
+#                                  校验禁止项的 definitionPaths 确实被能力目录标为制品层
+#   · conformance/C8（§5.6）     —— 把禁止项当参数注入，要求「无效或直接报错」，不得静默生效
+#   · adapters/<h>/             —— 只允许插值本清单里的名字（§11.3：读清单外的 process.env 名字 = 纪律违规）
+#
+# 允许清单里的条目分两类：
+#   · 在智能体定义里有对应引用字段的（backs 非空）—— 定义里只写「引用名」，取值来自这里
+#   · 纯部署参数（backs 为空）—— 定义里根本不出现，只在部署期注入
+# ============================================================================
+
+description: 参数层允许/禁止清单。机器可读真源，validate 与 conformance/C8 共同消费。
+
+nameDerivation:
+  # 引用名 → 环境变量名的约定（适配器必须按同一约定解析）
+  rule: "大写 + 非字母数字字符替换为下划线"
+  examples:
+    - { ref: corp-gateway, env: CORP_GATEWAY_API_KEY }
+    - { ref: corp-gateway, env: CORP_GATEWAY_BASE_URL }
+
+allowed:
+  - id: connector-endpoint
+    kind: connector-endpoint
+    pattern: "^AGENT_[A-Z0-9_]+_ENDPOINT_[A-Z0-9_]+$"
+    secret: false
+    backs: ["mcpServers[].urlRef"]
+    design: "§2.3 / §4.3 设计点 1"
+    note: 连接器端点覆盖。同名系统的不同环境实例；换环境不该重建智能体。
+
+  - id: connector-credential
+    kind: connector-credential
+    pattern: "^[A-Z][A-Z0-9_]*_(TOKEN|SECRET|KEY|PASSWORD)$"
+    secret: true
+    backs: ["mcpServers[].credentialRef"]
+    design: "§4.3 / N18"
+    note: >
+      连接器凭据。§2.3 的表格未逐项列出连接器凭据，这里按 §4.3 的示例名（JIRA_TOKEN / GITLAB_TOKEN）
+      归纳出 v1 命名约定，使 validate 能判定 credentialRef 是否落在允许清单内。
+      **这是本清单里唯一由示例归纳、而非表格原文列出的条目**——若约定不合适，改这里即可。
+
+  - id: route-api-key
+    kind: model-route-credential
+    pattern: "^[A-Z][A-Z0-9_]*_API_KEY$"
+    secret: true
+    backs: ["model.route"]
+    design: "§2.3 / §11.4"
+    note: 模型路由凭据。路由名（制品层）决定用哪条路由，密钥属于部署期。
+
+  - id: route-base-url
+    kind: model-route-endpoint
+    pattern: "^[A-Z][A-Z0-9_]*_BASE_URL$"
+    secret: false
+    backs: ["model.route"]
+    design: "§2.3 / §10.2 约束 1 / §11.4"
+    note: 模型路由端点。pi 的 models.json.tmpl 在启动期渲染；dsh 走 apiKeyEnv / 路由字典。
+
+  - id: probe-param
+    kind: probe-parameter
+    pattern: "^AGENT_PROBE_[A-Z0-9_]+$"
+    secret: false
+    backs: []
+    design: "§2.3 / §6.4"
+    note: 探针参数（超时、目标）。只影响「怎么探测」，不影响智能体行为。
+
+  - id: log-level
+    kind: observability
+    pattern: "^AGENT_LOG_LEVEL$"
+    secret: false
+    allowedValues: [debug, info, warn, error]
+    backs: []
+    design: "§2.3"
+
+  - id: trace-dest
+    kind: observability
+    pattern: "^AGENT_TRACE_DEST$"
+    secret: false
+    backs: []
+    design: "§2.3 / §8.3"
+    note: 轨迹输出位置。轨迹格式本身由 core/trace/schema.json 强制，不因目的地而变。
+
+  - id: run-mode
+    kind: runtime
+    pattern: "^AGENT_RUN_MODE$"
+    secret: false
+    allowedValues: [interactive, oneshot, rpc, debug]
+    backs: []
+    design: "§2.3 / §8.2 / §8.5"
+    note: >
+      debug 只在 agent-base:<h>-debug 变体里有效；生产基座 entrypoint 遇到
+      AGENT_RUN_MODE=debug 即以退出码 2 退出（§8.5）。
+
+  - id: secrets-dir
+    kind: runtime
+    pattern: "^AGENT_SECRETS_DIR$"
+    secret: false
+    backs: []
+    design: "§2.3 / §7.4"
+    note: 凭据挂载目录。注意 §7.2 的限制：凭据无法对 agent 工具进程做 OS 级隔离，容器边界由编排层负责。
+
+forbidden:
+  - id: persona-text
+    kind: behavior-content
+    pattern: ".*_INSTRUCTIONS$"
+    definitionPaths: ["persona.instructions", "persona.instructionsFile"]
+    reason: 人设文本改变行为，必须可评审、可回滚、可签名。
+    enforcedBy: ["gates/1", "conformance/C8"]
+
+  - id: skills-manifest-or-content
+    kind: behavior-content
+    pattern: "^AGENT_SKILLS?_.*$"
+    definitionPaths: ["skillsDir"]
+    reason: 技能是可执行内容（含 skills/<name>/scripts/ 下的业务代码），必须随制品烤入并参与 digest。
+    enforcedBy: ["gates/1", "conformance/C8"]
+
+  - id: connector-enablement
+    kind: capability-declaration
+    pattern: "^AGENT_CONNECTORS?_.*$"
+    definitionPaths: ["mcpServers[].enabled", "mcpServers[].name", "mcpServers[].transport"]
+    reason: 「它能连哪些系统」是能力声明，不是环境差异。同名系统换环境只换端点（见 allowed.connector-endpoint）。
+    enforcedBy: ["gates/1", "conformance/C8"]
+
+  - id: model-choice
+    kind: behavior-choice
+    pattern: "^AGENT_MODEL_.*$"
+    definitionPaths: ["model.route", "model.name"]
+    reason: 「它用哪个模型」是行为选择，属制品层。路由背后的端点与凭据才是参数层。
+    enforcedBy: ["gates/1", "conformance/C8"]
+
+  - id: tool-boundary
+    kind: behavior-content
+    pattern: "^AGENT_TOOLS?_.*$"
+    definitionPaths: ["tools.deny"]
+    reason: 工具白/黑名单是边界，属制品层。
+    reservedNote: >
+      v1 的中性定义只有 tools.deny（黑名单）。若未来纳入 tools.allow，
+      它同样属制品层，且必须同时出现在 capabilities.yaml 里——否则本条校验会失败。
+    enforcedBy: ["gates/1", "conformance/C8"]
+
+  - id: harness-enhancement-content
+    kind: behavior-content
+    pattern: "^AGENT_ENHANCEMENT_.*$"
+    definitionPaths: ["harness/<h>/**"]
+    reason: 业务级增强是行为（§4.5），构建期烤进智能体镜像薄层，随 digest 可复现。
+    enforcedBy: ["gates/1", "conformance/C8"]
+
+enforcement:
+  layerDiscipline: >
+    forbidden 条目里的 definitionPaths 必须被 core/catalog/capabilities.yaml 声明为
+    layer: artifact。若某条禁止项被能力目录标成参数层，即两个真源互相矛盾，
+    validate 直接失败（§4.6：「目录说某字段属参数层，但它在 agent.yaml 里，validate 就报错」）。
+  negativeInjection: >
+    conformance/C8 会把 forbidden 的 kind 当作参数名注入环境，要求智能体行为不变或直接报错。
+    任何一条静默生效即判 C8 失败（P3：C1–C10 全为阻断性门槛）。

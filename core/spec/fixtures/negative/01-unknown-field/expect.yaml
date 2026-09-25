@@ -1,0 +1,2 @@
+expectFailure: schema/agent
+why: temperature 不在中性定义内；additionalProperties:false 让它成为硬错误，而不是被静默忽略。

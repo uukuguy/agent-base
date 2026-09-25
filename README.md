@@ -11,7 +11,19 @@
 
 ## 当前状态
 
-**设计阶段，实现尚未开始。**
+**设计已定稿（v2.4），实现已启动。** 实施顺序与包级验收见 [`docs/plans/IMPLEMENTATION-ROADMAP.md`](docs/plans/IMPLEMENTATION-ROADMAP.md)（包 S0–S7，关键路径 = pi）。
+
+| 包 | 内容 | 状态 |
+|---|---|---|
+| **S0** | 中性定义契约：`core/spec/*.schema.json` + `core/catalog/{capabilities,params}.yaml` + 闸门 1（`tools/validate.mjs`） | ✅ 已交付 |
+| S1 | 四闸门框架 + 假网关 + 统一轨迹 schema | ⏳ 下一个 |
+| S2–S7 | 适配器与 `conformance` C1–C10 → 模板/探针/smoke → 示例 → 文档 → 版本策略 | ⏳ |
+
+```bash
+make validate                        # 闸门 1：基座自洽（schema ↔ 能力目录 ↔ 参数层清单对账）
+make validate AGENT_DIR=<智能体目录>   # 闸门 1：校验一份中性定义
+make validate-selftest               # 注入式负向自检（非法样本必须全部变红）
+```
 
 | 文档 | 状态 | 作用 |
 |---|---|---|

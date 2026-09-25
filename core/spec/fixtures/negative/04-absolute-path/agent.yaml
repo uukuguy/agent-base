@@ -1,0 +1,8 @@
+apiVersion: agent-base/v1
+name: bad-agent
+description: 人设文件用了绝对路径
+persona:
+  instructionsFile: /etc/system-prompt.md
+model:
+  route: corp-gateway
+  name: corp-think

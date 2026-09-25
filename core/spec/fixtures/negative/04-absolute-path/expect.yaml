@@ -1,0 +1,2 @@
+expectFailure: schema/agent
+why: 定义里禁止绝对路径（§9.2 本地/容器差异表）——宿主路径进制品必然不可复现。

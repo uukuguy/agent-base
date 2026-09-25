@@ -1,0 +1,371 @@
+apiVersion: agent-base/v1
+
+# ============================================================================
+# 能力目录（统一设计 §4.6，N26）—— 机器可读真源
+#
+# docs/03-capability-catalog.md 由本文件生成（S6），保证文档与实现不漂移。
+#
+# 本文件是「行为烤、参数下放」(J2) 的第二个执法点：它记录每个字段的**所属层**。
+#   目录说某字段属参数层、而它却出现在 agent.yaml 里 → validate 直接报错（§4.6）。
+#
+# 字段语义：
+#   layer: artifact   —— 该字段的取值必须写在中性定义里（行为层）
+#   layer: parameter  —— 该字段只能在部署期注入，不得出现在中性定义里（v1 无此类字段，
+#                        参数层清单见 catalog/params.yaml）
+#   valueRef: parameter —— 该字段在中性定义里**只写引用名**，取值来自参数层。
+#                        必须与 params.yaml 里 backs 指向本 path 的条目**双向一致**（validate 校验）。
+#   harnesses.<h>.support: supported | partial | unsupported | unknown
+#   harnesses.<h>.verified: 该结论是否有实测依据（false = 待实测，§5.1 要求显式标注）
+#
+# 刻意保持小：中性格式只表达两个 harness 的可移植核心（交集）。表达力由 §4.5 的
+# 业务级增强承接，因此**本目录不预留未来字段**（§14 风险 3）。
+# ============================================================================
+
+description: 中性定义的完整字段目录，含类型、默认值、取值范围、所属层、各 harness 支持度与降级行为。
+
+layerSemantics:
+  artifact: 取值写在中性定义里；运行期不可覆盖（改了要重建智能体镜像薄层，§2.2 副作用三）。
+  parameter: 只在部署期注入；出现在中性定义里即纪律违规。
+  valueRefParameter: 定义里只写引用名，取值来自 catalog/params.yaml 的允许清单。
+
+groups:
+  # --------------------------------------------------------------------------
+  - id: structural
+    label: 结构字段（非业务概念）
+    businessConcept: false
+    fields:
+      - path: apiVersion
+        source: agent.yaml / connectors.yaml / harness/<h>/enhancements.yaml
+        type: string
+        required: true
+        values: { const: agent-base/v1 }
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "渲染器只接受自己支持的版本，不支持则显式失败（§4.7）" }
+          dsh: { support: supported, verified: true, note: 同上 }
+        doc: 定义格式版本。破坏性变更时升 v2，基座同时支持 v1/v2 渲染并给出迁移提示。
+
+      - path: name
+        source: agent.yaml
+        type: string
+        required: true
+        values: { pattern: "^[a-z][a-z0-9-]{1,30}$" }
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "决定基座/智能体镜像名" }
+          dsh: { support: supported, verified: true, note: "决定 profile 名与镜像名" }
+        doc: 智能体名。同时约束镜像名与 dsh profile 名。
+
+      - path: description
+        source: agent.yaml
+        type: string
+        required: true
+        values: { minLength: 1, maxLength: 200 }
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true }
+          dsh: { support: supported, verified: true }
+        doc: 一句话说明。进能力目录与系统提示词。
+
+      - path: connectorsFile
+        source: agent.yaml
+        type: relativePath
+        required: false
+        default: connectors.yaml
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: 渲染器解析并读入 }
+          dsh: { support: supported, verified: true, note: 渲染器解析并读入 }
+        doc: 连接器定义文件路径。默认同目录 connectors.yaml。
+
+      - path: skillsDir
+        source: agent.yaml
+        type: relativePath
+        required: false
+        default: skills
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "→ agent-dir/skills/（§10.2）" }
+          dsh: { support: supported, verified: true, note: "→ profile 的 customSkillDirs，rank 300（§11.2）" }
+        doc: 技能目录。中性定义只声明本目录下的技能；隐式加载源必须由适配器用文件系统隔离（§4.4）。
+
+  # --------------------------------------------------------------------------
+  - id: identity
+    label: 「它是谁、边界在哪」
+    businessConcept: true
+    fields:
+      - path: persona.instructions
+        source: agent.yaml
+        type: string
+        required: "oneOf(instructions, instructionsFile)"
+        values: { minLength: 1 }
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "→ agent-dir/AGENTS.md 常驻指令（§10.2）" }
+          dsh: { support: supported, verified: true, note: "→ profile 内的 agent 提示词 row（§11.2）" }
+        doc: 常驻人设文本。与 persona.instructionsFile 互斥，validate 拒绝同时出现。
+
+      - path: persona.instructionsFile
+        source: agent.yaml
+        type: relativePath
+        required: "oneOf(instructions, instructionsFile)"
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: 渲染器读取文件内容后写入 AGENTS.md }
+          dsh: { support: supported, verified: true, note: 渲染器读取文件内容后写入 profile 提示词 row }
+        doc: 长文本人设的文件路径（推荐用于长文本）。绝对路径被 schema 拒绝（§9.2）。
+
+      - path: tools.deny
+        source: agent.yaml
+        type: string[]
+        required: false
+        default: []
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "→ settings.json 的工具配置（§10.2）" }
+          dsh: { support: supported, verified: true, note: "→ profile 内工具 row 的 disabled / config（§11.2）" }
+        doc: 工具黑名单（边界）。v1 不表达白名单——两份上位文档的实测只覆盖 deny。
+        reserved:
+          - path: tools.allow
+            reason: 若未来纳入中性定义，它同属制品层，必须同时进本目录与 params.yaml 的禁止清单。
+
+  # --------------------------------------------------------------------------
+  - id: model
+    label: 「它用哪个模型」
+    businessConcept: true
+    fields:
+      - path: model.route
+        source: agent.yaml
+        type: string
+        required: true
+        values: { pattern: "^[a-z][a-z0-9-]{1,30}$" }
+        layer: artifact
+        valueRef: parameter
+        harnesses:
+          pi: { support: supported, verified: true, note: "路由名 → 参数层环境变量名；models.json.tmpl 启动期渲染（§10.2 约束 1）" }
+          dsh: { support: supported, verified: true, note: "路由**能力**在基座 home 层声明，智能体只选route（§11.4）" }
+        doc: 基座声明的模型路由名。不是 URL、不是 provider（P-a 能力/选择分离）。
+        degradation: 路由名写错时 dsh 只在请求期暴露（MISSING_CREDENTIAL）→ 闸门 3 的模型探针为此存在（§14 风险 9）。
+
+      - path: model.name
+        source: agent.yaml
+        type: string
+        required: true
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true }
+          dsh: { support: supported, verified: true, note: "不验证目录成员资格（§11.1 已知限制）" }
+        doc: 模型名。属制品层的「行为选择」。
+        degradation: dsh 的 dsh-agent-default-model 不校验模型名是否在目录内 → 由闸门 3 探针兜底。
+
+      - path: model.reasoningEffort
+        source: agent.yaml
+        type: enum
+        required: false
+        default: null
+        values: { enum: [low, medium, high] }
+        layer: artifact
+        harnesses:
+          pi: { support: unknown, verified: false, note: "§10 未记录该字段的映射——**待实测**" }
+          dsh: { support: supported, verified: false, note: "dsh-agent-default-model 的 {provider, model, reasoningEffort?}（dsh 上位文档 §3）；**待实测**" }
+        doc: 推理强度。harness 不支持时按 exemptions.yaml 处理（§5.4），三种合法处置：等效替代 / 豁免 / 拒绝；禁止静默降级。
+
+  # --------------------------------------------------------------------------
+  - id: skills
+    label: 「它会哪些技能」
+    businessConcept: true
+    fields:
+      - path: skills[].name
+        source: skills/<name>/SKILL.md（frontmatter）
+        type: string
+        required: true
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "SKILL.md frontmatter；目录 bundle 形式（§4.4）" }
+          dsh: { support: supported, verified: true, note: 同上；技能目录必须进 rank 300 }
+        doc: 技能名。目录 bundle 形式对齐两个 harness 的交集。
+        degradation: 出现未声明的技能 = 隐式加载源没隔离干净 → 闸门 2 集合断言变红（§6.3 硬断言 1）。
+
+      - path: skills[].description
+        source: skills/<name>/SKILL.md（frontmatter）
+        type: string
+        required: true
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true }
+          dsh: { support: supported, verified: true }
+        doc: 技能的一句话说明，供模型判断何时使用。
+
+      - path: skills[].whenToUse
+        source: skills/<name>/SKILL.md（frontmatter）
+        type: string
+        required: false
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true }
+          dsh: { support: supported, verified: true }
+        doc: 何时使用该技能（触发条件描述）。
+
+  # --------------------------------------------------------------------------
+  - id: connectors
+    label: 「它能连哪些系统」
+    businessConcept: true
+    fields:
+      - path: mcpServers[].name
+        source: connectors.yaml
+        type: string
+        required: true
+        values: { pattern: "^[A-Za-z0-9_-]{1,32}$" }
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "→ mcp.json 的 server key（§10.2）" }
+          dsh: { support: supported, verified: true, note: "→ 每服务器一条 dsh-mcp-client row（§11.2）" }
+        doc: 连接器名。对齐 dsh serverName 的命名空间约束。
+
+      - path: mcpServers[].transport
+        source: connectors.yaml
+        type: enum
+        required: true
+        values: { enum: [stdio, streamable-http] }
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "mcp.json 的 server 配置" }
+          dsh: { support: supported, verified: true, note: "row 的 transport 字段" }
+        doc: 传输方式。决定 urlRef / command 哪个是必填（schema 用 oneOf 分型强制）。
+
+      - path: mcpServers[].urlRef
+        source: connectors.yaml
+        type: refName
+        required: "transport=streamable-http 时必填"
+        layer: artifact
+        valueRef: parameter
+        harnesses:
+          pi: { support: partial, verified: true, note: "baseUrl 不做环境插值 → 启动期渲染 .tmpl（§10.2 约束 1）" }
+          dsh: { support: supported, verified: true, note: "!!js process.env.X 原生支持（§11.2）" }
+        doc: 端点引用名。取值来自 params.yaml 的 connector-endpoint。
+        degradation: pi 只能启动时给，不能 per-request（§10.4 H2 缺口）。
+
+      - path: mcpServers[].credentialRef
+        source: connectors.yaml
+        type: refName
+        required: false
+        layer: artifact
+        valueRef: parameter
+        harnesses:
+          pi: { support: partial, verified: true, note: "启动期渲染；MCP 凭据治理未做（§10.3 缺口）" }
+          dsh: { support: partial, verified: true, note: "文件权限无法对 agent 进程隔离，容器边界由编排层负责（§7.2 / §11.1）" }
+        doc: 凭据引用名。取值来自 params.yaml 的 connector-credential。
+
+      - path: mcpServers[].command
+        source: connectors.yaml
+        type: string
+        required: "transport=stdio 时必填"
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "直出到 mcp.json" }
+          dsh: { support: supported, verified: true, note: 进 row 配置 }
+        doc: 可执行名或镜像内固定路径。属制品层——它决定「能连什么」，且是可执行内容。
+
+      - path: mcpServers[].args
+        source: connectors.yaml
+        type: string[]
+        required: false
+        default: []
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true }
+          dsh: { support: supported, verified: true }
+        doc: stdio 参数列表。引用自研连接器时用相对路径（mcp-servers/<name>/…），渲染器解析成镜像内固定路径（§4.3 设计点 3）。
+
+      - path: mcpServers[].enabled
+        source: connectors.yaml
+        type: boolean
+        required: false
+        default: true
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true }
+          dsh: { support: supported, verified: true, note: "failOnStartupError 默认 false，连不上也启动（§11.1）" }
+        doc: 是否启用该连接器。「有哪些连接器」改变行为 → 属制品层。
+        degradation: 闸门 2 断言 enabled:true 的集合 == 声明集合；少一个即静默降级 → 变红（§6.3 硬断言 2）。
+
+      - path: mcpServers[].description
+        source: connectors.yaml
+        type: string
+        required: false
+        values: { minLength: 1, maxLength: 200 }
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true }
+          dsh: { support: supported, verified: true }
+        doc: 连接器说明。进能力目录与系统提示词。
+
+  # --------------------------------------------------------------------------
+  - id: enhancements
+    label: 业务级 harness 增强（一等公民，harness 专有、不可移植）
+    businessConcept: false
+    portability: none
+    design: "§4.5"
+    note: >
+      本组字段**不在可移植核心内**：pi 扩展与 dsh 插件是两套根本不同的机制，
+      等价性只覆盖可移植核心（§1.4）。它是企业智能体的常态需求，不是逃生舱。
+      validate 必须显式输出本智能体的可移植性等级（如「核心 + pi 增强（不可移植）」）。
+    fields:
+      - path: harness/<h>/enhancements.yaml#enhancements[].id
+        source: harness/<h>/enhancements.yaml
+        type: string
+        required: true
+        layer: artifact
+        harnesses:
+          pi: { support: partial, verified: false, note: "extensions/*.ts + settings.json 的 packages；业务自建扩展的 API 面与加载失败是否报错**待实测**（§10.4 H10）" }
+          dsh: { support: partial, verified: false, note: "cordis 插件包 + profile 的 insert: row；row 落空是静默失败（§11.2 / §5.5）" }
+        doc: 增强的唯一 id。声明即契约。
+        degradation: 闸门 2 的**第三条硬断言**：已加载扩展 id 集合 == 声明集合。少一个即静默失败，多一个说明有未声明增强混入产物（§6.3）。
+
+      - path: harness/<h>/enhancements.yaml#enhancements[].kind
+        source: harness/<h>/enhancements.yaml
+        type: enum
+        required: true
+        values: { enum: [tool, hook, middleware, plugin, subagent, command] }
+        layer: artifact
+        harnesses:
+          pi: { support: partial, verified: false, note: "事件钩子 / 自定义工具 / agents/ 子智能体 / prompts/ 命令 / packages" }
+          dsh: { support: partial, verified: false, note: "cordis 插件；一切皆插件" }
+        doc: 增强类型。
+
+      - path: harness/<h>/enhancements.yaml#enhancements[].entry
+        source: harness/<h>/enhancements.yaml
+        type: relativePath
+        required: true
+        layer: artifact
+        harnesses:
+          pi: { support: partial, verified: false }
+          dsh: { support: partial, verified: false }
+        doc: 增强入口文件（相对路径）。随制品烤进智能体镜像薄层，参与 digest。
+
+      - path: harness/<h>/enhancements.yaml#enhancements[].event
+        source: harness/<h>/enhancements.yaml
+        type: string
+        required: "kind=hook 时必填"
+        layer: artifact
+        harnesses:
+          pi: { support: partial, verified: false, note: "如 tool_call" }
+          dsh: { support: partial, verified: false, note: 钩子 row }
+        doc: 钩子事件名。
+
+# ============================================================================
+# 三个 harness 无关的要求（不进 groups，但 validate 必须强制）
+# ============================================================================
+invariants:
+  - id: no-harness-name-in-core
+    requirement: core/ 内不得出现任何 harness 名字（每个实施阶段的通用闸门，附录 B）。
+    enforcedBy: ["gates/1"]
+  - id: no-absolute-path
+    requirement: 中性定义里禁止绝对路径（§9.2 差异表）。
+    enforcedBy: ["spec/*.schema.json（relativePath 的 pattern）"]
+  - id: single-source-of-truth
+    requirement: 业务级增强不得与中性定义重复表达同一字段（§4.5）——两个真源会被 derive 出不一致的行为。
+    enforcedBy: ["gates/1"]
+  - id: layer-consistency
+    requirement: "params.yaml 禁止清单里的 definitionPaths 必须被本目录标为 layer=artifact；且 valueRef=parameter 的字段必须与 params.yaml 的 backs 双向一致。"
+    enforcedBy: ["gates/1"]

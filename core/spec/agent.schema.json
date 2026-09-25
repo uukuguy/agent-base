@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-base/spec/agent.schema.json",
+  "title": "agent.yaml —— 中性智能体定义",
+  "description": "统一设计 §4.2 的唯一真源。刻意保持小：中性格式只表达两个 harness 的可移植核心（交集），表达力由 harness/<h>/ 业务级增强承接（§4.5）。因此本 schema 不预留任何未来字段。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "name", "description", "persona", "model"],
+  "properties": {
+    "apiVersion": {
+      "const": "agent-base/v1",
+      "description": "定义格式版本。渲染器只接受自己支持的版本，不支持的版本显式失败（§4.7），不是警告。"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,30}$",
+      "description": "必填。同时约束派生镜像名与 harness 侧的 profile 名。"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "必填。进能力目录与系统提示词。"
+    },
+    "persona": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "「它是谁、边界在哪」。instructions 与 instructionsFile 互斥（§4.2）。",
+      "properties": {
+        "instructions": {
+          "type": "string",
+          "minLength": 1,
+          "description": "常驻人设文本。与 instructionsFile 互斥。"
+        },
+        "instructionsFile": {
+          "$ref": "#/$defs/relativePath",
+          "description": "长文本推荐。渲染器读取文件内容。与 instructions 互斥。"
+        }
+      },
+      "oneOf": [
+        { "required": ["instructions"] },
+        { "required": ["instructionsFile"] }
+      ]
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["route", "name"],
+      "description": "「它用哪个模型」。route 是基座声明的路由名，不是 URL（§2.6 P-a：能力在基座、选择在智能体）。",
+      "properties": {
+        "route": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,30}$",
+          "description": "基座声明的模型路由名（§11.4 / §10.2 的适配器路由目录）。不是 URL，不是 provider。"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "模型名。属制品层的「行为选择」。"
+        },
+        "reasoningEffort": {
+          "type": "string",
+          "enum": ["low", "medium", "high"],
+          "description": "可选。harness 不支持时按 exemptions.yaml 处理（§5.4），不得静默忽略。"
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "边界。v1 只表达黑名单：两份上位文档的实测中只有 deny 有依据，白名单未纳入 v1（见 capabilities.yaml 的 reserved 说明）。",
+      "properties": {
+        "deny": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "工具黑名单。语义见 §4.3 的降级规则。"
+        }
+      }
+    },
+    "connectorsFile": {
+      "$ref": "#/$defs/relativePath",
+      "description": "可选，默认同目录 connectors.yaml。"
+    },
+    "skillsDir": {
+      "$ref": "#/$defs/relativePath",
+      "description": "可选，默认 skills。中性定义只声明本目录下的技能（§4.4）。"
+    }
+  },
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "description": "相对路径。绝对路径、Windows 盘符、反斜杠与 .. 逃逸一律由 schema 直接拒绝（§9.2：定义里禁止绝对路径）。"
+    }
+  }
+}

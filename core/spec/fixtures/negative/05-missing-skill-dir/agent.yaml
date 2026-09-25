@@ -1,0 +1,9 @@
+apiVersion: agent-base/v1
+name: bad-agent
+description: skillsDir 指向不存在的目录
+persona:
+  instructions: 测试
+model:
+  route: corp-gateway
+  name: corp-think
+skillsDir: no-such-skills

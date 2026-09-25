@@ -1,0 +1,5 @@
+apiVersion: agent-base/v1
+harness: pi
+persona:
+  instructions: 我又在增强里写了一遍人设
+enhancements: []
