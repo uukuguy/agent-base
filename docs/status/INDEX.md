@@ -1,0 +1,48 @@
+# docs/status INDEX
+
+Catalog of every file in `docs/status/`. Categorized so Claude knows which to read, which to skip, and which are decision history kept for traceability only.
+
+**Status legend**:
+- 🟢 **active** — read on resume; reflects current truth
+- 🟡 **decision-history** — historical record of a decision/finding; don't act on the recommendations inside (they may be reversed by later sessions)
+- 🔴 **superseded** — replaced by a newer file or by a memory entry; safe to ignore on resume
+- ⚫ **scratch** — one-off experiment scratch / data dump; not meant to be read again
+
+When adding a new file to `docs/status/`, **also add its row here** — otherwise it becomes orphan exhaust (HARD INVARIANT, see project-state skill top).
+
+## Active (read these on every resume)
+
+| File | Status | Purpose |
+|---|---|---|
+| `JOURNAL.md` | 🟢 active | Append-only event log. `/project-state journal "..."` 追加。 |
+| `RESUME-NEXT-SESSION.md` | 🟢 active | Session handoff baton. |
+| `CURRENT-STATE.md` | 🟢 active | Structural snapshot. |
+| `INDEX.md` (this file) | 🟢 active | Discovery hub. |
+
+## Decision history (kept for traceability — verdicts may be outdated)
+
+| File | Status | What it recorded | Outcome / supersession |
+|---|---|---|---|
+| (empty initially) | | | |
+
+## Archived
+
+| Bucket | Files | Notes |
+|---|---|---|
+| (empty initially) | | |
+
+> When adding new archive buckets, append a row here pointing to `_archive/<label>/`. Do not list individual files.
+
+## External anchors (outside `docs/status/`)
+
+| Path | Role |
+|---|---|
+| `docs/plans/IMPLEMENTATION-ROADMAP.md` | **唯一权威工作清单** —— 包 S0–S7、依赖顺序、包级验收、跨包纪律、待外部输入 |
+| `docs/design/2026-09-25-unified-agent-base-design.md` | 最终设计 v2.4 —— 架构 / 适配契约 / 四闸门 / 落地设计的唯一真源 |
+| `docs/design/2026-09-25-pi-harness-design.md` | pi 专有实测约束上位依据 |
+| `docs/design/2026-09-25-dsh-harness-design.md` | dsh 专有实测约束上位依据 |
+| `README.md` | 对外定位与基座/应用边界 |
+
+## Don't add new files unless they fit one of the categories above
+
+If you want to record a **finding/lesson** that's a long-lived project fact → write to `CLAUDE.md` (structural facts section). If it's a collaboration lesson → write to the runtime memory layer. If it's a complete audit / experiment report → write a `docs/status/<topic>.md` here AND add its INDEX row.
