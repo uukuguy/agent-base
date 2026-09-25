@@ -135,4 +135,9 @@
 - 22:30 ✅ conformance C6 落地：pi 侧 C1–C8、C10 全绿（9/10），仅 C9（容器内安全实测）待 S3
 - 22:30 🔴 同一类 bug 第二次出现：--out/--endpoint 缺失时 indexOf+1===0 吞掉第一个位置参数。已抽出 core/gates/cli.mjs（取值旗标显式声明）+ 5 条自检治本
 - 22:30 作废早前结论：假网关**不必**独立进程（真正的原因是子进程 stdin 没关）；probe/smoke 现在同进程起网关
+- 23:40 交付 template/（agent.yaml·connectors.yaml·skills/example/SKILL.md·Makefile 薄转发层·README.md·.gitignore）与 tools/new-agent.mjs
+- 23:40 ✅ make new-agent-selftest 全绿：§12.2 四条判据逐条实测（含「生成后立刻 validate/render/doctor 全绿」，跑的是**生成出来的 Makefile**）；派生后 make verify 直接给出「可用」
+- 23:40 🔴 真 bug：构建产物未排除出定义摘要 —— 模板把渲染输出放 .render/，渲染一次摘要就变（自漂移）。已把 .render/dist/.agent-base-build 加入 DEFAULT_EXCLUDES
+- 23:40 🔴 真 bug：macOS 符号链接（/tmp→/private/tmp）导致相对路径错位，基座路径算成 /private/Users/...；已改为 realpath 后再算，并给生成的 Makefile 加 check-base 人话报错
+- 23:40 全量回归：11 个自检目标全绿；conformance --harness pi 仍 9/10（仅 C9 待容器）
 

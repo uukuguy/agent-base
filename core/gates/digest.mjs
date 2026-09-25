@@ -13,7 +13,12 @@ import { createHash } from "node:crypto";
 import { sha256 } from "./report.mjs";
 
 /** 默认不进摘要的目录：版本控制与依赖安装产物不属于「制品」。 */
-export const DEFAULT_EXCLUDES = Object.freeze([".git", "node_modules", ".DS_Store", "_archive"]);
+export const DEFAULT_EXCLUDES = Object.freeze([
+  ".git", "node_modules", ".DS_Store", "_archive",
+  // 构建产物：渲染输出若落在定义目录内（如 .render/），把它算进摘要会让摘要**自漂移**——
+  // 渲染一次摘要就变，"同输入同 digest"当场不成立。
+  ".render", "dist", ".agent-base-build",
+]);
 
 function walk(rootDir, excludes) {
   const files = [];

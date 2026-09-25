@@ -1,0 +1,20 @@
+apiVersion: agent-base/v1
+
+# 连接器（可选）。不写 = 没有连接器。
+#
+# 两种写法，任选其一：
+#
+# ① 按名引用基座预装条目 —— 推荐，不需要知道包名/版本/参数：
+#      - ref: filesystem
+#        enabled: true
+#
+# ② 完整写法 —— 需要自研连接器或预装清单里没有的系统时用：
+#      - name: jira
+#        transport: streamable-http      # stdio | streamable-http
+#        urlRef: AGENT_JIRA_ENDPOINT_PROD # 端点只写引用名，真值由部署期注入
+#        credentialRef: JIRA_TOKEN        # 凭据同样只写引用名
+#        enabled: true
+#        description: 工单系统            # 会进系统提示词，写给模型看
+#
+# 可用名字见基座仓库的 core/image/preinstall.yaml（namedReferences）。
+mcpServers: []

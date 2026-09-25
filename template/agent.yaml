@@ -1,0 +1,21 @@
+apiVersion: agent-base/v1
+
+# 身份：决定镜像名与 profile 名，也是系统提示词里的自我介绍
+name: {{NAME}}
+description: {{DESCRIPTION}}
+
+# 它是谁、边界在哪
+persona:
+  instructions: |
+    你是一个专注、克制的助手。
+    只给可以验证的结论；不确定就说不确定，不要编。
+
+# 它用哪个模型。route 是**基座声明的路由名**，不是 URL、不是 provider
+model:
+  route: corp-gateway
+  name: corp-think
+  # reasoningEffort: medium   # 可选：low | medium | high
+
+# 边界（可选）。deny 里的工具不会被启用
+# tools:
+#   deny: [bash]

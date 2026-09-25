@@ -7,7 +7,7 @@
 - Theme-level focus: **四道闸门已全部落地，「可用」不再只是设计承诺而是可执行判定**；关键路径转向「让业务开发者从零走通」（模板 + 派生）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi。§7 记 dsh 实现待定项，§8 记 S3 进展）
-- Active work package: `S3`（闸门 3/4 + `verify` 已交付；余 `template/` + `new-agent` + 基座镜像）
+- Active work package: `S3`（闸门 3/4 + `verify` + `template/` + `new-agent` 已交付；余基座镜像与本地运行入口）
 
 ## Current Architecture
 
@@ -47,9 +47,11 @@
 
 ### 仓库拓扑（现状）
 
-`core/`（66 文件）· `adapters/{pi,dsh}/`（20）· `tools/`（11）· `conformance/`（5）· `docs/{design,plans,research,status}/`；`dist/` 是构建产物（已 gitignore）。
+`core/`（66 文件）· `adapters/{pi,dsh}/`（20）· `tools/`（13）· `conformance/`（5）· `template/`（6，派生源）· `docs/{design,plans,research,status}/`；`dist/` 是构建产物（已 gitignore）。
 
-Makefile 共 22 个目标，已实现 17 个；**未实现 5 个**：`image` / `debug` / `dev-env` / `run-local` / `new-agent`（未实现的会**显式失败并指向所属包**，不静默通过）。
+Makefile 共 24 个目标，已实现 20 个；**未实现 4 个**：`image` / `debug` / `dev-env` / `run-local`（未实现的会**显式失败并指向所属包**，不静默通过）。
+
+**开箱可跑已成立**：`make new-agent NAME=x` 派生的智能体（落在基座之外的同级目录）立刻 `make verify` 即给出「可用」——判据由 `make new-agent-selftest` 逐条实测（跑的是**生成出来的 Makefile**，而非直接调基座工具）。
 
 ## Open Problems (theme-level)
 
@@ -57,6 +59,7 @@ Makefile 共 22 个目标，已实现 17 个；**未实现 5 个**：`image` / `
 - **G1 只剩一半**：回调能看到「harness 发了几个工具」，看不到「网关收到后有没有吞」。三条互补路径已定（链路观测 / 响应侧不一致检测 / 响应头回显对照，后者已实现但仅在网关回显时生效）
 - **G3 的真值需要「做决策的扩展」自己上报**：轨迹扩展观测不到别的 handler 是否阻断，因此 `tool.call.decision` 目前恒为 `unobserved`（诚实近似，不是等价）
 - **闸门 2 硬断言 3 的口径是「已进入产物」而非「已加载」**：纯钩子型扩展目前观测不到（`failures.md` F6 已记，补法是让增强自证 id）
+- **业务开发者上手路径已打通但只有 pi 一侧**：派生的智能体开箱 `usable`，`HARNESS=dsh` 仍会因 dsh 适配器未实现而失败
 - **C9（安全下限声明一致）需要容器内实测**：只读根 / 非 root / cap-drop / 默认离线在 macOS 上无法验证 → 阻塞在基座镜像
 - **企业级 MCP 的每用户鉴权**与参数层模型（单一服务凭据 `credentialRef`）不匹配 —— 设计缺口，排在首个走通之后
 - **pi 侧 MCP 客户端需外部补齐**（pi 0.87.1 原生无 MCP；第三方扩展生态已成熟，见调研）→ 选定并 pin 一个扩展之前，声明了连接器的智能体在 pi 上渲染即失败（响亮，不静默）
@@ -88,6 +91,7 @@ Makefile 共 22 个目标，已实现 17 个；**未实现 5 个**：`image` / `
 ### Implementation entry points
 - `Makefile` —— 全部命令的唯一边界（22 个目标，实现 17 / 未实现 5）
 - `tools/{validate,probe,smoke,verify}.mjs` —— 闸门 1/3/4 与四道闸门编排
+- `tools/new-agent.mjs` + `template/` —— 派生入口与派生源（`new-agent-selftest` 验证「开箱可跑」）
 - `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用的运行器）
 - `adapters/pi/seed/` —— 基座不变量：`settings.json` 安全姿态 + `enhancements.yaml` 声明 + `extensions/trace.ts` 轨迹扩展
 - `adapters/dsh/` —— 声明已交付；`render`/`doctor`/`trace` 待做（预检结论与待定项见路线图 §7）

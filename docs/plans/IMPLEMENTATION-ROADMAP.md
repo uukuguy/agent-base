@@ -29,7 +29,7 @@
 | **S0** | A | 中性定义契约：schema + 能力目录 + 参数层清单 | — | **done** |
 | **S1** | A | 四闸门框架 + 假网关 + 统一轨迹 schema | S0 | **done** |
 | **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | **active** |
-| **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` | S2 | **active**（probe+smoke+verify 已交付；余 template/new-agent/镜像） |
+| **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` | S2 | **active**（probe/smoke/verify + template/new-agent 已交付；余镜像与本地运行入口） |
 | **S4** | A + B + C | `examples/idea-to-proof` 全绿（含 C5/C8） | S3 | pending |
 | **S5** | A + B + C | `examples/contract-review`（带 MCP，双 harness 等价性） | S4 | pending |
 | **S6** | A | `docs/` 全 12 篇 | S4 | pending |
@@ -243,3 +243,28 @@ mcpServers:
 **S3 余项**：`template/` + `new-agent`（开箱可跑）、`core/image/`（基座镜像 + debug 变体）、`make dev-env` / `run-local`、`image` / `debug`。C9 依赖其中的容器内加固。
 
 **由此暴露的一类 bug 已治本**：`--out`/`--endpoint` 缺失时把第一个位置参数误当旗标值吞掉 —— 同一行写法出现了**两次**（`render` 与 `probe`）。已抽出 `core/gates/cli.mjs` 统一解析，并加了 5 条自检，防止第三次。
+
+---
+
+## 9. S3 续：`template/` + `new-agent`（2026-09-25）
+
+**已交付**：`template/`（`agent.yaml` · `connectors.yaml` · `skills/example/SKILL.md` · `Makefile` 薄转发层 · `README.md` · `.gitignore`）与 `tools/new-agent.mjs`，以及 `tools/new-agent-selftest.mjs`。
+
+**判据（§12.2）逐条实测通过**（`make new-agent-selftest` 全绿）：
+
+| 判据 | 结果 |
+|---|---|
+| 生成后立刻 `make validate && make render && make doctor` 全绿 | ✅ 且**跑的是生成出来的 Makefile**，证明转发层本身可用 |
+| `grep -rn TODO` 为空 | ✅ |
+| 无 `package.json` | ✅ 业务方不需要管依赖 |
+| 无绝对路径 | ✅ 基座引用是**相对路径**（`AGENT_BASE_DIR ?= ../..`），便于整体搬迁 |
+| 端到端 | ✅ 派生后 `make verify` 直接给出**「可用：四道闸门全过」** |
+
+**派生位置**：默认落在基座仓库的**同级目录**（应用在基座之外，§1.2），可用 `--out` 覆盖。
+
+**顺带修掉的两个真 bug**：
+
+1. **构建产物必须排除出定义摘要**：模板把渲染输出放在 `.render/`，而 `digest.mjs` 没排除它 → 渲染一次摘要就变，「同输入同 digest」当场不成立。已把 `.render`/`dist`/`.agent-base-build` 加入 `DEFAULT_EXCLUDES`。
+2. **符号链接导致相对路径错位**：macOS 上 `/tmp`→`/private/tmp`、`/var`→`/private/var`。用未解析的路径算相对路径会得到"算式正确、实际指错"的结果（实测算成了 `/private/Users/...`）——因为 `make` 会规范化 CWD。已改为双方都 `realpath` 后再算；生成的 Makefile 也加了 `check-base`，路径不对时给人话而不是 `MODULE_NOT_FOUND`。
+
+**S3 余项**：`core/image/`（基座镜像 + debug 变体）、`make dev-env` / `run-local` / `image` / `debug`；C9 依赖容器内加固。之后才是 `examples/`（S4/S5）。

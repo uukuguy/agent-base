@@ -20,7 +20,7 @@ JSON ?=
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 NOT_YET = @echo "❌ $@ 尚未实现（包 $(1)）——见 docs/plans/IMPLEMENTATION-ROADMAP.md"; exit 1
 
-.PHONY: help validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -94,5 +94,8 @@ dev-env: ## 按 pin 安装/校验两个 harness 到一致版本（§9.3）（S3�
 run-local: ## 本地交互入口（临时 HOME/DSH_HOME 挂 render 产物）（S3）
 	$(call NOT_YET,S3)
 
-new-agent: ## 从 template/ 派生（需 NAME=x）（S3）
-	$(call NOT_YET,S3)
+new-agent: ## 从 template/ 派生一个智能体（需 NAME=x；默认派生到基座之外的同级目录）
+	@NAME=$(NAME) node tools/new-agent.mjs $(if $(DESCRIPTION),--description "$(DESCRIPTION)",) $(if $(OUT),--out $(OUT),)
+
+new-agent-selftest: ## 模板「开箱可跑」自检：派生 → 跑生成出来的 Makefile → 四道闸门全绿
+	@node tools/new-agent-selftest.mjs
