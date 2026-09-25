@@ -31,7 +31,9 @@
 | **工具集合可观测** | 系统消息的 `message_start` 带 `toolsAdded`（名称 + 描述 + 参数 schema）。实测得到 `['read','bash','edit','write']` | 实测 |
 | **模型身份可观测** | assistant 的 `message_start` 带 `provider` / `model` / `api` / `usage` / `stopReason` / `responseId`。实测得 `corp-gateway / corp-think / openai-completions` | 实测 |
 | **工具调用可观测** | `tool_execution_start`：`toolCallId` / `toolName` / `args`；`tool_execution_end`：`isError` / `result` | 实测 |
-| **loop 回调点（扩展可订阅）** | `before_provider_request`（拿到 `event.payload` = **发往 provider 的请求体**，可替换）、`after_provider_response`（`status` / `headers`）、`tool_call`（`toolName` / `input`，**可返回 `{block, reason}` 阻断**）、`tool_result`（handler 之间 **compose**）、`turn_start`/`turn_end`、`agent_start`/`agent_end`/`agent_settled`、`message_end`、`before_agent_start`、`session_*`、`input` | 实测事件名 + 上游 `docs/extensions.md` 与官方示例 `provider-payload.ts` / `permission-gate.ts` |
+| **loop 回调点（扩展可订阅）** | `before_provider_request`（`event.payload` = **发往 provider 的请求体**）、`after_provider_response`（`status` / `headers`）、`tool_call`（`toolName` / `input`，可返回 `{block, reason}`）、`tool_result`（handler 之间 **compose**）、`turn_start`/`turn_end`、`agent_start`/`agent_end`/`agent_settled`、`message_end`、`before_agent_start`、`session_*`、`input` | 实测事件名 + 上游 `docs/extensions.md` 与官方示例 |
+| **payload 的确切字段（实测）** | `before_provider_request` 的 `payload` 键为 `max_completion_tokens, messages, model, prompt_cache_key, prompt_cache_retention, store, stream, stream_options, tools`；实测 `tools` 是**数组**（`tools.length` = 4）、`stream: true`、`model: "corp-think"` | 本机实测（假网关 + 独立进程，1184 次请求） |
+| **响应侧可见什么** | `after_provider_response` 给 `status`（200）与 `headers`（实测含网关自定义头 `x-fake-gateway-tools` / `x-fake-gateway-stream`） | 本机实测。**这给了第三条检测路径**：把「发出去的工具数」与「响应头里回显的工具数」对照，可在进程内发现中间件动了手脚 |
 
 ## 二、映射表（原生 → `core/trace/schema.json`）
 
@@ -77,6 +79,8 @@ pi 有原生 `thinking_level_changed` 事件。把它接进统一轨迹后，**`
 **业务侧要做的**：订阅自己的事件即可；若需要改变行为（阻断/改写），那是**业务级增强**的职责，与轨迹互不干扰 —— 但两边必须都能看见对方的痕迹（同一份轨迹里同时出现基座的 `tool.call` 与业务的 `biz.event`）。
 
 ## 六、实现要点
+
+> **⚠️ 一处实测纠正（别照直觉写）**：我原本以为「`tool_call` 返回 `{block: true}` 能终止假网关那个无限循环」。**实测不成立** —— 阻断只是让该次调用变成错误结果，智能体随即带着错误结果再次请求模型，循环照旧（实测 1184 次请求）。所以 gate 3/4 的会话终止必须靠**假网关自身**（例如按轮次改为回文本），不能指望回调阻断。
 
 1. **按 LF 切分，不要用 Node 的 `readline`** —— 上游明确警告它会误认 Unicode 行分隔符（U+2028/U+2029）。
 2. **持续消费 stdout** —— 读端停下会让 pi 因管道缓冲写满而阻塞。

@@ -112,4 +112,9 @@
 - 20:40 修正 G1 口径：分两半 ——「harness 没带 tools」回调可验；「网关吞 tools」仍需链路观测或响应侧不一致检测（原写"只能靠代理"不准确）
 - 20:40 实测 .ts 与 .mjs 扩展都能通过 --extension 加载并触发回调（早前探针 0 事件是探针自身问题，非加载失败）
 - 20:40 轨迹架构定为双来源同一 schema：回调式（主，实时、能拿请求体与判定）+ 事后映射 trace.mjs（兜底，离线可复盘）
+- 21:00 ✅ 实测 before_provider_request 的 payload 字段：max_completion_tokens/messages/model/prompt_cache_key/prompt_cache_retention/store/stream/stream_options/tools
+- 21:00 ✅ tools 是数组（长度即真实工具数，实测 4）、stream 是布尔（实测 true）、model 可用 → **G1 的「harness 未带 tools」半边进程内可验，不需要代理**
+- 21:00 ✅ after_provider_response 给 status + headers（实测含网关自定义头）→ 第三条检测路径：发出去的工具数与响应头回显对照
+- 21:00 🔴 实测纠正：tool_call 返回 {block:true} **不能**终止假网关的无限循环（阻断只变成错误结果，智能体照旧重试，实测 1184 次请求）→ 会话终止必须靠假网关自身
+- 21:00 探针教训记入：**同进程内起假网关 + 子进程 pi = 0 请求**（要用独立进程）；另注意网关轨迹勿写到 stderr 以免淹没输出
 
