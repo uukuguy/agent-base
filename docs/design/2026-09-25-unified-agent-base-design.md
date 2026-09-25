@@ -1340,21 +1340,22 @@ make verify HARNESS=pi,dsh     # 同一份定义，两个 harness，四闸门 + 
 ③ 双跑                       闸门 1–4 × 2 + 等价性比对
 ```
 
-### 12.6 仓库改名（J4 的一次性动作）
+### 12.6 仓库改名（J4，**已完成**）
 
-**项目名已统一为 `agent-base`**：仓库内的命名（README、本文、全部引用）均已收敛；上游两份单 harness 设计文档也已改名为 `-dsh-harness-design.md` / `-pi-harness-design.md`，文件名不再带旧项目名。
+**项目名与物理目录均已统一为 `agent-base`**（2026-09-25 完成）：
 
-**唯一待执行的是物理目录改名。** 本仓库**没有远端**（`git remote -v` 为空），所以只涉及本地目录：
+| 项 | 状态 |
+|---|---|
+| 物理目录 | `~/sandbox/agentic-2026/agent-base` ✅ |
+| 仓库内命名（README、本文、全部引用） | 已收敛 ✅ |
+| 上位文档文件名 | 已改为 `-dsh-harness-design.md` / `-pi-harness-design.md` ✅ |
+| git 远端 | **无**（`git remote -v` 为空）→ 不需要 `remote set-url` ✅ |
+
+**遗留一个兼容符号链接** `dsh-agent-base -> agent-base`：改名时保留它，使当时正在运行的会话工作目录继续可解析。**确认没有进程/终端再用旧路径后，可安全删除**：
 
 ```bash
-# 必须在会话工作目录之外执行：本仓库就是会话根目录，
-# 就地改名会让会话的工作目录与文件沙箱边界同时失效。
-cd ~/sandbox/agentic-2026
-mv dsh-agent-base agent-base
-git -C agent-base status --short        # 验证：应显示工作区干净
+rm ~/sandbox/agentic-2026/dsh-agent-base     # 仅在旧路径不再被引用时
 ```
-
-改名后从新路径重新进入即可（`cd ~/sandbox/agentic-2026/agent-base`）。**因为没有远端，不需要 `remote set-url`**。
 
 > 两份上位文档正文里的制品名（`dsh-agent-base/`、`pi-agent-base/`）是当时**单 harness 设计**的名称，已由统一制品 `agent-base` 取代；其正文按历史原件保留，不做改写。
 
