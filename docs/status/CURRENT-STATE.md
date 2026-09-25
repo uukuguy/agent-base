@@ -7,7 +7,7 @@
 - Theme-level focus: **首个示例走通（S4 `examples/idea-to-proof` 四道闸门 → 可用）**；下一步是双 harness 示例与 dsh 比较轨
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi。§7 记 dsh 实现待定项，§8 记 S3 进展）
-- Active work package: **M1–M4 全部达成**（S0–S8 闭环）；当前无进行中工作包
+- Active work package: **容器里配置 LLM**（运行期注入 + 启动期暂存/渲染 + 容器内端到端验证，见路线图 §21）
 
 ## Current Architecture
 

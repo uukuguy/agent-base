@@ -211,4 +211,15 @@
 - 23:19 比对实测：技能/连接器/路由/协议形状两侧一致；连接器真的生效（端点侧工具数 4 → pi 7 / dsh 36）；17 条差异全部有声明 → **等价性通过**
 - 23:19 make examples-check 升级：**每个示例在每个运行时上都验「可用」**并跑等价性比对 —— "可移植"从口号变成可执行
 - 23:19 🔴 修掉三处真实缺陷：verify.mjs 没透传 --harness（probe 用错运行器）、pi doctor 读错字段名（serverName 读成 name → 集合断言必错）、examples-check 只验一个运行时
+- 00:13 🔴 用户一问暴露体系性缺口：**容器里配不了 LLM**（产物只有 .tmpl 没人渲染；只读挂载下运行时写会话 ENOENT；挂载点语义含糊；模型名被判成制品层）。宿主机侧四道闸门却全绿
+- 00:13 判据修正：`model.name` 从禁止清单移到允许清单（**值是否随部署环境而变**）；路由目录声明服务哪些模型，闸门 1 与启动期都按名单校验；DECISIONS 已记
+- 00:13 交付 `core/image/startup.mjs`（运行时中性的启动期准备）：解析参数（env + `*_FILE`）→ 校验模型名 → 暂存可写副本 → 原子渲染；缺项退出码 2 并点名；凭据掩码；`config-check` 就绪探针
+- 00:13 渲染器产出 `runtimePlan`（拷什么/哪个环境变量/cwd/argv 前缀）与**渲染期算好的生效配置摘要**；两侧 runner 的参数名列表改为读同一份契约（消除两份实现的漂移），doctor 交叉核对记录值与重算值
+- 00:13 ✅ 实测：容器内 `--network none` + 产物只读挂载下 **pi 与 dsh 都跑通**（端点侧 tools>0/stream=true，模型名来自运行期注入）；容器内轨迹也产出了事件
+- 00:13 新增 `make startup-selftest`（逐适配器各跑一遍：dsh 21 项 / pi 25 项）+ C9 新增 5 项容器内检查
+- 00:13 撞坑四件事：spawn 的 args 不该含程序名（多塞一次 exe 让 dsh 把自身路径当 profile）；core/ 不得出现运行时名（拦了我两次，拦得对）；自检一开始"一律要求值进产物"误判原生插值型运行时；COPY 保留 0600 权限导致容器内读不到
+- 01:03 🔴 统一暂存路径后**四处重复实现**同时现形（run.mjs 内联渲染 / doctor 的 renderModelsTemplate / trace-ext 自建暂存 / dsh 两处自建暂存）—— 各自漂移出不同症状，被门槛与自检当场抓住，已全部收敛到 `core/image/startup.mjs`
+- 01:03 🔴 pin 的第三方 MCP 扩展**自带技能**（`resources_discover` 里注册 mcp-scripting，受它自己配置的 `scriptMode` 控制）→ 技能集合多一项。置 `scriptMode: false`：既清掉未声明技能，也关掉"跑可信 JavaScript"这个我们从未声明的能力
+- 01:03 零凭据模式改为**显式**：`zeroCredential` 默认 false，探针/冒烟/自证/本地自检各自显式打开；开发者用 `run-local --zero-credential`。真实运行不许静默用占位凭据
+- 01:03 ✅ 全量回归全绿：13 自检 + 两侧 conformance 10/10 + examples-check 全绿
 

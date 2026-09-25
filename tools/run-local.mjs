@@ -38,7 +38,7 @@ const REPO = path.resolve(HERE, "..");
 
 const main = async () => {
   const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), {
-    valueFlags: ["--harness", "--prompt", "--endpoint", "--render-dir"],
+    valueFlags: ["--harness", "--prompt", "--endpoint", "--render-dir", "--zero-credential"],
   });
   const agentDir = positionals[0];
   if (flags.has("--help") || flags.has("-h") || !agentDir) {
@@ -66,7 +66,10 @@ const main = async () => {
 
   // ② 暂存可写副本 + 临时 HOME（P-b 文件系统隔离）
   const endpoint = values["--endpoint"] ?? process.env.AGENT_ENDPOINT ?? "http://127.0.0.1:9/v1";
-  const { staging, placeholders } = stageRenderDir(renderDir, endpoint);
+  // 零凭据：把必填项用显式占位值补齐（本地自检、或只想确认链路通的时候用）。
+  // **必须是显式的**：真实运行不给这个开关 —— 免得跑出一个"看起来正常、其实连不上"的结果。
+  const zeroCredential = values["--zero-credential"] === "true" || values["--zero-credential"] === "";
+  const { staging, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential });
   const home = values["--keep-home"]
     ? fs.mkdtempSync(path.join(os.tmpdir(), "agent-local-home-"))
     : fs.mkdtempSync(path.join(os.tmpdir(), "agent-local-home-"));

@@ -41,7 +41,7 @@
 | 字段 | 类型 | 所属层 | 必填 | 取值 | dsh | pi | 说明 |
 |---|---|---|---|---|---|---|---|
 | `model.route` | string | artifact | 是 | `^[a-z][a-z0-9-]{1,30}$` | ✅ 支持 | ✅ 支持 | 基座声明的模型路由名。不是 URL、不是 provider（P-a 能力/选择分离）。 |
-| `model.name` | string | artifact | 是 | — | ✅ 支持 | ✅ 支持 | 模型名。属制品层的「行为选择」。 |
+| `model.name` | string | valueRefParameter | 是 | （参数层） | ✅ 支持 | ✅ 支持 | **默认**模型名。属环境属性 —— 同一份制品在不同环境常要指向不同模型名（端点不同、模型目录不同）。 运行期可用 `<路由前缀>_MODEL` 覆盖；覆盖值须在该路由声明的模型名单内，并会记进轨迹。 可配置 ≠ 随便配 ≠ 配了没人知道。 |
 | `model.reasoningEffort` | enum | artifact | 否 | `low` / `medium` / `high` | ✅ 支持（未实测） | unknown（未实测） | 推理强度。harness 不支持时按 exemptions.yaml 处理（§5.4），三种合法处置：等效替代 / 豁免 / 拒绝；禁止静默降级。 |
 
 <sub>来源：agent.yaml</sub>
@@ -104,6 +104,7 @@
 | `connector-credential` | connector-credential | `^[A-Z][A-Z0-9_]*_(TOKEN\|SECRET\|KEY\|PASSWORD)$` | 是 | `mcpServers[].credentialRef` | 连接器凭据。§2.3 的表格未逐项列出连接器凭据，这里按 §4.3 的示例名（JIRA_TOKEN / GITLAB_TOKEN） 归纳出 v1 命名约定，使 validate 能判定 credentialRef 是否落在允许清单内。 **这是本清单里唯一由示例归纳、而非表格原文列出的条目**——若约定不合适，改这里即可。 |
 | `route-api-key` | model-route-credential | `^[A-Z][A-Z0-9_]*_API_KEY$` | 是 | `model.route` | 模型路由凭据。路由名（制品层）决定用哪条路由，密钥属于部署期。 |
 | `route-base-url` | model-route-endpoint | `^[A-Z][A-Z0-9_]*_BASE_URL$` | 否 | `model.route` | 模型路由端点。pi 的 models.json.tmpl 在启动期渲染；dsh 走 apiKeyEnv / 路由字典。 |
+| `model-name` | model-route-model | `^[A-Z][A-Z0-9_]*_MODEL$` | 否 | `model.name` | 模型名的运行期覆盖。中性定义里的 `model.name` 是**默认值**，不是最终值。 同一份制品在不同环境常常要指向不同模型名（端点不同、模型目录不同）。 覆盖必须可校验、可追溯：启动期按路由声明的模型名单校验，并把它记进轨迹 —— 「可配置」不等于「随便配」，也不等于「配了没人知道」。 |
 | `probe-param` | probe-parameter | `^AGENT_PROBE_[A-Z0-9_]+$` | 否 |  | 探针参数（超时、目标）。只影响「怎么探测」，不影响智能体行为。 |
 | `log-level` | observability | `^AGENT_LOG_LEVEL$` | 否 |  | — |
 | `trace-dest` | observability | `^AGENT_TRACE_DEST$` | 否 |  | 轨迹输出位置。轨迹格式本身由 core/trace/schema.json 强制，不因目的地而变。 |
@@ -119,7 +120,7 @@
 | `persona-text` | behavior-content | `persona.instructions` / `persona.instructionsFile` | 人设文本改变行为，必须可评审、可回滚、可签名。 | gates/1,conformance/C8 |
 | `skills-manifest-or-content` | behavior-content | `skillsDir` | 技能是可执行内容（含 skills/<name>/scripts/ 下的业务代码），必须随制品烤入并参与 digest。 | gates/1,conformance/C8 |
 | `connector-enablement` | capability-declaration | `mcpServers[].enabled` / `mcpServers[].name` / `mcpServers[].transport` | 「它能连哪些系统」是能力声明，不是环境差异。同名系统换环境只换端点（见 allowed.connector-endpoint）。 | gates/1,conformance/C8 |
-| `model-choice` | behavior-choice | `model.route` / `model.name` | 「它用哪个模型」是行为选择，属制品层。路由背后的端点与凭据才是参数层。 | gates/1,conformance/C8 |
+| `model-route-selection` | route-choice | `model.route` | **路由选择**留在制品层：路由名决定后面三个引用名（端点 / 凭据 / 模型名）， 是「这份制品跑在哪条路由上」的身份，不是环境属性。 | gates/1,conformance/C8 |
 | `tool-boundary` | behavior-content | `tools.deny` | 工具白/黑名单是边界，属制品层。 | gates/1,conformance/C8 |
 | `harness-enhancement-content` | behavior-content | `harness/<h>/**` | 业务级增强是行为（§4.5），构建期烤进智能体镜像薄层，随 digest 可复现。 | gates/1,conformance/C8 |
 

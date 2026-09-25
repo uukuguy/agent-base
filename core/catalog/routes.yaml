@@ -30,4 +30,10 @@ routes:
     api: openai-completions          # 协议形状（pi 的 models.json.api 与 dsh 的 providers.<route>.api 同名）
     baseUrlParam: CORP_GATEWAY_BASE_URL
     credentialParam: CORP_GATEWAY_API_KEY
-    models: []                       # 可选：已知模型目录；空表示由智能体的 model.name 直接指定
+    modelParam: CORP_GATEWAY_MODEL   # 运行期覆盖模型名用的引用名
+    # 本路由**服务哪些模型**。它不是"建议清单"，而是**校验依据**：
+    #   · 闸门 1 用它校验智能体写的默认模型名（写错当场失败，不必等端点返回看不懂的错）
+    #   · 启动期校验运行期覆盖的模型名（同上）
+    # 空列表 = 该路由不声明模型目录 ⇒ 跳过校验（但启动期仍会检查名字非空）。
+    models:
+      - corp-think

@@ -279,23 +279,37 @@ function checkBase(report) {
       const badId = list.filter((r) => !/^[a-z][a-z0-9-]{1,30}$/.test(r.id ?? "")).map((r) => r.id ?? "(缺 id)");
       const badNames = [];
       for (const r of list) {
-        const want = { baseUrlParam: `${prefixOf(r.id)}_BASE_URL`, credentialParam: `${prefixOf(r.id)}_API_KEY` };
+        const want = {
+          baseUrlParam: `${prefixOf(r.id)}_BASE_URL`,
+          credentialParam: `${prefixOf(r.id)}_API_KEY`,
+          modelParam: `${prefixOf(r.id)}_MODEL`,
+        };
         for (const [k, expect] of Object.entries(want)) {
           if (r[k] !== expect) badNames.push(`${r.id}.${k}=${r[k] ?? "(缺)"}，按约定应为 ${expect}`);
         }
       }
-      const allowedNames = new Set((params.allowed ?? []).flatMap((a) => (a.refNames ?? [])));
+      // 「引用名必须被参数层允许」不能靠一张手写名单（那张名单不存在 ⇒ 这个检查曾经是**空转**的）。
+      // 真正的判据是：名字必须匹配 params.allowed 里某条**支撑模型组字段**的 pattern
+      // （端点/凭据 backs model.route；模型名 backs model.name —— 三者都由路由前缀派生）。
+      // 空转的检查比没有更糟 —— 它给了一种"已经管住了"的错觉。
+      const ROUTE_DERIVED_BACKS = ["model.route", "model.name", "model.reasoningEffort"];
+      const routePats = (params.allowed ?? [])
+        .filter((a) => (a.backs ?? []).some((b) => ROUTE_DERIVED_BACKS.includes(b)))
+        .map((a) => ({ id: a.id, re: new RegExp(a.pattern) }));
       const notAllowed = [];
-      for (const r of list) for (const k of ["baseUrlParam", "credentialParam"]) {
+      for (const r of list) for (const k of ["baseUrlParam", "credentialParam", "modelParam"]) {
         const n = r[k];
-        if (n && allowedNames.size && !allowedNames.has(n)) notAllowed.push(`${r.id}.${k}=${n}`);
+        if (!n) continue;
+        if (!routePats.some((p) => p.re.test(n))) {
+          notAllowed.push(`${r.id}.${k}=${n}（不匹配任何支撑模型组字段的参数项：${routePats.map((p) => p.id).join(", ")}）`);
+        }
       }
       if (badId.length) report.fail(GATE, "routes/id", `路由名不合法（^[a-z][a-z0-9-]{1,30}$）：${badId.join(", ")}`);
       else report.pass(GATE, "routes/id", "路由名全部合法");
       if (badNames.length) report.fail(GATE, "routes/param-convention", `引用名不符合约定：${badNames.join("；")}`);
-      else report.pass(GATE, "routes/param-convention", "端点/凭据引用名全部符合 <PREFIX>_BASE_URL / <PREFIX>_API_KEY 约定");
-      if (notAllowed.length) report.fail(GATE, "routes/param-allowed", `引用名未被参数层允许清单覆盖：${notAllowed.join(", ")}`);
-      else report.pass(GATE, "routes/param-allowed", "路由引用名都在参数层允许清单内");
+      else report.pass(GATE, "routes/param-convention", "端点/凭据/模型名引用名全部符合 <PREFIX>_BASE_URL / _API_KEY / _MODEL 约定");
+      if (notAllowed.length) report.fail(GATE, "routes/param-allowed", `引用名未被参数层允许清单覆盖：${notAllowed.join("；")}`);
+      else report.pass(GATE, "routes/param-allowed", `路由引用名都匹配支撑模型组字段的参数项（${routePats.map((p) => p.id).join(", ")}）`);
     }
   }
 
@@ -636,6 +650,21 @@ function checkAgent(report, ctx, agentDir) {
     else if (!route) report.fail(GATE, "route/declared", "缺 model.route");
     else if (!declared.has(route)) report.fail(GATE, "route/declared", `model.route「${route}」不是基座声明的路由。可用：${[...declared].sort().join(", ")}`);
     else report.pass(GATE, "route/declared", `model.route「${route}」是基座声明的路由（${routes.find((r) => r.id === route).api}）`);
+
+    // 默认模型名必须在该路由声明的模型名单内（名单为空 = 该路由不声明目录，跳过）。
+    // 这条把"写错模型名"从"运行时端点返回一句看不懂的错"提前到"定义校验期"。
+    const r = routes.find((x) => x.id === route);
+    const allowedModels = r?.models ?? [];
+    if (r && allowedModels.length) {
+      if (allowedModels.includes(agent.model?.name)) {
+        report.pass(GATE, "model/declared-in-route", `model.name「${agent.model.name}」在路由 ${route} 声明的模型名单内`);
+      } else {
+        report.fail(GATE, "model/declared-in-route",
+          `model.name「${agent.model?.name}」不在路由 ${route} 声明的模型名单内。该路由提供：${allowedModels.join(", ")}`);
+      }
+    } else if (r) {
+      report.pass(GATE, "model/declared-in-route", `路由 ${route} 未声明模型名单，跳过成员资格校验（名字非空由 schema 保证）`);
+    }
   }
 
   report.pass(GATE, "portability/report",

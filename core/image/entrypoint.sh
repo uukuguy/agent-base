@@ -23,10 +23,14 @@ VARIANT_FILE="${AGENT_BASE_VARIANT_FILE:-/etc/agent-base-variant}"
 VARIANT="$(cat "$VARIANT_FILE" 2>/dev/null || echo unknown)"
 MODE="${AGENT_RUN_MODE:-oneshot}"
 HARNESS="${HARNESS:-}"
-AGENT_DIR="${PI_CODING_AGENT_DIR:-/opt/agent-base/agent-dir}"
+# **产物根**（渲染输出整体：清单 + 各运行时的产物目录）的挂载点。
+# 注意它不再是"某个运行时的配置目录" —— 配置目录由启动脚本按运行期布局契约暂存后决定。
+ARTIFACT_DIR="${AGENT_ARTIFACT_DIR:-/opt/agent-base/artifact}"
 TRACE="${AGENT_TRACE_DEST:-}"
 TAIL_LINES="${AGENT_CRASH_TAIL_LINES:-30}"
 HARNESS_JSON="${AGENT_BASE_HARNESSES:-/opt/agent-base/harnesses.json}"
+# 启动期准备脚本（参数下放 + 可写暂存的落地点）
+STARTUP="${AGENT_BASE_STARTUP:-/opt/agent-base/startup.mjs}"
 
 # 退出码语义与 core/gates/exit-codes.mjs 一致
 EXIT_USAGE=2
@@ -42,7 +46,7 @@ fi
 if [ "$MODE" = "debug" ] && [ "$VARIANT" = "debug" ]; then
   {
     echo "── 调试变体诊断 shell ──"
-    echo "  variant=$VARIANT  harness=${HARNESS:-（未指定）}  agent-dir=$AGENT_DIR"
+    echo "  variant=$VARIANT  harness=${HARNESS:-（未指定）}  artifact=$ARTIFACT_DIR"
     if [ -n "$TRACE" ] && [ -f "$TRACE" ]; then
       echo "  轨迹末 $TAIL_LINES 行："
       tail -n "$TAIL_LINES" "$TRACE"
@@ -55,6 +59,8 @@ fi
 case "${1:-agent}" in
   agent) ;;
   shell) shift; exec /bin/sh "$@" ;;
+  # 配置自检：只校验运行期参数与产物，不跑模型。生产里当就绪探针用。
+  config-check) shift; exec node "$STARTUP" config-check --artifact "$ARTIFACT_DIR" "$@" ;;
   *) exec "$@" ;;
 esac
 
@@ -70,32 +76,15 @@ if ! command -v "$HARNESS" >/dev/null 2>&1; then
   usage_exit "不会用别的 harness 替代 —— 那会让跨 harness 的结论失真。"
 fi
 
-if [ ! -d "$AGENT_DIR" ]; then
-  usage_exit "找不到渲染产物：$AGENT_DIR。构建智能体镜像时要把渲染产物拷进去（或挂载）。"
+if [ ! -d "$ARTIFACT_DIR" ]; then
+  usage_exit "找不到渲染产物：$ARTIFACT_DIR。把渲染输出（含 render-manifest.json 与各运行时目录）拷进去或挂到 \$AGENT_ARTIFACT_DIR。"
 fi
 
-# ---- 运行：参数由调用方给，本脚本不解释它们 ----
+# ---- ④ 启动期准备 + 运行 ----
+# 参数（端点/凭据/模型名）与"可写暂存"都由 startup.mjs 处理：它读产物清单里的运行期契约，
+# 按需渲染、原子写盘、缺什么就报错退出（退出码 2）。这里只负责把运行时与参数串交给它。
+# 参数串由调用方给，本脚本不解释它们（各运行时的参数形态由适配器决定）。
 # shellcheck disable=SC2086  # 故意按空格拆分：AGENT_HARNESS_ARGS 是"参数串"，不是单个参数
 set -- ${AGENT_HARNESS_ARGS:-}
-set +e
-"$HARNESS" "$@"
-code=$?
-set -e
-
-# ---- ② 崩溃留证据 ----
-if [ "$code" -ge 128 ]; then
-  {
-    echo "❌ 未预期崩溃：退出码 $code（信号 $((code - 128))）"
-    echo "  variant=$VARIANT harness=$HARNESS agent-dir=$AGENT_DIR"
-    echo "  effectiveConfigDigest=${AGENT_EFFECTIVE_CONFIG_DIGEST:-（未设置）}"
-    if [ -n "$TRACE" ] && [ -f "$TRACE" ]; then
-      echo "  轨迹末 $TAIL_LINES 行（$TRACE）："
-      tail -n "$TAIL_LINES" "$TRACE"
-    else
-      echo "  （没有轨迹文件：AGENT_TRACE_DEST 未设置或未产出）"
-    fi
-  } >&2
-  exit "$EXIT_CRASH"
-fi
-
-exit "$code"
+# shellcheck disable=SC2086
+exec node "$STARTUP" run --artifact "$ARTIFACT_DIR" -- "$HARNESS" "$@"

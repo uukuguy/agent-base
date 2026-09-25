@@ -64,6 +64,18 @@ allowed:
     design: "§2.3 / §10.2 约束 1 / §11.4"
     note: 模型路由端点。pi 的 models.json.tmpl 在启动期渲染；dsh 走 apiKeyEnv / 路由字典。
 
+  - id: model-name
+    kind: model-route-model
+    pattern: "^[A-Z][A-Z0-9_]*_MODEL$"
+    secret: false
+    backs: ["model.name"]
+    design: "§2.3（判据修正：值是否随部署环境而变）"
+    note: >
+      模型名的运行期覆盖。中性定义里的 `model.name` 是**默认值**，不是最终值。
+      同一份制品在不同环境常常要指向不同模型名（端点不同、模型目录不同）。
+      覆盖必须可校验、可追溯：启动期按路由声明的模型名单校验，并把它记进轨迹 ——
+      「可配置」不等于「随便配」，也不等于「配了没人知道」。
+
   - id: probe-param
     kind: probe-parameter
     pattern: "^AGENT_PROBE_[A-Z0-9_]+$"
@@ -129,11 +141,17 @@ forbidden:
     reason: 「它能连哪些系统」是能力声明，不是环境差异。同名系统换环境只换端点（见 allowed.connector-endpoint）。
     enforcedBy: ["gates/1", "conformance/C8"]
 
-  - id: model-choice
-    kind: behavior-choice
+  - id: model-route-selection
+    kind: route-choice
     pattern: "^AGENT_MODEL_.*$"
-    definitionPaths: ["model.route", "model.name"]
-    reason: 「它用哪个模型」是行为选择，属制品层。路由背后的端点与凭据才是参数层。
+    definitionPaths: ["model.route"]
+    reason: >
+      **路由选择**留在制品层：路由名决定后面三个引用名（端点 / 凭据 / 模型名），
+      是「这份制品跑在哪条路由上」的身份，不是环境属性。
+    note: >
+      与 `model-name` 的分工 —— 早期这里把 `model.name` 也一并禁掉了，那是**判据用粗了**：
+      端点与模型名在实际部署里是绑在一起的（内网网关只服务它有的那几个模型），
+      端点既然运行期给，模型名就没有理由烤死。判据已改为「值是否随部署环境而变」。
     enforcedBy: ["gates/1", "conformance/C8"]
 
   - id: tool-boundary

@@ -122,7 +122,9 @@ console.log("\n── ③ 静默失败必须被抓到（C5 的检测力）──
   let pkgOk = false;
   try {
     mcpOk = Object.hasOwn(JSON.parse(fs.readFileSync(mcpFile, "utf8")).mcpServers ?? {}, "filesystem");
-    pkgOk = (JSON.parse(fs.readFileSync(settingsFile, "utf8")).packages ?? []).some((x) => String(x).includes("pi-mcp-adapter"));
+    // 包声明有字符串与对象两种形式（对象形式用于按资源裁剪），两种都要认
+    const pkgs = JSON.parse(fs.readFileSync(settingsFile, "utf8")).packages ?? [];
+    pkgOk = pkgs.some((x) => String(typeof x === "string" ? x : x?.source ?? "").includes("pi-mcp-adapter"));
   } catch { /* 下面按 false 报出 */ }
   check("产物里连接器**真的**被渲染（agent-dir/mcp.json 有该服务器）", mcpOk, mcpFile);
   check("产物声明了 MCP 客户端扩展（settings.packages）", pkgOk, settingsFile);

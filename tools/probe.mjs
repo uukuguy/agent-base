@@ -83,7 +83,9 @@ async function main() {
         handler: async (c, rep) => {
           // ---- probe/model ----
           const runner = await loadRunner(args.harness);
-          const run = await runner.runAgent({ renderDir, endpoint: c.endpoint, prompt: "say hi", timeoutMs: 60000 });
+          // 闸门 3 是**零凭据**检查：显式声明零凭据模式（缺的必填项用显式占位值补齐）。
+          // 真实运行默认 False —— 不许静默用占位凭据跑出"看起来正常"的结果。
+          const run = await runner.runAgent({ renderDir, endpoint: c.endpoint, prompt: "say hi", timeoutMs: 60000, zeroCredential: true });
 
           // **端点侧取证**：断言"端点实际收到了什么"，而不是"harness 说自己发了什么"。
           // 这样两条通道都成立：pi 的轨迹里有 model.request（回调式），dsh 的轨迹里没有 ——

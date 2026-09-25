@@ -37,7 +37,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { DEFAULT_EXCLUDES, EXIT_CODES, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
+import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -149,7 +149,10 @@ function buildPatch({ agent, connectors, enhancements, route }) {
   const p = [];
 
   // ① 模型：完整 config（不是增量）
-  p.push({ id: "agent-default-model", config: { provider: agent.model.route, model: agent.model.name } });
+  // 模型名是**环境属性**（同一份制品在不同环境常要指向不同模型名），因此本体写成 `!!js` 表达式：
+  // 没被覆盖时回落到定义里的默认值。本 harness 原生支持表达式求值 ⇒ **不需要启动期渲染**。
+  const modelExpr = () => new JsExpr(`(process.env.${route.modelParam} ?? ${JSON.stringify(agent.model.name)})`);
+  p.push({ id: "agent-default-model", config: { provider: agent.model.route, model: modelExpr() } });
 
   // ①b **把路由本身配出来** —— 这一步不能省。
   //     只写 `agent-default-model.provider: <route>` 只是"选了哪个路由"；路由**存不存在**由
@@ -167,7 +170,7 @@ function buildPatch({ agent, connectors, enhancements, route }) {
             api: route.api,                              // 协议形状（与 pi 的 models.json.api 同名）
             apiKeyEnv: route.credentialParam,            // **只写引用名**，真值由部署期注入
             baseURL: new JsExpr(`process.env.${route.baseUrlParam}`),   // 参数下放，不写死端点
-            models: [{ id: agent.model.name, name: agent.model.name }],
+            models: [{ id: modelExpr(), name: modelExpr() }],
           },
         },
       },
@@ -344,6 +347,40 @@ function main() {
     denyNote: "工具粒度不同：中性的 read/write/edit 在这边是同一个 tool-fs row，禁用其一即禁用三者（见 exemptions.yaml）",
     modelRoutes: [agent.model.route],
     modelRouteApi: route.api,
+    // 该路由声明的模型名单：启动期校验运行期覆盖的模型名用
+    modelRouteModels: route.models ?? [],
+    /**
+     * **运行期参数契约**：入口脚本按这份声明解析并校验（不猜名字、不硬编码）。
+     * 本 harness 原生支持 `!!js` 求值 ⇒ `rendersParams: false`（不在启动期改写产物），
+     * 但**校验仍然做**（模型名须在路由名单内）——「原生能插值」不等于「注入的值不用管」。
+     */
+    rendersParams: false,
+    /**
+     * **运行期布局契约**（入口脚本按它暂存 + 设环境变量 + 定 cwd）。
+     * 本 harness 原生支持 `!!js` 求值 ⇒ 不需要渲染；但要**暂存可写副本**：
+     * 会话与配置写在 DSH_HOME 下，而产物是只读挂载的。
+     */
+    runtimePlan: {
+      // 本 harness 的调用形态是 `dsh <profile> [选项…]` —— profile 名是**运行时的专有知识**，
+      // 由产物声明，调用方（入口脚本/编排层）不必知道。`@agent` 会被替换成智能体名。
+      argvPrefix: ["@agent"],
+      copy: ["dsh-home", "workspace", "skills"],
+      env: { DSH_HOME: "dsh-home" },
+      cwd: "workspace",
+      pathRewrites: [
+        { from: SKILLS_IN_IMAGE, to: "skills" },
+        { from: WORKSPACE_IN_IMAGE, to: "workspace" },
+        { from: DSH_HOME_IN_IMAGE, to: "dsh-home" },
+      ],
+    },
+    runtimeParams: [
+      { name: route.baseUrlParam, secret: false, required: true, backs: "model.route" },
+      { name: route.credentialParam, secret: true, required: true, backs: "model.route" },
+      {
+        name: route.modelParam, secret: false, required: false,
+        default: agent.model.name, backs: "model.name", validate: "in-route-models",
+      },
+    ],
     // 端点/凭据的**参数引用名**：运行期靠这两个名字注入真值（参数下放）
     modelRouteBaseUrlParam: route.baseUrlParam,
     modelRouteCredentialParam: route.credentialParam,
@@ -356,7 +393,9 @@ function main() {
       const e = {
         "persona.instructions": { at: "workspace/AGENTS.md", contains: persona.slice(0, 24) },
         "model.route": { at: patchRel, contains: `provider: ${agent.model.route}` },
-        "model.name": { at: patchRel, contains: `model: ${agent.model.name}` },
+        // model.name 是默认值（运行期可覆盖）⇒ 落点是清单（默认值 + 引用名），
+        // 产物里是 `!!js (process.env.<引用名> ?? "<默认值>")` 表达式。
+        "model.name": { at: "render-manifest.json", contains: [agent.model.name, route.modelParam] },
         skills: { at: "skills" },
       };
       if (agent.model?.reasoningEffort) {
@@ -375,6 +414,13 @@ function main() {
   };
   const artifactsDigest = digestDirectory(outRoot, { excludes: [...DEFAULT_EXCLUDES, "render-manifest.json"] });
   manifest.artifactsDigest = artifactsDigest;
+  // 生效配置摘要：渲染期算好记进清单，运行期直接读（避免镜像里再实现一遍摘要）
+  manifest.effectiveConfigDigest = computeEffectiveConfigDigest({
+    harnessVersion: manifest.harnessVersion,
+    adapterVersion: readYaml(path.join(HERE, "adapter.yaml")).adapterVersion,
+    artifactsDigest,
+    paramNames: (manifest.runtimeParams ?? []).map((p) => p.name),
+  });
   writeFile(path.join(outRoot, "render-manifest.json"), stableJson(manifest));
 
   const result = {

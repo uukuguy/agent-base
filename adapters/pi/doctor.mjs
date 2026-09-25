@@ -39,6 +39,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
+// 暂存/渲染**共用运行期那一份实现**（run.mjs → core/image/startup.mjs），不在这里另写一遍
+import { stageRenderDir } from "./run.mjs";
 import {
   DEFAULT_EXCLUDES, EXIT_CODES, GateReport, computeEffectiveConfigDigest,
   digestDirectory, runGates,
@@ -108,21 +110,10 @@ function piRpc({ bin, args, env, cwd, requests, timeoutMs = 20000 }) {
  * doctor 做零凭据自证时通常没有真实参数值，此时用**占位值**保证 provider/route 能被 harness 加载
  * （doctor 只调 get_state / get_commands，不发模型请求，因此占位端点不会被访问），并如实报告哪些是占位。
  */
-function renderModelsTemplate(staging, env) {
-  const tmplFile = path.join(staging, "models.json.tmpl");
-  if (!fs.existsSync(tmplFile)) return { resolved: false, placeholders: [], reason: "没有 models.json.tmpl" };
-  const tmpl = fs.readFileSync(tmplFile, "utf8");
-  const placeholders = [];
-  const out = tmpl.replace(/\$\{([A-Z_][A-Z0-9_]*)\}|\$([A-Z_][A-Z0-9_]*)/g, (_m, a, b) => {
-    const name = a ?? b;
-    const v = env[name];
-    if (v !== undefined && v !== "") return v;
-    placeholders.push(name);
-    return name.endsWith("_BASE_URL") ? "http://127.0.0.1:9/v1" : "placeholder-not-a-credential";
-  });
-  fs.writeFileSync(path.join(staging, "models.json"), out);
-  return { resolved: true, placeholders };
-}
+// 注意：这里**不再**自己渲染一遍模板。渲染只有一处实现（core/image/startup.mjs），
+// 由 run.mjs 的 stageRenderDir 统一调用 —— 早先这里还有第二份渲染实现，
+// 两份立刻漂移：暂存把模型名渲染成真值，这里又把它换成了凭据占位串，
+// 于是自证报出"实际生效模型与产物不一致"，而真因是重复实现。
 
 function copyDir(from, to) {
   fs.mkdirSync(to, { recursive: true });
@@ -162,7 +153,10 @@ async function main() {
     adapterVersion: adapter.adapterVersion,
     artifactsDigest: manifest.artifactsDigest,
   });
-  report.paramNames = [...(manifest.paramNames ?? [])].sort();
+  // 参数名只从**清单的运行期参数契约**取 —— 与渲染期算摘要用的是同一份来源。
+  // 早期这里读 manifest.paramNames（当时只含连接器参数），加上模型名后立刻与渲染期不一致，
+  // 于是摘要交叉核对变红，而"两份来源"这个真因比症状难看出来。
+  report.paramNames = [...(manifest.runtimeParams ?? []).map((p) => p.name)].sort();
 
   const ctx = {};
 
@@ -180,10 +174,13 @@ async function main() {
         }
 
         // ---- 暂存副本：上游会写配置目录，产物必须保持干净（§10.1 约束 2）----
-        const staging = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-staging-"));
+        //
+        // **必须走与运行期同一条暂存/渲染路径**（run.mjs 的 stageRenderDir → core/image/startup.mjs）。
+        // 早先这里是自己 copyDir 一份、然后在 doctor 内部另做一遍渲染 —— 两份实现立刻漂移：
+        // 运行期把模型名渲染成真值，doctor 这边还留着占位符，于是自证报出一个看不懂的结论。
         const home = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-home-"));
         const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-cwd-"));
-        copyDir(agentDir, staging);
+        const { staging, placeholders } = stageRenderDir(renderDir, "http://127.0.0.1:9/v1", { zeroCredential: true });
         ctx.staging = staging;
 
         // ---- 运行期契约（见 adapter.yaml 的 runtime 段；每条都来自实测）----
@@ -199,21 +196,23 @@ async function main() {
           PI_OFFLINE: "1",
         };
 
-        // 启动期参数下放：模板 → 实际配置（缺失的参数用占位值，并如实记录）
-        const template = renderModelsTemplate(staging, env);
-        ctx.templatePlaceholders = template.placeholders;
-        if (!template.resolved) {
-          // 关键：这是**能判定的失败**，不是"没拿到可判定结果"。
-          // 若在这里继续往下跑，RPC 会启动失败并被当成崩溃（50），
-          // 把闸门 2 的失败误报成"harness 崩溃"——那是误导。
-          report.fail(GATE, "resolution/param-render", template.reason ?? "无法渲染模型配置模板");
-          return;
+        // 声明需要渲染的运行时：**渲染结果必须真的产出**。
+        // 这一条把"配置缺失/未渲染"从"harness 启动崩溃（退出码 50）"拉回**可判定的失败（20）** ——
+        // 崩溃码会让人以为基座坏了，而真相是产物缺了东西（F3）。
+        if (manifest.rendersParams === true && !fs.existsSync(path.join(staging, "models.json"))) {
+          report.fail(GATE, "resolution/param-render",
+            `产物声明了启动期渲染（rendersParams: true），但暂存后没有 models.json —— 模板缺失或渲染未发生`);
+          return;   // 早退：配置都没渲染出来，后面的 RPC 自证没有意义（会变成看不懂的崩溃）
         }
-        if (template.placeholders.length) {
+
+        // 启动期参数下放：**已由暂存步骤（同一份实现）完成**，这里只报告结果。
+        // 零凭据模式下缺的参数由 stageRenderDir 用显式占位值补齐，并在这里如实列出。
+        ctx.templatePlaceholders = placeholders;
+        if (placeholders.length) {
           report.pass(GATE, "resolution/param-render",
-            `models.json.tmpl 已在启动期渲染；${template.placeholders.length} 个参数用占位值（doctor 零凭据，不发模型请求）：${template.placeholders.join(", ")}`);
+            `运行期参数已在启动期渲染；${placeholders.length} 个用清单里的默认值或零凭据占位（doctor 不发模型请求）：${placeholders.join(", ")}`);
         } else {
-          report.pass(GATE, "resolution/param-render", "models.json.tmpl 已在启动期渲染（参数全部来自环境）");
+          report.pass(GATE, "resolution/param-render", "运行期参数已在启动期渲染（全部来自环境）");
         }
 
         const version = await probeVersion("pi");
@@ -232,7 +231,9 @@ async function main() {
     const packages = fs.existsSync(stagedSettings) ? (JSON.parse(fs.readFileSync(stagedSettings, "utf8")).packages ?? []) : [];
     if (declared.length && !adapterPath) {
       report.fail(GATE, "resolution/connectors-client", `声明了 ${declared.length} 个连接器，但清单没记录 MCP 客户端扩展路径 —— 会渲染出一个没有客户端的智能体`);
-    } else if (declared.length && !packages.some((x) => String(x).includes("pi-mcp-adapter"))) {
+    // 包声明有**字符串**与**对象**两种形式（对象形式用于按资源类型裁剪）——
+    // 只按字符串比会漏判对象形式，报出假告警。
+    } else if (declared.length && !packages.some((x) => String(typeof x === "string" ? x : x?.source ?? "").includes("pi-mcp-adapter"))) {
       report.fail(GATE, "resolution/connectors-client", `声明了 ${declared.length} 个连接器，但产物的 settings.packages 里没有 MCP 客户端扩展 —— 连接器会被静默忽略`);
     } else if (declared.length) {
       report.pass(GATE, "resolution/connectors-client", `${declared.length} 个连接器 + MCP 客户端扩展声明齐备`);
@@ -279,7 +280,8 @@ async function main() {
         const pkgList = fs.existsSync(settingsFile)
           ? (JSON.parse(fs.readFileSync(settingsFile, "utf8")).packages ?? [])
           : [];
-        const hasClient = pkgList.some((x) => String(x).includes("pi-mcp-adapter"));
+        // 包声明可能是字符串或对象（对象形式用于按资源裁剪）—— 两种都要认，否则会漏判成"没有客户端"
+        const hasClient = pkgList.some((x) => String(typeof x === "string" ? x : x?.source ?? "").includes("pi-mcp-adapter"));
         const mcpServers = fs.existsSync(mcpFile)
           ? Object.keys(JSON.parse(fs.readFileSync(mcpFile, "utf8")).mcpServers ?? {})
           : [];
@@ -375,6 +377,25 @@ async function main() {
             artifactsDigest: manifest.artifactsDigest,
             paramNames: report.paramNames,
           }));
+
+        // 交叉核对：清单里记录的摘要必须与**本地重算**一致。
+        // 记录值由渲染期算好（镜像里直接读它）；重算值来自当前代码与当前产物 ——
+        // 两者不一致说明清单过期或被改过，必须报出来，不能只看记录值。
+        {
+          const recorded = manifest.effectiveConfigDigest ?? null;
+          const recomputed = computeEffectiveConfigDigest({
+            harnessVersion: version,
+            adapterVersion: adapter.adapterVersion,
+            artifactsDigest: manifest.artifactsDigest,
+            paramNames: report.paramNames,
+          });
+          if (recorded && recomputed !== recorded) {
+            report.fail(GATE, "resolution/digest-crosscheck",
+              `清单记录的生效配置摘要与本地重算不一致（记录 ${recorded.slice(0, 23)}… vs 重算 ${recomputed.slice(0, 23)}…）—— 清单过期或被改过`);
+          } else {
+            report.pass(GATE, "resolution/digest-crosscheck", recorded ? "记录值与本地重算一致" : "清单未记录摘要（旧产物），已按重算值报告");
+          }
+        }
       },
       assertions: [
         {

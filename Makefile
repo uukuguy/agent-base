@@ -37,6 +37,9 @@ validate-selftest: ## 闸门 1 的注入式负向自检（非法样本必须全�
 	@node tools/validate.mjs core/spec/fixtures/valid --selftest
 
 # --- 基座自检（S1 已交付）---------------------------------------------------
+startup-selftest: ## 启动期准备（参数下放/暂存/渲染）自检
+	@node core/image/startup-selftest.mjs
+
 gates-selftest: ## 四闸门框架自检：断言语言、短路、退出码、usable、摘要确定性
 	@node core/gates/selftest.mjs
 

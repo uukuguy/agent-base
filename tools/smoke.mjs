@@ -73,6 +73,8 @@ const renderDir = path.resolve(renderDirArg);
         handler: async (_c, rep) => {
           const runner = await loadRunner(harness);
           const run = await runner.runAgent({
+            // 闸门 4 同样是零凭据检查
+            zeroCredential: true,
             renderDir,
             endpoint: endpoint ?? gateway.url,
             prompt: "Reply with the marker so the smoke check can verify output.",  // 确定性任务

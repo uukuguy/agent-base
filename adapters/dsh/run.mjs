@@ -22,7 +22,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { computeEffectiveConfigDigest } from "../../core/gates/index.mjs";
@@ -30,16 +30,17 @@ import { mapEventStream } from "./trace.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HARNESS = "dsh";
+/** 启动期准备脚本：宿主侧与容器内**共用同一份**暂存实现。 */
+const STARTUP = path.join(HERE, "../../core/image/startup.mjs");
 
 const readJson = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
 
-/** 端点/凭据等参数名（渲染产物里记着它们，运行期就靠这些名字注入真值）。 */
-const routeParams = (manifest) => {
-  const p = [];
-  if (manifest.modelRouteBaseUrlParam) p.push(manifest.modelRouteBaseUrlParam);
-  if (manifest.modelRouteCredentialParam) p.push(manifest.modelRouteCredentialParam);
-  return p;
-};
+/**
+ * 端点/凭据/模型名等参数名 —— 只从**清单的运行期参数契约**取（唯一来源）。
+ * 早期这里读的是两个零散字段（只有端点与凭据），加上模型名后立刻与渲染器算出的摘要不一致：
+ * 同一个摘要两份实现，必漂移。
+ */
+const routeParams = (manifest) => (manifest.runtimeParams ?? []).map((p) => p.name);
 
 /**
  * 本地已装的预装包（`make dev-env` 装到 `<repo>/.local-packages`）的 `.bin` 进 PATH。
@@ -64,42 +65,44 @@ export function digestOfRender(renderDir) {
 }
 
 /**
- * 暂存一份可运行副本：拷 dsh-home / workspace / skills，并把**镜像内固定路径**改写成本地路径。
+ * 暂存一份可运行副本（并把产物里的**镜像内固定路径**改写成暂存路径）。
+ *
+ * **委托给 `core/image/startup.mjs`**（与另一个适配器同法）：容器里跑的正是那个脚本，
+ * 宿主侧的探针/自检/本地运行必须与容器走**同一条**暂存路径，否则"测试通过"与"容器里能跑"是两件事。
+ * 本适配器的 `rendersParams: false`（原生 `!!js` 求值）由启动脚本按清单声明自行判断，这里不必区分。
+ *
  * @returns {{staging: string, workspace: string, dshHome: string, placeholders: string[]}}
  */
-export function stageRenderDir(renderDir) {
-  const staging = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-run-"));
-  const dshHome = path.join(staging, "dsh-home");
-  const workspace = path.join(staging, "workspace");
-  const skills = path.join(staging, "skills");
-
-  fs.cpSync(path.join(renderDir, "dsh-home"), dshHome, { recursive: true });
-  fs.cpSync(path.join(renderDir, "workspace"), workspace, { recursive: true });
-  if (fs.existsSync(path.join(renderDir, "skills"))) fs.cpSync(path.join(renderDir, "skills"), skills, { recursive: true });
-
-  // 把产物里的镜像内路径改写为暂存路径（只动副本）
+export function stageRenderDir(renderDir, endpoint, { zeroCredential = false } = {}) {
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
-  const pairs = [
-    [manifest.skillsInImage, skills],
-    [manifest.workspaceInImage, workspace],
-    [manifest.dshHomeInImage, dshHome],
-  ].filter(([from, to]) => from && to);
-  const walk = (dir) => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const f = path.join(dir, e.name);
-      if (e.isDirectory()) { walk(f); continue; }
-      let text = fs.readFileSync(f, "utf8");
-      const before = text;
-      for (const [from, to] of pairs) text = text.split(from).join(to);
-      if (text !== before) fs.writeFileSync(f, text);
-    }
-  };
-  walk(dshHome);
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-run-"));
 
-  const placeholders = [];
-  if (!process.env[manifest.modelRouteBaseUrlParam]) placeholders.push(manifest.modelRouteBaseUrlParam);
-  if (!process.env[manifest.modelRouteCredentialParam]) placeholders.push(manifest.modelRouteCredentialParam);
-  return { staging, workspace, dshHome, placeholders };
+  const env = { ...process.env };
+  const endpointParam = (manifest.runtimeParams ?? []).find((x) => x.backs === "model.route" && !x.secret);
+  if (endpoint && endpointParam) env[endpointParam.name] = endpoint;
+  // 零凭据模式（**显式开启**）：自证/探针/冒烟用假值补齐必填项；真实运行不允许
+  if (zeroCredential) {
+    for (const p of manifest.runtimeParams ?? []) {
+      if (env[p.name]) continue;
+      if (p.secret) env[p.name] = "placeholder-not-a-credential";
+      else if (p.required && p.backs === "model.route") env[p.name] = "http://127.0.0.1:9/v1";
+    }
+  }
+
+  const r = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", renderDir, "--run-dir", runDir, "--json"],
+    { encoding: "utf8", env });
+  if (r.status !== 0) throw new Error(`启动期准备失败（退出码 ${r.status}）：\n${(r.stderr ?? "").trim()}`);
+  const prep = JSON.parse(r.stdout);
+  const placeholders = Object.entries(prep.params ?? [])
+    .filter(([, v]) => v.source === "definition-default")
+    .map(([k]) => k);
+
+  return {
+    staging: prep.runDir,
+    dshHome: prep.env?.DSH_HOME ?? path.join(prep.runDir, "dsh-home"),
+    workspace: prep.cwd ?? prep.runDir,
+    placeholders,
+  };
 }
 
 /** 运行期环境：端点/凭据 + 隔离的 HOME + 显式放行策略。 */
@@ -130,9 +133,9 @@ export function localInvocation({ profile, prompt }) {
  * 真跑一次。
  * @returns {Promise<{exitCode:number|string, stdout:string, stderr:string, events:object[], native:object[], staging:string, placeholders:string[]}>}
  */
-export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs = 60000 }) {
+export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs = 60000, zeroCredential = false }) {
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
-  const { staging, workspace, dshHome, placeholders } = stageRenderDir(renderDir);
+  const { staging, workspace, dshHome, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-home-"));
   const env = envFor({ manifest, dshHome, endpoint, home });
 

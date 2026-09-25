@@ -23,6 +23,7 @@ import path from "node:path";
 import net from "node:net";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { stageRenderDir } from "./run.mjs";
 import Ajv2020 from "ajv/dist/ajv.js";
 import Ajv2020Draft from "ajv/dist/2020.js";
 import { EXIT_CODES } from "../../core/gates/index.mjs";
@@ -53,12 +54,11 @@ function stage(endpoint) {
   const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "te-out-")), "render");
   const r = spawnSync(process.execPath, [path.join(HERE, "render.mjs"), agent, "--out", out, "--json"], { encoding: "utf8", cwd: REPO });
   if (r.status !== 0) throw new Error(`render 失败：${r.stderr.slice(-300)}`);
-  const staging = fs.mkdtempSync(path.join(os.tmpdir(), "te-stage-"));
-  fs.cpSync(path.join(out, "agent-dir"), staging, { recursive: true });
-  const tmpl = fs.readFileSync(path.join(staging, "models.json.tmpl"), "utf8");
-  fs.writeFileSync(path.join(staging, "models.json"),
-    tmpl.replace(/\$\{[A-Z_]+\}|\$[A-Z_]+/g, (m) => (m.includes("BASE_URL") ? endpoint : "placeholder")));
-  return staging;
+  // 暂存/渲染**共用运行期那一份实现**（run.mjs → core/image/startup.mjs）。
+  // 早先这里是自己再渲染一遍、把非端点参数一律换成字面量 "placeholder" ——
+  // 于是模型名成了 "placeholder"，这条自检断言的是"带上了 model 与 route"，自然红。
+  // 一份实现、一处改：这是本项目在"两份实现必漂移"上第 N 次交的学费。
+  return stageRenderDir(out, endpoint, { zeroCredential: true }).staging;
 }
 
 async function runPi(staging, traceFile, { digest = DIGEST, timeoutMs = 9000 } = {}) {

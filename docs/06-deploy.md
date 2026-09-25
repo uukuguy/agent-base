@@ -18,12 +18,15 @@
 
 | 路径 | 是什么 | 谁挂它 |
 |---|---|---|
-| `/opt/agent-base/agent-dir` | 渲染产物（pi 用；也可作为通用挂载点） | 构建时拷进去，或运行期挂载 |
-| `/opt/agent-base/skills` | 技能目录（渲染产物声明指向这里） | 同上 |
-| `/opt/agent-base/dsh-home` | dsh 的 `DSH_HOME`（profile 在里面） | 同上 |
-| `/workspace` | **工作目录**（人设文件在这里被发现） | 挂载工作区 |
+| **`/opt/agent-base/artifact`** | **渲染输出整体**（`render-manifest.json` + 各运行时的产物目录）。挂载点可用 `AGENT_ARTIFACT_DIR` 改 | 构建时拷进去，或运行期挂载（**推荐只读**） |
+| `/opt/agent-base/startup.mjs` | 启动期准备脚本（参数下放 + 可写暂存的落地点） | 镜像自带，只读 |
 | `/opt/agent-base/harnesses.json` | 装了哪些运行时（包名+版本，构建时生成） | 镜像自带，只读 |
 | `/etc/agent-base-variant` | `production` 或 `debug` | 镜像自带，只读 |
+| `/run/agent-base` | **暂存出来的可写运行目录**（镜像内路径，可用 `AGENT_RUN_DIR` 改） | 启动脚本自己建（`/tmp` 兜底） |
+
+**产物挂载点是"整体"，不是某个运行时的配置目录。** 各运行时的配置目录（`PI_CODING_AGENT_DIR` /
+`DSH_HOME` / 工作目录）由**启动脚本**按产物清单里的运行期布局契约暂存后决定 —— 于是交付镜像不必知道
+"这份产物是给哪个运行时的"，也就能同时装两个运行时。
 
 **为什么技能与工作区是"固定路径"**：渲染期路径与运行期路径必须解耦 —— 产物里写死渲染机的临时路径，
 到了容器里必然失效。所以产物里写的是**镜像内固定路径**，本地运行时由运行器把副本里的路径改写成
@@ -40,7 +43,11 @@
 | `AGENT_TRACE_CONTENT` | `digest` | `digest` = 工具入参/结果只留摘要；`full` = 保留明文。**两者性质不同，会写进轨迹标注** |
 | `AGENT_PERMISSION_MODE` | 取决于运行时 | 放行策略。⚠️ **无人值守时必须显式给** —— 审批在无应答者时是 fail closed（等人），不是报错 |
 | `AGENT_CRASH_TAIL_LINES` | 30 | 崩溃时把轨迹末多少行打到 stderr |
-| `<PREFIX>_BASE_URL` / `<PREFIX>_API_KEY` | 无 | **模型端点与凭据**。`<PREFIX>` 由路由名推导（见 `03-capability-catalog`） |
+| `<PREFIX>_BASE_URL` / `<PREFIX>_API_KEY` | 无（**必填**） | **模型端点与凭据**。`<PREFIX>` 由路由名推导（见 `03-capability-catalog`） |
+| `<PREFIX>_MODEL` | 定义里的 `model.name` | **模型名的运行期覆盖**。同一份制品在不同环境常要指向不同模型名；取值须在该路由声明的模型名单内 |
+| `<任意引用名>_FILE` | 无 | **从文件读**该值（K8s/Docker secret 的标准接法）。环境变量优先于文件；文件结尾的换行会被去掉 |
+| `AGENT_ARTIFACT_DIR` | `/opt/agent-base/artifact` | 产物根挂载点 |
+| `AGENT_RUN_DIR` | `/run/agent-base`（不可写时退回 `/tmp/agent-base-run`） | 暂存可写副本的位置 |
 | `<连接器引用名>` | 无 | 连接器的端点/凭据（如 `AGENT_JIRA_ENDPOINT_PROD`、`JIRA_TOKEN`） |
 
 **定义里永远不写这些值**，只写引用名；上面这些变量就是"引用名 → 真值"的注入点。
@@ -49,6 +56,7 @@
 
 ```bash
 docker run … <镜像> agent      # 默认：按 HARNESS 起智能体
+docker run … <镜像> config-check   # 只校验运行期配置与产物，不跑模型（生产里当就绪探针）
 docker run … <镜像> shell      # 调试用：进 shell（`shell -c '…'` 也支持）
 docker run … <镜像> <命令…>     # 其他：直接 exec 透传
 ```
@@ -71,7 +79,32 @@ docker run … <镜像> <命令…>     # 其他：直接 exec 透传
 
 这条契约与基座自身的工具一致：`make verify JSON=1 > report.json` 拿到的就是纯 JSON。
 
-## 六、运行期无外网
+## 六、容器里怎么配 LLM
+
+**两件事分开看：用哪个模型是定义决定的，连哪个端点是部署决定的。**
+
+```bash
+docker run --rm \
+  -e HARNESS=pi \
+  -e CORP_GATEWAY_BASE_URL=https://your-endpoint.internal/v1 \
+  -e CORP_GATEWAY_API_KEY=… \                 # 或 -e CORP_GATEWAY_API_KEY_FILE=/run/secrets/key
+  -e CORP_GATEWAY_MODEL=corp-think \          # 可选：覆盖定义里的默认模型名
+  -v /path/to/render:/opt/agent-base/artifact:ro \
+  agent-base:0.1.0-arm64
+```
+
+启动时依次做四件事，**任何一步不满足就退出码 2 并说清缺什么**（不做静默降级）：
+
+1. **解析运行期参数**：环境变量 → `…_FILE` 指向的文件 → 定义里的默认值 → 缺必填项就失败
+2. **校验模型名**：必须在该路由声明的模型名单内（写错当场报错并列出可用值，而不是等端点回一句看不懂的错）
+3. **暂存可写副本**：产物按只读挂载，运行时要写会话/缓存 ⇒ 复制一份到 `/run/agent-base` 再跑。
+   **产物本身永不改写**（它有摘要，改了摘要就不成立）
+4. **原子渲染**（仅当该运行时的配置不支持环境插值）：把 `${引用名}` 换成真值，临时文件 + rename
+
+**凭据永不打印**：日志与 `--json` 输出里只显示 `***`（以及它来自环境变量还是文件）。
+**就绪探针**用 `config-check`：只校验、不落盘、不跑模型。
+
+## 七、运行期无外网
 
 **约束**：运行环境**不能出外网**（构建期不受此限）。
 
@@ -86,7 +119,7 @@ docker run … <镜像> <命令…>     # 其他：直接 exec 透传
 ⚠️ **仍需注意**：运行时里任何**静默联网**（遥测、自更新检查）都会表现为"启动变慢或莫名报错"，
 而不是清晰失败。基调是**关掉它们**而不是容忍。
 
-## 七、推荐的加固运行参数
+## 八、推荐的加固运行参数
 
 ```bash
 docker run --rm \
@@ -95,7 +128,7 @@ docker run --rm \
   --network none \
   -e HARNESS=pi \
   -e <PREFIX>_BASE_URL=… -e <PREFIX>_API_KEY=… \
-  -v /path/to/render/agent-dir:/opt/agent-base/agent-dir:ro \
+  -v /path/to/render:/opt/agent-base/artifact:ro \
   -v /path/to/workspace:/workspace:rw \
   agent-base:<版本>-<架构>
 ```
@@ -109,7 +142,7 @@ docker run --rm \
 | 能力 | `CapEff` **全 0** |
 | 网络 | `--network none` 下运行时与 11 个连接器均可用 |
 
-## 八、构建镜像
+## 九、构建镜像
 
 ```bash
 make image                 # 当前架构（原生，最快）
@@ -129,7 +162,7 @@ make image-builder         # 多架构 builder 就绪并设为当前（让手敲
 `make image-all` 会自动准备一个 `docker-container` 驱动的 builder 来完成。手敲多平台命令前先
 `make image-builder`。
 
-## 九、这份镜像是什么语义
+## 十、这份镜像是什么语义
 
 **「验证快照」，不是生产镜像。** 版本号怎么走、什么算破坏性变更，见根目录 [`CHANGELOG.md`](../CHANGELOG.md) 的版本策略一节。 它存在的意义是让验证环境足够接近生产、结论才可信；
 生产化（鉴权、审批流、多租户、高可用、SBOM 签名、常驻服务编排）不在基座范围。

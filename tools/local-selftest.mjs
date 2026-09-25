@@ -60,6 +60,7 @@ const r = spawnSync(process.execPath, [
   "--prompt", "说一句话",
   "--endpoint", `http://127.0.0.1:${port}/v1`,
   "--render-dir", path.join(base, "render"),
+  "--zero-credential", "true",   // 本地自检用零凭据模式（假网关 + 占位凭据）
 ], { encoding: "utf8", cwd: REPO, timeout: 180000 });
 gw.kill("SIGTERM");
 
@@ -67,7 +68,7 @@ const log = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;
 check("run-local 退出码 0", r.status === 0, log.slice(-400));
 check("先渲染再跑（不是直接跑源码目录）", /先渲染/.test(log) && fs.existsSync(path.join(base, "render", "render-manifest.json")));
 check("沿用临时 HOME（隔离隐式技能源）", /HOME\s+\/var\/folders|HOME\s+\/tmp/.test(log), (log.match(/HOME.*/) ?? [""])[0]);
-check("自动解析启动期参数并给出占位提示", /参数用占位值/.test(log), (log.match(/模型端点.*/) ?? [""])[0]);
+check("启动期参数已解析（零凭据模式下用占位/默认值，且如实列出）", /运行期参数|参数用占位值|模型端点/.test(log), (log.match(/模型端点.*/) ?? [""])[0]);
 check("harness 真的跑到了模型（假网关标记出现）", /FAKE_GATEWAY_OK/.test(log));
 check("产出统一轨迹", /轨迹 \d+ 条/.test(log) && !/轨迹 0 条/.test(log), (log.match(/── 结束.*/) ?? [""])[0]);
 check("运行后未污染本机 ~/.pi（隔离生效）",
@@ -76,7 +77,7 @@ check("运行后未污染本机 ~/.pi（隔离生效）",
 
 console.log("\n── 未实现的 harness 必须响亮失败，不许静默改用别的 ──");
 const other = spawnSync(process.execPath, [path.join(HERE, "run-local.mjs"), agent, "--harness", "nope"], { encoding: "utf8", cwd: REPO });
-check("未知 harness 非零退出并说明原因", other.status !== 0 && /尚未实现/.test(other.stderr ?? ""), (other.stderr ?? "").slice(-200));
+check("未知 harness 非零退出并说明原因", other.status !== 0 && /(尚未实现|没有运行器)/.test(other.stderr ?? ""), (other.stderr ?? "").slice(-200));
 
 fs.rmSync(base, { recursive: true, force: true });
 console.log(`\n${failures === 0 ? "本地开发环境自检：全绿" : `本地开发环境自检：失败 ${failures} 项`}`);

@@ -118,7 +118,8 @@ function prepareContext(specs) {
   const ctx = path.join(REPO, "dist/image/context");
   fs.rmSync(ctx, { recursive: true, force: true });
   fs.mkdirSync(ctx, { recursive: true });
-  for (const f of ["Dockerfile", "Dockerfile.debug", "entrypoint.sh", "preinstall.lock.txt"]) {
+  // 启动期准备脚本必须进上下文：它是"参数下放"的落地点（见 core/image/startup.mjs 的文件头）
+  for (const f of ["Dockerfile", "Dockerfile.debug", "entrypoint.sh", "startup.mjs", "preinstall.lock.txt"]) {
     fs.copyFileSync(path.join(IMAGE_DIR, f), path.join(ctx, f));
   }
   fs.writeFileSync(path.join(ctx, "harnesses.lock.json"), JSON.stringify({

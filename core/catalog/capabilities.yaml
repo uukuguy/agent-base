@@ -151,12 +151,16 @@ groups:
         source: agent.yaml
         type: string
         required: true
-        layer: artifact
+        layer: valueRefParameter
+        valueRef: parameter
         harnesses:
-          pi: { support: supported, verified: true }
-          dsh: { support: supported, verified: true, note: "不验证目录成员资格（§11.1 已知限制）" }
-        doc: 模型名。属制品层的「行为选择」。
-        degradation: dsh 的 dsh-agent-default-model 不校验模型名是否在目录内 → 由闸门 3 探针兜底。
+          pi: { support: supported, verified: true, note: "启动期渲染进 models.json 与 settings 默认模型" }
+          dsh: { support: supported, verified: true, note: "profile 里以 !!js 取 process.env，原生插值" }
+        doc: >
+          **默认**模型名。属环境属性 —— 同一份制品在不同环境常要指向不同模型名（端点不同、模型目录不同）。
+          运行期可用 `<路由前缀>_MODEL` 覆盖；覆盖值须在该路由声明的模型名单内，并会记进轨迹。
+          可配置 ≠ 随便配 ≠ 配了没人知道。
+        degradation: 路由未声明模型名单时跳过成员资格校验（名字非空仍强制）；名单校验只覆盖"是否属于该路由"。
 
       - path: model.reasoningEffort
         source: agent.yaml

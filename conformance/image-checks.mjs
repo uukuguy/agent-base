@@ -30,6 +30,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
+import { runLlmConfigChecks } from "./image-capability-checks.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -232,6 +233,9 @@ export function runImageChecks({ version, arch = hostArch() } = {}) {
     relying.length === 0
       ? "没有 adapter 声称无 OS 沙箱，无需对照"
       : `${relying.join(", ")} 声明 osSandbox=unsupported 并依赖容器层硬下限；容器下限实测${floorOk ? "成立" : "**不成立**（声明等于空话）"}`);
+
+  // ⑤ 交付价值的最终检验：容器里能配好 LLM 并真跑通（含负向）
+  for (const c of runLlmConfigChecks({ image: base })) add(c.id, c.ok, c.detail);
 
   return { pending: null, checks, images: { base, debug } };
 }

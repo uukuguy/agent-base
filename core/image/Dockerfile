@@ -76,15 +76,21 @@ RUN set -eux; \
 RUN set -eux; \
     groupadd -g 10001 agent; \
     useradd -u 10001 -g 10001 -m -d /home/agent -s /bin/bash agent; \
-    mkdir -p /opt/agent-base; \
+    mkdir -p /opt/agent-base /opt/agent-base/artifact; \
     printf 'production\n' > /etc/agent-base-variant; \
     chown -R agent:agent /home/agent /opt/agent-base
 
+COPY startup.mjs /opt/agent-base/startup.mjs
 COPY entrypoint.sh /usr/local/bin/agent-base-entrypoint
+# 显式修权限：COPY 保留源文件的权限位，而开发机上的文件可能是 0600 ——
+# 那样容器里以非 root 身份运行的入口脚本会读不到（"文件在，但读不到"是极难查的一类问题）
+RUN chmod 0755 /usr/local/bin/agent-base-entrypoint && chmod 0644 /opt/agent-base/startup.mjs
 RUN chmod 0755 /usr/local/bin/agent-base-entrypoint
 
 # 智能体的渲染产物挂到这里（P-b：隔离靠文件系统）
-ENV PI_CODING_AGENT_DIR=/opt/agent-base/agent-dir
+# 产物（渲染输出整体）的约定挂载点。**不再是**某个运行时的配置目录 ——
+# 那个目录由启动脚本按产物的运行期布局契约暂存后决定（端点/凭据/模型名同理）。
+ENV AGENT_ARTIFACT_DIR=/opt/agent-base/artifact
 ENV AGENT_BASE_VARIANT_FILE=/etc/agent-base-variant
 WORKDIR /workspace
 

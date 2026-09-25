@@ -27,7 +27,9 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { EXIT_CODES, GateReport, parseArgs } from "../../core/gates/index.mjs";
+// 暂存走运行期那一份实现（run.mjs → core/image/startup.mjs）：自证要验的是"运行时会加载什么"
+import { stageRenderDir } from "./run.mjs";
+import { EXIT_CODES, GateReport, computeEffectiveConfigDigest, parseArgs } from "../../core/gates/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HARNESS = "dsh";
@@ -145,15 +147,18 @@ function main() {
   });
 
   // ---- 暂存一份可写副本：绝不碰宿主机的 ~/.dsh（P-b 文件系统隔离）----
-  const staging = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-doctor-"));
-  fs.cpSync(path.join(renderDir, "dsh-home"), path.join(staging, "dsh-home"), { recursive: true });
+  // 走与运行期同一条暂存路径（run.mjs 的 stageRenderDir → core/image/startup.mjs）：
+  // 自证要验的正是"运行时会加载什么"，自己另写一份就验不到真实路径。
+  const staged = stageRenderDir(renderDir, "http://127.0.0.1:9/v1", { zeroCredential: true });
+  const staging = staged.staging;
+  const dshHome = staged.dshHome;
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-doctor-cwd-"));
-  const profileDir = path.join(staging, "dsh-home", "profiles", manifest.agent);
+  const profileDir = path.join(dshHome, "profiles", manifest.agent);
 
   // ---- 零凭据自证：组合后的 profile 树 ----
   const r = spawnSync("dsh", [manifest.agent, "--dump-config"], {
     encoding: "utf8", cwd, timeout: 300000,
-    env: { ...process.env, DSH_HOME: path.join(staging, "dsh-home") },
+    env: { ...process.env, DSH_HOME: dshHome },
   });
   if (r.status !== 0) {
     report.fail(GATE, "resolution/dump-config", `dsh --dump-config 失败（退出码 ${r.status}）：${(r.stderr || "").slice(-300)}`);
@@ -191,8 +196,11 @@ function main() {
   const declaredSkills = [...(manifest.declaredSkills ?? [])].sort();
   const present = declaredSkills.filter((s) => fs.existsSync(path.join(renderDir, "skills", s, "SKILL.md")));
   const wantDir = manifest.skillsInImage;
+  // 暂存会把**镜像内固定路径**改写成本地实际路径（`runtimePlan.pathRewrites`），
+  // 所以这里要与**暂存后的**路径比 —— 与镜像内路径比会在"统一暂存"之后立刻变成假失败。
+  const expectedStagedSkills = path.join(staged.staging, "skills");
   if (!dirs.length) report.fail(GATE, "resolution/skills-set", `skill-filesystem 未启用或未配置 customSkillDirs（技能不会进会话目录）`);
-  else if (dirs[0] !== wantDir) report.fail(GATE, "resolution/skills-set", `customSkillDirs 是 ${JSON.stringify(dirs)}，声明的镜像内路径是 ${wantDir}`);
+  else if (dirs[0] !== expectedStagedSkills && dirs[0] !== wantDir) report.fail(GATE, "resolution/skills-set", `customSkillDirs 是 ${JSON.stringify(dirs)}，期望是暂存后的 ${expectedStagedSkills}（镜像内声明为 ${wantDir}）`);
   else if (present.length !== declaredSkills.length) report.fail(GATE, "resolution/skills-set", `声明的 ${declaredSkills.length} 个技能里只有 ${present.length} 个就位：缺 ${declaredSkills.filter((s) => !present.includes(s)).join(", ")}`);
   else report.pass(GATE, "resolution/skills-set", `硬断言 1：${declaredSkills.length} 个技能均已配置到 ${wantDir} 且 SKILL.md 就位（口径：已配置且就位，非"已被发现"—— 见 exemptions）`);
 
@@ -233,9 +241,25 @@ function main() {
   // ---- 版本与生效摘要 ----
   report.pass(GATE, "resolution/harness-version", `harness 版本 ${manifest.harnessVersion}（与渲染时一致）`);
   // effectiveConfigDigest 由 GateReport 依元信息算出（只读 getter）—— 只设参数名，不要直接赋值
-  report.paramNames = [...(manifest.paramNames ?? [])].sort();
-  report.pass(GATE, "resolution/effective-config-digest",
-    report.effectiveConfigDigest ?? "（算不出：缺 harnessVersion 或 artifactsDigest）");
+  report.paramNames = [...(manifest.runtimeParams ?? []).map((p) => p.name)].sort();
+  const recomputedDigest = computeEffectiveConfigDigest({
+    harnessVersion: manifest.harnessVersion,
+    adapterVersion: readYaml(path.join(HERE, "adapter.yaml")).adapterVersion,
+    artifactsDigest: manifest.artifactsDigest,
+    paramNames: report.paramNames,
+  });
+  report.pass(GATE, "resolution/effective-config-digest", recomputedDigest);
+
+  // 交叉核对：清单记录的摘要必须与**本地重算**一致（不一致 = 清单过期或被改过）
+  {
+    const recorded = manifest.effectiveConfigDigest ?? null;
+    if (recorded && recomputedDigest !== recorded) {
+      report.fail(GATE, "resolution/digest-crosscheck",
+        `清单记录的生效配置摘要与本地重算不一致（记录 ${recorded.slice(0, 23)}… vs 重算 ${recomputedDigest.slice(0, 23)}…）—— 清单过期或被改过`);
+    } else {
+      report.pass(GATE, "resolution/digest-crosscheck", recorded ? "记录值与本地重算一致" : "清单未记录摘要（旧产物），已按重算值报告");
+    }
+  }
 
   const doc = {
     harness: HARNESS,

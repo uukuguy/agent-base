@@ -15,12 +15,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { computeEffectiveConfigDigest } from "../../core/gates/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+/** 启动期准备脚本：宿主侧与容器内**共用同一份**暂存/渲染实现。 */
+const STARTUP = path.join(HERE, "../../core/image/startup.mjs");
 const HARNESS = "pi";
 
 /** §2.3 的引用名约定：大写 + 非字母数字 → 下划线。 */
@@ -29,50 +31,65 @@ function envPrefixFor(route) {
 }
 
 /**
- * 把渲染产物暂存成可写副本，并在启动期把 models.json.tmpl 渲染成实际配置。
- * 这一步**不是可选的**：该 harness 的 baseUrl 不做环境插值（实测 + 上游文档）。
+ * 把渲染产物暂存成可写副本，并在启动期把参数渲染成实际配置。
+ *
+ * **委托给 `core/image/startup.mjs`**（而不是在这里另写一份）：
+ * 容器里跑的正是那个脚本 —— 宿主侧的探针/冒烟/本地运行必须与容器走**同一条**暂存与渲染路径，
+ * 否则"测试通过"与"容器里能跑"是两件事（这正是之前踩过的坑：容器里配不了 LLM，而宿主侧全绿）。
+ *
  * @returns {{staging: string, placeholders: string[]}}
  */
-export function stageRenderDir(renderDir, endpoint) {
-  const staging = fs.mkdtempSync(path.join(os.tmpdir(), "agent-run-"));
-  fs.cpSync(path.join(renderDir, "agent-dir"), staging, { recursive: true });
+export function stageRenderDir(renderDir, endpoint, { zeroCredential = false } = {}) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-run-"));
 
-  const tmplFile = path.join(staging, "models.json.tmpl");
-  if (!fs.existsSync(tmplFile)) throw new Error("渲染产物里没有 models.json.tmpl");
-  const placeholders = [];
-  const out = fs.readFileSync(tmplFile, "utf8").replace(/\$\{([A-Z_][A-Z0-9_]*)\}|\$([A-Z_][A-Z0-9_]*)/g, (_m, a, b) => {
-    const name = a ?? b;
-    const v = process.env[name];
-    if (v) return v;
-    placeholders.push(name);
-    if (name.endsWith("_BASE_URL")) return endpoint;
-    return "placeholder-not-a-credential"; // 零凭据：探针不需要真密钥
-  });
-  fs.writeFileSync(path.join(staging, "models.json"), out);
+  // 端点由调用方给（探针/冒烟指向零凭据假网关）；其余参数走环境变量或清单里的默认值
+  const env = { ...process.env };
+  const endpointParam = (manifest.runtimeParams ?? []).find((p) => p.backs === "model.route" && !p.secret);
+  if (endpoint && endpointParam) env[endpointParam.name] = endpoint;
+
+  // **零凭据模式**（自证 / 探针 / 冒烟）：用假值把必填项补齐，使这些检查不需要任何真密钥。
+  // 必须是**显式**的：真实运行（run-local）不许静默用占位凭据 —— 那会跑出一个"看起来正常、
+  // 其实连不上"的结果，正是本项目一直在治的那种静默失败。
+  if (zeroCredential) {
+    for (const p of manifest.runtimeParams ?? []) {
+      if (env[p.name]) continue;
+      if (p.secret) env[p.name] = "placeholder-not-a-credential";
+      else if (p.required && p.backs === "model.route" && !env[p.name]) env[p.name] = "http://127.0.0.1:9/v1";
+    }
+  }
+
+  const r = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", renderDir, "--run-dir", runDir, "--json"],
+    { encoding: "utf8", env });
+  if (r.status !== 0) throw new Error(`启动期准备失败（退出码 ${r.status}）：\n${(r.stderr ?? "").trim()}`);
+  const prep = JSON.parse(r.stdout);
+
+  // staging = 本运行时实际读取配置的那个目录（由产物的运行期布局契约决定，不在这里猜）
+  const stagingRel = Object.values(prep.env ?? {})[0];
+  const staging = stagingRel ?? runDir;
+  const placeholders = Object.entries(prep.params ?? {})
+    .filter(([, v]) => v.source === "definition-default")
+    .map(([k]) => k);
 
   // 连接器扩展包：产物里写的是**镜像内固定路径**。本地运行时用 AGENT_MCP_ADAPTER_PATH 指向本地安装，
   // 我们把它改写进暂存副本的 settings.json（**只改副本**）。
   // 若产物声明了该包、本地却没给路径 ⇒ **响亮失败**，不静默产出一个"没有 MCP 客户端"的运行
   // （那正是 failures.md F10 要防的静默忽略）。
-  const manifestPath = path.join(renderDir, "render-manifest.json");
-  if (fs.existsSync(manifestPath)) {
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    const inImage = manifest.mcpAdapterInImage;
-    const settingsFile = path.join(staging, "settings.json");
-    if (inImage && fs.existsSync(settingsFile)) {
-      const text = fs.readFileSync(settingsFile, "utf8");
-      if (text.includes(inImage)) {
-        // 默认值：开发机上 `make dev-env` 会把预装清单里的包装进 <repo>/.local-packages，
-        // 于是本地跑带连接器的智能体**不需要手设任何环境变量**（"快"= 心智负担低）。
-        const localDefault = path.join(HERE, "../../.local-packages/node_modules/pi-mcp-adapter");
-        const local = process.env.AGENT_MCP_ADAPTER_PATH ?? (fs.existsSync(localDefault) ? localDefault : null);
-        if (!local) {
-          throw new Error(
-            `产物声明了 MCP 客户端扩展（${inImage}），但本地运行未提供 AGENT_MCP_ADAPTER_PATH —— ` +
-            "不给的话会跑出一个**没有 MCP 客户端**的智能体而无人察觉。请指向本地安装路径。");
-        }
-        fs.writeFileSync(settingsFile, text.split(inImage).join(local));
+  const inImage = manifest.mcpAdapterInImage;
+  const settingsFile = path.join(staging, "settings.json");
+  if (inImage && fs.existsSync(settingsFile)) {
+    const text = fs.readFileSync(settingsFile, "utf8");
+    if (text.includes(inImage)) {
+      // 默认值：开发机上 `make dev-env` 会把预装清单里的包装进 <repo>/.local-packages，
+      // 于是本地跑带连接器的智能体**不需要手设任何环境变量**（"快"= 心智负担低）。
+      const localDefault = path.join(HERE, "../../.local-packages/node_modules/pi-mcp-adapter");
+      const local = process.env.AGENT_MCP_ADAPTER_PATH ?? (fs.existsSync(localDefault) ? localDefault : null);
+      if (!local) {
+        throw new Error(
+          `产物声明了 MCP 客户端扩展（${inImage}），但本地运行未提供 AGENT_MCP_ADAPTER_PATH —— ` +
+          "不给的话会跑出一个**没有 MCP 客户端**的智能体而无人察觉。请指向本地安装路径。");
       }
+      fs.writeFileSync(settingsFile, text.split(inImage).join(local));
     }
   }
 
@@ -87,7 +104,9 @@ export function digestOfRender(renderDir) {
     harnessVersion: manifest.harnessVersion,
     adapterVersion: adapter.adapterVersion,
     artifactsDigest: manifest.artifactsDigest,
-    paramNames: manifest.paramNames ?? [],
+    // 参数名只从**清单的运行期参数契约**取 —— 早期这里读的是两个零散字段（只有端点与凭据），
+    // 加上模型名之后立刻与渲染器算出的摘要不一致：同一个摘要两份实现，必漂移。
+    paramNames: (manifest.runtimeParams ?? []).map((p) => p.name),
   });
 }
 
@@ -110,8 +129,11 @@ export async function runAgent({
   runMode = "oneshot",
   contentMode = "digest",
   trace = true,
+  // 零凭据模式：闸门 3/4（探针/冒烟）用假凭据跑，不需要任何真密钥。
+  // 默认 **false**：真实运行不许静默用占位凭据（那会跑出"看起来正常、其实连不上"的结果）。
+  zeroCredential = false,
 }) {
-  const { staging, placeholders } = stageRenderDir(renderDir, endpoint);
+  const { staging, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "agent-home-"));
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agent-cwd-"));
   const traceFile = trace ? path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-")), "trace.jsonl") : null;

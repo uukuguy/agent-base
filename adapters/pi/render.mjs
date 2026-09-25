@@ -22,7 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { DEFAULT_EXCLUDES, EXIT_CODES, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
+import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -93,11 +93,14 @@ export function envPrefixFor(route) {
  *
  * @returns {Record<string, {at: string, contains?: string|string[]} | {exempt: string}>}
  */
-function buildExpresses({ agent, declaredEnhancements, skillsInProduct, profileOrSettings, modelFile, enhancementsFile }) {
+function buildExpresses({ agent, declaredEnhancements, modelParamName, skillsInProduct, profileOrSettings, modelFile, enhancementsFile }) {
   const e = {
     "persona.instructions": { at: "agent-dir/AGENTS.md", contains: String(agent.persona?.instructions ?? "").trim().slice(0, 24) },
     "model.route": { at: modelFile, contains: agent.model.route },
-    "model.name": { at: modelFile, contains: agent.model.name },
+    // model.name 现在是**默认值**（环境属性、运行期可覆盖）⇒ 它的落点是**清单**：
+    // 默认值记在 runtimeParams[].default，产物里则是 `${…_MODEL}` 占位。
+    // 不能继续声明成"值出现在 models.json.tmpl 里" —— 那里现在是占位符。
+    "model.name": { at: "render-manifest.json", contains: [agent.model.name, modelParamName] },
     skills: { at: skillsInProduct },
   };
   if (agent.model?.reasoningEffort) e["model.reasoningEffort"] = { at: profileOrSettings, contains: "defaultThinkingLevel" };
@@ -182,13 +185,16 @@ function main() {
   }
   const routeApi = activeRoute.api;
 
+  // 运行期参数写成 `${NAME}` 占位：**入口脚本在启动期解析**（本 harness 的 models.json 不做 baseUrl 插值）。
+  // 模型名同样是占位 —— 它是环境属性（同一份制品在不同环境常要指向不同模型名）；
+  // 没被覆盖时用定义里的默认值，默认值记在清单的 params 里，启动期据此兜底。
   const modelsTmpl = {
     providers: {
       [agent.model.route]: {
         baseUrl: `\${${prefix}_BASE_URL}`,
         api: routeApi,   // 协议形状取自路由真源（core/catalog/routes.yaml），不硬编码
-        apiKey: `$${prefix}_API_KEY`,
-        models: [{ id: agent.model.name }],
+        apiKey: `\${${prefix}_API_KEY}`,
+        models: [{ id: `\${${prefix}_MODEL}` }],
       },
     },
   };
@@ -201,7 +207,8 @@ function main() {
   const settings = {
     ...seedSettings,
     defaultProvider: agent.model.route,
-    defaultModel: agent.model.name,
+    // 同样是占位：启动期解析成 <PREFIX>_MODEL（未覆盖时回落到定义里的默认值）
+    defaultModel: `\${${prefix}_MODEL}`,
   };
   if (agent.model.reasoningEffort) settings.defaultThinkingLevel = agent.model.reasoningEffort;
 
@@ -278,10 +285,19 @@ function main() {
     //   hostConfigDiscovery=off 不去发现宿主机上的 MCP 配置（P-b：隔离，不靠配置）
     writeFile(path.join(agentOut, "mcp.json"), stableJson({
       mcpServers,
-      settings: { allowInstall: false, hostConfigDiscovery: "off" },
+      // scriptMode=false：**同时**关掉两件事 ——
+      //   ① 该扩展自带的技能（它会在 resources_discover 里把自己那个 `mcp-scripting` 塞进技能集合，
+      //      于是"实际加载的技能集合"多一项，闸门 2 的硬断言与跨运行时等价性双双告警）；
+      //   ② 那个技能背后的能力（"跑可信 JavaScript、一次发起多个 MCP 调用"）——
+      //      运行任意 JS 属于我们**没有声明**的能力，默认必须是关的。
+      settings: { allowInstall: false, hostConfigDiscovery: "off", scriptMode: false },
     }));
     // 扩展包在**构建期**装进镜像的固定前缀，这里声明本地路径 ⇒ 运行期不需要网络
-    settings.packages = [MCP_ADAPTER_IN_IMAGE];
+    // **对象形式**：只从这个包加载扩展，不带它的 skills / prompts。
+    // 字符串形式会把这个包的**全部资源**都加载进来 —— 实测该包含有自己的技能（多出 `mcp-scripting`），
+    // 于是"实际加载的技能集合"多一项、闸门 2 的硬断言与跨运行时等价性双双告警。
+    // 一个第三方包不该往我们的技能集合里塞东西：不是我们声明的，就不该出现。
+    settings.packages = [{ source: MCP_ADAPTER_IN_IMAGE, skills: [], prompts: [] }];
     // 注意：settings.json 在上一节已落盘，这里改了内存对象必须**再写一次**
     //       （第一版漏了这步：mcp.json 里连接器有、settings 里却没有包声明 ⇒ 静默不生效）
     writeFile(path.join(agentOut, "settings.json"), stableJson(settings));
@@ -296,6 +312,15 @@ function main() {
   if (labelsProvided) fs.copyFileSync(labelsSrc, path.join(outRoot, "trace-labels.yaml"));
 
   const runArgs = { excludeTools: agent.tools?.deny ?? [], skills: declaredSkills.map((s) => `skills/${s}`) };
+  // 运行期参数契约（只声明一次，清单与生效配置摘要共用 —— 两处各写一份就会漂移）
+  const runtimeParams = [
+    { name: `${prefix}_BASE_URL`, secret: false, required: true, backs: "model.route" },
+    { name: `${prefix}_API_KEY`, secret: true, required: true, backs: "model.route" },
+    {
+      name: `${prefix}_MODEL`, secret: false, required: false,
+      default: agent.model.name, backs: "model.name", validate: "in-route-models",
+    },
+  ];
   const manifest = {
     harness: HARNESS,
     harnessVersion: readYaml(path.join(HERE, "adapter.yaml")).version,
@@ -311,11 +336,35 @@ function main() {
     runArgs,
     modelRoutes: [agent.model.route],
     modelRouteApi: routeApi,   // 两个运行时都记录：比对时要求协议形状一致
+    // 该路由声明的模型名单：启动期校验运行期覆盖的模型名用
+    modelRouteModels: activeRoute.models ?? [],
+    /**
+     * **运行期参数契约**：入口脚本按这份声明解析并注入（不猜名字、不硬编码）。
+     *   name      引用名（环境变量名；同名 + `_FILE` 表示"从文件读"，K8s/Docker secret 的标准接法）
+     *   secret    true = 日志里必须掩码，且永不写进产物
+     *   required  缺了就直接失败（退出码 2），不静默降级、不用别的模型顶替
+     *   default   没被注入时的兜底（= 定义里的默认值）
+     *   validate  额外校验：in-route-models = 取值须在 modelRouteModels 内
+     */
+    rendersParams: true,   // 本 harness 的 models.json 不做环境插值 ⇒ 由启动期渲染
+    runtimeParams,
+    /**
+     * **运行期布局契约**：入口脚本按它暂存可写副本、设环境变量、定 cwd。
+     * 放在清单里（而不是写死在 core/ 的启动脚本里）是刻意的：
+     * "运行时长什么样"是运行时专有知识，归适配器；启动脚本只做执行 ⇒ 加第三个运行时不必改它。
+     */
+    runtimePlan: {
+      argvPrefix: [],   // 本 harness 的调用形态不含位置参数（只有选项）
+      copy: ["agent-dir"],
+      env: { PI_CODING_AGENT_DIR: "agent-dir" },
+      cwd: null,
+      pathRewrites: [],
+    },
     // 技能在**产物内**的相对位置：让上层工具（probe / C3）不必知道某 harness 的目录形状
     skillsInProduct: "agent-dir/skills",
     // **定义字段 → 产物位置的声明**（conformance C3 只验证这份声明，不再认死文件名）。
     // 契约形状：{ at: 产物内相对路径, contains?: 字符串或字符串数组 }，或 { exempt: 非平凡理由 }。
-    expresses: buildExpresses({ agent, declaredEnhancements, skillsInProduct: "agent-dir/skills", profileOrSettings: "agent-dir/settings.json", modelFile: "agent-dir/models.json.tmpl", enhancementsFile: "agent-dir/enhancements.yaml" }),
+    expresses: buildExpresses({ agent, declaredEnhancements, modelParamName: `${prefix}_MODEL`, skillsInProduct: "agent-dir/skills", profileOrSettings: "agent-dir/settings.json", modelFile: "agent-dir/models.json.tmpl", enhancementsFile: "agent-dir/enhancements.yaml" }),
     mcpClient: readYaml(path.join(HERE, "adapter.yaml")).capabilities?.mcpClient ?? "unknown",
     labelsProvided,
     definitionDigest: digestDirectory(agentDir),
@@ -327,6 +376,14 @@ function main() {
     excludes: [...DEFAULT_EXCLUDES, "render-manifest.json"],
   });
   manifest.artifactsDigest = artifactsDigest;
+  // 生效配置摘要 = 运行时版本 + 适配器版本 + 产物摘要 + **参数名集合**（只名字，不含值）。
+  // 渲染期就能算全 ⇒ 记进清单，运行期直接读（镜像里不需要摘要实现，避免两份实现漂移）。
+  manifest.effectiveConfigDigest = computeEffectiveConfigDigest({
+    harnessVersion: manifest.harnessVersion,
+    adapterVersion: readYaml(path.join(HERE, "adapter.yaml")).adapterVersion,
+    artifactsDigest,
+    paramNames: runtimeParams.map((p) => p.name),
+  });
   writeFile(path.join(outRoot, "render-manifest.json"), stableJson(manifest));
 
   const result = {
