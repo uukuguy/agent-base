@@ -1349,6 +1349,7 @@ make verify HARNESS=pi,dsh     # 同一份定义，两个 harness，四闸门 + 
 | 物理目录 | `~/sandbox/agentic-2026/agent-base` ✅ |
 | 仓库内命名（README、本文、全部引用） | 已收敛 ✅ |
 | 上位文档文件名 | 已改为 `-dsh-harness-design.md` / `-pi-harness-design.md` ✅ |
+| **dsh-tui 工程注册** | `~/.dsh/storages/workspace.json` 的 `path`/`title` → `agent-base`；会话目录 `~/.dsh/sessions/--…-agent-base--` 同步改名；11 个历史会话缓存的 `cwd` 已对齐 ✅ |
 | git 远端 | **无**（`git remote -v` 为空）→ 不需要 `remote set-url` ✅ |
 
 **遗留一个兼容符号链接** `dsh-agent-base -> agent-base`：改名时保留它，使当时正在运行的会话工作目录继续可解析。**确认没有进程/终端再用旧路径后，可安全删除**：
@@ -1356,6 +1357,17 @@ make verify HARNESS=pi,dsh     # 同一份定义，两个 harness，四闸门 + 
 ```bash
 rm ~/sandbox/agentic-2026/dsh-agent-base     # 仅在旧路径不再被引用时
 ```
+
+**注意：运行中的 dsh-tui 会用自己的内存状态回写 `workspace.json` 与当前会话缓存**（实测：改名后 11 个历史会话保留，唯独正在运行的会话 `cwd` 被回写成旧路径）。因此退出本会话后、在新路径重开之前，建议核对一次：
+
+```bash
+# 若 workspace.json 被回写，重跑这句（幂等）
+node -e 'const fs=require("fs"),p=process.env.HOME+"/.dsh/storages/workspace.json",j=JSON.parse(fs.readFileSync(p,"utf8"));for(const w of Object.values(j.tables.workspaces)){if(w.path.endsWith("dsh-agent-base")){w.path=w.path.replace("dsh-agent-base","agent-base");w.title="agent-base";}}fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n")'
+# 旧路径不再被引用后，删掉会话目录的兼容符号链接
+rm ~/.dsh/sessions/--Users-sujiangwen-sandbox-agentic-2026-dsh-agent-base--
+```
+
+备份：`~/.dsh/storages/workspace.json.bak-rename-20260925` 与 `~/.dsh/storages/.bak-rename-20260925/`（确认无误后可删）。
 
 > 两份上位文档正文里的制品名（`dsh-agent-base/`、`pi-agent-base/`）是当时**单 harness 设计**的名称，已由统一制品 `agent-base` 取代；其正文按历史原件保留，不做改写。
 
