@@ -1,88 +1,71 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-26 02:20. **Session remains active — not a final handoff.**
+> Updated: 2026-09-25. **项目已达到设计目标（M1–M4 全部达成）—— 这是一份可交接的终态记录。**
 
 ## TL;DR
 
-1. **两个里程碑都达成了**：① 四道闸门落地，`make verify` 实测 `usable: true`；② **pi 侧 conformance 全绿 10/10**（C9 容器内安全下限实测通过）。
-2. **双架构基座镜像已交付**：arm64 原生 + amd64（QEMU），另有 `-debug` 变体；多架构 manifest 以 OCI 归档落盘。
-3. **开箱可跑已成立**：`make new-agent NAME=x` 派生的智能体（落在基座之外）立刻 `make verify` 给出「可用」—— 判据由 `make new-agent-selftest` 逐条实测（跑的是生成出来的 Makefile）。
-4. 剩下：**`dev-env` + `run-local`**（本地开发环境，上手路径最后两个缺口）→ **dsh 适配器** → `examples/`。
+**基座已完整交付，且每一个承诺都有可执行的验证。**
+
+| 里程碑 | 状态 | 证据 |
+|---|---|---|
+| **M1** 运行时接入 | ✅ | `conformance` C1–C10 对 **pi 与 dsh 都 10/10 全绿** |
+| **M2** 文档 | ✅ | `docs/00`–`docs/11` 共 12 篇 + 索引（其中 03 由真源生成并有同步检查） |
+| **M3** 版本策略 | ✅ | `CHANGELOG.md`（三个版本号分工 / 破坏性变更定义 / 兼容承诺）+ 闸门 1 的版本纪律检查 |
+| **M4** 双运行时示例 | ✅ | `examples/contract-review`（带 MCP 连接器）两侧四道闸门均「可用」+ `make compare` 等价性通过 |
+
+一句判据：`make verify AGENT_DIR=<智能体>` 给出 **可用 = 四道闸门全过**（不是"能启动"）。
 
 ## Where things stand
 
-- 分支 `main`，工作树干净。最近的提交见 `git log --oneline -8`（关键节点：`f547284` 轨迹扩展、`8973702` 闸门 3/4 + verify）。
-- **十一个自检目标全绿**：`validate` / `validate-selftest` / `gates-selftest` / `trace-selftest` / `emit-selftest` / `trace-view-selftest` / `gateway-selftest` / `pi-selftest` / `pi-trace-selftest` / `pi-trace-ext-selftest` / `new-agent-selftest`。
-- `make conformance --harness pi` → 9/10；不带 `--harness` 时 dsh 会拉低（预期，见下）。
-- 一条命令看到全貌：`make -s help`（24 个目标，实现 20 / 未实现 4：`image`/`debug`/`dev-env`/`run-local`）。
+- 分支 `main`，工作树干净。最近提交：`git log --oneline -12`。
+- **十一个自检目标全绿**：`validate-selftest` / `gates-selftest` / `trace-selftest` / `emit-selftest` /
+  `trace-view-selftest` / `gateway-selftest` / `pi-selftest` / `pi-trace-selftest` / `pi-trace-ext-selftest` /
+  `new-agent-selftest` / `local-selftest`。
+- `make validate` → 全绿（基座自洽 + 每个智能体定义）。**Makefile 里没有被 stub 掉的目标**（也不再有 `NOT_YET` 之类的占位宏）。
+- `make examples-check` → 全绿（**每个示例在每个运行时上都「可用」**，并跑跨运行时等价性比对）。
+- 双架构基座镜像（生产 + 调试变体）已交付；多架构 manifest 以 OCI 归档落盘。
 
-## 走通一次（这是本轮最重要的能力）
-
-```bash
-make verify AGENT_DIR=<智能体目录> OUT=<渲染输出目录>
-# → 闸门 1 静态 → 渲染 → 闸门 2 自证 → 闸门 3 探针 → 闸门 4 冒烟
-# → 可用：四道闸门全过（§6.8）
-```
-
-实测细节：默认把模型端点指向**零凭据假网关**，所以不依赖任何外部系统；冒烟里 `tools.deny: [bash]` 也被验证生效（实跑只用了 `read`）。
-
-## Next steps (immediate, action-level)
-
-1. **`make dev-env` + `make run-local`** —— 上手路径最后两个缺口：本地按 pin 装/校验两个 harness；用临时 HOME/DSH_HOME 挂渲染产物跑本地交互（P-b 文件系统隔离）。
-2. **dsh 适配器**：`render` / `doctor`（必须补 patch target id 校验，那是 D1 唯一防线）/ `trace` + `conformance/fixtures/dsh-native-events.jsonl`。实现前先看路线图 §7（预检结论 + 已定的 Q1–Q3）。
-3. `examples/`（S4/S5）与 pi 侧 MCP 客户端选型（用 conformance C1–C10 实测选，不凭版本号挑）。
-4. 推送路径：镜像目前只落本地；待 I2（内网能否直连镜像仓库）确认后接 `--push`。
-
-### 已完成（无需再做）
-
-- `template/` + `tools/new-agent.mjs`：判据四条全过，派生即 `usable`。
-- `core/image/` + 六个 Makefile 目标：双架构镜像、调试变体、容器下限实测（C9）。
-
-## Don't go down these paths again (ruled out)
-
-- **一镜像多智能体 + 运行期 `--patch`**：同一镜像不同行为，违反 N19；`--patch` 失败静默且绕过制品签名（§15.3）。
-- **瘦镜像 + 配置由卷下发**：同一镜像不同行为，把可执行内容的管控从镜像签名挪到平台 RBAC。
-- **先造「假 harness」桩验证契约**：多一份无业务价值产物；`conformance` C1–C10 本身就是契约的可执行形态（P4）。
-- **`conformance` 部分项仅告警**：会被软化的正是 C5/C8。
-- **把端点/凭据写进中性定义**：违反 R1/N21；定义里只写引用名。
-- **未实现的 Makefile 目标静默成功**：必须非零退出并指出所属包。
-- **在 `core/gates` 之外另写报告/退出码语义**：`verify` 只做编排，不重新实现检查。
-- **`usable` 只要跑过的闸门全绿就置 true**：§6.8 要求四道全过。
-- **把生产化的顾虑当预装清单的门禁**：清单服务「快速验证」；生产分层（只读根/默认离线/调试工具）留待生产阶段回看。
-- **让基座去理解业务语言**：基座只提供协议（附加位 / logger / 标签表）与查看器，翻译由查看器做机械查找。
-- **自研 pi 的 MCP 客户端**：npm 上已有成熟第三方扩展（`pi-mcp-adapter` 等），自研大概率是重复劳动。
-- **指望回调阻断来终止会话**：实测无效（阻断只变成错误结果，智能体照旧重试）；终止必须由假网关负责（已实现：收到工具结果后改回文本）。
-- **照抄网络「MCP 排行」**：实测多数指向废弃包（github/slack/postgres 已 deprecated，git/fetch 不在 npm）。
-
-## 实测踩坑（下次别重新踩）
-
-1. **Node `spawn` 起的 harness 必须关 stdin**（`child.stdin.end()`），否则它等输入 → 零输出零事件，看起来像扩展没加载。**这个假故障我排查过一轮。**
-2. **同进程内起假网关是可以的** —— 早前「必须独立进程」的结论是误判，真因就是上一条。
-3. **参数解析别手写索引过滤**：`--out` 缺失时 `indexOf()+1 === 0` 会吞掉第一个位置参数（同类 bug 出现过两次）。已统一到 `core/gates/cli.mjs` 并加自检。
-4. **算相对路径前要 `realpath`**：macOS 上 `/tmp`→`/private/tmp`、`/var`→`/private/var` 都是符号链接，不解析会得到"算式正确、实际指错"的路径（实测算成 `/private/Users/...`），因为 `make` 会规范化 CWD。
-5. **构建产物必须排除出定义摘要**：渲染输出若落在定义目录内（`.render/`），把它算进摘要会让摘要**自漂移** —— 渲染一次摘要就变。已在 `DEFAULT_EXCLUDES` 里排除 `.render`/`dist`/`.agent-base-build`。
-6. **不要让检查写在错误的方向上**：C9 曾测 `npx --offline`（系统从不使用的命令）⇒ 必然 ENOTCACHED ⇒ 报**假缺陷**。判据必须打在**系统真正执行的命令**上。错方向的检查比漏检更糟：它会让人去修本来正确的东西。
-7. **多架构打包要换 builder 驱动**：本机默认 `docker` 驱动不支持 OCI 导出；用 `docker-container` 驱动（`buildx create --driver docker-container`）。
-8. **"预热 npx 缓存"是伪需求**：`npm cache add` 后仍 ENOTCACHED；真正让连接器离线可用的是**按精确 pin 全局安装**。
-9. **生成的构建输入不是源码**：它可能带 harness 名（包名里就有），放 `core/` 会踩分层规则 —— 落 `dist/`。
-
-## Ready-to-paste commands
+## 走通一次（三条路径，都已实测）
 
 ```bash
-make -s help                                                    # 命令面全貌
-make verify AGENT_DIR=<agent> OUT=<out>                          # 四道闸门 → usable
-make conformance --harness pi                                    # 只看 pi（应 9/10）
-make render AGENT_DIR=<agent> OUT=<out> && make doctor RENDER_DIR=<out>
-make -s validate && make -s gates-selftest && make -s pi-trace-ext-selftest
-make new-agent NAME=my-agent                    # 派生一个开箱可用的智能体（落在基座之外）
-make -s new-agent-selftest                      # 验证"开箱可跑"判据仍成立
+# ① 派生一个新智能体（落在基座之外，开箱可用）
+make new-agent NAME=my-agent DESCRIPTION="一句话说明"
+cd ../my-agent && make verify          # → 可用：四道闸门全过
 
-# 依赖安装要先换 cache（沙箱不写 ~/.npm）
-npm install --cache /tmp/agent-base-npm-cache --no-audit --no-fund
+# ② 示例（含带 MCP 连接器的双运行时示例）
+make verify  AGENT_DIR=examples/contract-review
+make verify  AGENT_DIR=examples/contract-review HARNESS=dsh
+make compare AGENT_DIR=examples/contract-review      # 跨运行时等价性
 
-# 设计正文按需取段（勿全文加载）
-sed -n '177,332p'   docs/design/2026-09-25-unified-agent-base-design.md   # §2 架构
-sed -n '570,712p'   docs/design/2026-09-25-unified-agent-base-design.md   # §5 适配契约
-sed -n '709,900p'   docs/design/2026-09-25-unified-agent-base-design.md   # §6 四闸门（含实现期修正）
-sed -n '1236,1330p' docs/design/2026-09-25-unified-agent-base-design.md   # §12 落地设计
+# ③ 容器
+make image-all && make debug RENDER_DIR=.render/pi
 ```
+
+判据都是**实测**的，不是声明：闸门 3 从**端点侧**取证（假网关记录它收到了几个工具 ——
+带连接器时实测 4 → 7/36），闸门 4 真跑一次任务并检查退出码、输出、轨迹合规与工具越界。
+
+## 若要继续推进（可选，非必需）
+
+设计目标已达成。以下是有价值但**不属于**已完成范围的事，按价值排序：
+
+| 项 | 为什么值得做 | 起点 |
+|---|---|---|
+| 第三个运行时接入 | 验证"准入成本 = conformance 十项"这句承诺 | `docs/09-harness-contract.md` 的九步 |
+| dsh 的 `model.reasoningEffort` 映射 | 目前是**已声明豁免**（provider 条目的取值形状未实测） | `adapters/dsh/exemptions.yaml` 的 `reasoning-effort-not-mapped` |
+| pi 增强"已加载"的观测 | 目前口径是「已进入产物」，离「已被运行时成功加载」差一步 | `adapters/pi/failures.md` F6 |
+| 镜像推送链路 | 多架构 manifest 已能产出；推送需要可用的内部 registry | `make image-push` |
+| 生产化能力 | 鉴权、审批流、多租户、SBOM 签名 —— **明确不在基座范围** | 见 `CHANGELOG.md` 的"本期不包含" |
+
+## 接手前请先读
+
+1. `docs/07-troubleshooting.md` —— **失败模式清单**（失败大多是静默的，这篇讲怎么看出来）
+2. `docs/08-conventions.md` —— 分层纪律（哪层能放什么，每条都标了执法项）
+3. `docs/status/DECISIONS.md` —— 关键决策与理由
+4. `docs/design/2026-09-25-unified-agent-base-design.md` —— 为什么这样设计
+
+## 一条纪律（贯穿整个项目）
+
+**做不到就说清楚做不到。** 两个运行时做不到等价的地方，逐条写在各自的 `exemptions.yaml` 里；
+未映射的字段声明为豁免并写明理由，而不是静默丢弃；检查发现的问题修在**检查侧**，
+而不是把产物改到能通过；能力变了就同步更新**用例的预期**（能力变了，静默失败面就变了）。
+`make compare` 会把所有已声明差异列出来 —— 可以不一样，但不许悄悄不一样。
