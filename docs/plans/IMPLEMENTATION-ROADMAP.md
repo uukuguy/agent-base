@@ -28,9 +28,9 @@
 |---|---|---|---|---|
 | **S0** | A | 中性定义契约：schema + 能力目录 + 参数层清单 | — | **done** |
 | **S1** | A | 四闸门框架 + 假网关 + 统一轨迹 schema | S0 | **done** |
-| **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | **active** |
+| **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | **pi 侧完成**（10/10）；**dsh 侧 7/10**（余 C3/C6/C7，见 §13） |
 | **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` + 基座镜像 + 本地开发环境 | S2 | **闭环**（全部交付；Makefile 30 个目标、0 个未实现） |
-| **S4** | A + B + C | `examples/idea-to-proof` 全绿（含 C5/C8） | S3 | pending |
+| **S4** | A + B + C | `examples/idea-to-proof` 全绿（含 C5/C8） | S3 | **闭环**（`make examples-check` 全绿：四道闸门 → 可用） |
 | **S5** | A + B + C | `examples/contract-review`（带 MCP，双 harness 等价性） | S4 | pending |
 | **S6** | A | `docs/` 全 12 篇 | S4 | pending |
 | **S7** | A | `CHANGELOG` + 版本策略 | S6 | pending |
