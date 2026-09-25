@@ -7,7 +7,7 @@
 - Theme-level focus: **首个示例走通（S4 `examples/idea-to-proof` 四道闸门 → 可用）**；下一步是双 harness 示例与 dsh 比较轨
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi。§7 记 dsh 实现待定项，§8 记 S3 进展）
-- Active work package: `S6` 文档 12 篇（M1 已达成：dsh 准入 10/10）
+- Active work package: `S7` 版本策略 + CHANGELOG（M3）；随后 S8 三件小事
 
 ## Current Architecture
 
@@ -87,6 +87,7 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 - `docs/status/JOURNAL.md` —— 只追加事件日志
 
 ### Design truth source
+- `docs/README.md` —— 文档索引（12 篇全套，标了每篇面向谁）
 - `docs/design/2026-09-25-unified-agent-base-design.md` —— **最终稿 v2.4**；含 5 处「实现期实测修正/增补」小节（§2.3 / §6.4 / §8.3 / §10.1–§10.2 / §12.1 / §14 / §15.1），**那些是实测修正，视同正文，不要当注释略过**
 - `docs/design/2026-09-25-{pi,dsh}-harness-design.md` —— 各自 harness 专有实测约束的唯一事实来源（上位依据）
 - `docs/plans/IMPLEMENTATION-ROADMAP.md` —— 唯一权威工作清单 + §7 dsh 待定项 + §8 S3 进展

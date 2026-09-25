@@ -21,12 +21,12 @@
 | 07 | [troubleshooting](07-troubleshooting.md) —— **失败模式清单** | 全部 | ✅ |
 | 08 | [conventions](08-conventions.md) —— 分层纪律：哪层能放什么（每条都标了执法项） | 平台/业务负责人 | ✅ |
 | 09 | [harness-contract](09-harness-contract.md) —— 适配契约、新运行时怎么接（含四条"别另发明一套"） | 平台开发者 | ✅ |
-| 10 | `10-harness-selection.md` —— 两个运行时的差异与选型 | 架构/平台 | ⏳ |
-| 11 | `11-harness-enhancements.md` —— 业务级增强怎么写 | 业务开发者（要写增强时） | ⏳ |
+| 10 | [harness-selection](10-harness-selection.md) —— 两个运行时的能力对比与选型（**不构成绑定**） | 架构/平台 | ✅ |
+| 11 | [harness-enhancements](11-harness-enhancements.md) —— 业务级增强怎么写（含三层结构与晋升通道） | 业务开发者（要写增强时） | ✅ |
 | — | 第 13 条说明 | —— | 上游运行时包内**没有 `docs/` 目录**，只有包级 README；两份上位设计文档里的实测结论已沉淀为 `docs/design/2026-09-25-{pi,dsh}-harness-design.md` |
 
-**状态说明**：`⏳` = 尚未撰写（会按 03–05 → 06 → 08–11 的顺序补齐）。
-未列出的内容不会以"空骨架"形式出现 —— 宁可不建文件，也不留 TODO。
+**状态**：12 篇**全部完成**。
+未写的内容不会以"空骨架"形式出现 —— 宁可不建文件，也不留 TODO；新增内容请同样按"要么完整、要么不建"处理。
 
 ## 其它必读
 

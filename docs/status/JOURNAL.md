@@ -194,4 +194,6 @@
 - 22:21 C3 泛化完成：从"认死文件名"改为**按渲染器的 expresses 声明验证**（定义字段 → 产物位置）；检查只验位置存在 + contains + 定义字面值，豁免须写非平凡理由
 - 22:21 🔴 过程中暴露真实缺口：dsh 侧 `model.reasoningEffort` 未映射（provider 条目的 reasoningEfforts 取值形状未实测）→ 不猜形状，声明为豁免并记入 exemptions.yaml（补法已写明）
 - 22:21 踩坑两处：C3 的目录型声明（skills）被当文件读 → verify 支持目录；pi 的 enhancements 声明用文件存在性判断而路径基准错 → 改为按已声明的增强集合
+- 22:27 ✅ **M2 达成**：文档 12 篇全部完成 + 索引（`docs/README.md`）；00–11 覆盖 overview/quickstart/concepts/catalog/skills/connectors/deploy/troubleshooting/conventions/harness-contract/harness-selection/harness-enhancements
+- 22:27 文档质量做法：引用的 make 目标/路径/检查 id/适配器文件/连接器名字**全部与真源交叉校验**；未写完时不留死链；生成的 03 配同步检查；已知能力边界写进文档而不是只留在 issue
 
