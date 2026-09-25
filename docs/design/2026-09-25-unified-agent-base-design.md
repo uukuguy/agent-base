@@ -247,7 +247,7 @@ agent-base/                          # 基座仓库（改名见 §12.6）
 │   ├── catalog/params.yaml                    # §2.3 参数层清单
 │   ├── trace/schema.json                      # 统一轨迹事件 schema（§8.3）
 │   ├── gates/                                 # 四闸门框架：编排、断言语言、报告格式
-│   └── image/{Dockerfile.base,entrypoint.sh}  # 基座镜像
+│   └── image/{Dockerfile.base,Dockerfile.debug,entrypoint.sh}  # 基座镜像 + 调试变体
 │
 ├── adapters/                        # 【harness 专有】每个 harness 一个目录
 │   ├── pi/
@@ -548,7 +548,7 @@ capabilities:                         # 每项：supported | partial | unsupport
   osSandbox: unsupported                  # macOS 无 OS 级沙箱；容器内由编排承担
   permissionModel: extension              # protected-paths 扩展
   traceEmit: extension                    # audit-log 扩展
-  runModes: [interactive, oneshot, rpc]
+  runModes: [interactive, oneshot, rpc, debug]
 failures: failures.md                 # §5.5 强制交付物
 exemptions: exemptions.yaml           # §1.4 等价性豁免
 ```
@@ -797,6 +797,7 @@ HARNESS=dsh render → doctor → smoke ┘
 | 出站网络 | 默认拒绝，按连接器清单显式放行 |
 | 离线 | 运行期默认不出网拉依赖（pi 的 `PI_OFFLINE=1` 思路通用化） |
 | 密钥 | 只从挂载/环境注入，永不进镜像、永不进定义文件 |
+| 调试工具 | **不进生产镜像**；调试走 `agent-base:<h>-debug` 变体（§8.5） |
 | 凭据存储文件权限 | **不承诺对 agent 隔离**（dsh §3.10 已知限制：agent 工具进程以同一 OS 用户运行）→ 隔离由编排层负责 |
 
 ### 7.3 harness 增强的声明与实测
@@ -846,7 +847,7 @@ registry/<agent-name>:<ver>@sha256:<digest>             ← 智能体镜像：�
 | **退出码** | §6.7 的表（验证工具与运行时共用同一套语义） |
 | **stdout** | **只放结果**：批处理模式下是任务输出；验证模式下是 `verify --json` |
 | **stderr** | 人读日志 + 统一轨迹事件（JSONL） |
-| **`AGENT_RUN_MODE`** | `interactive`（默认，人用）/ `oneshot`（`-p` 语义，CI 用）/ `rpc`（常驻，平台接入） |
+| **`AGENT_RUN_MODE`** | `interactive`（默认，人用）/ `oneshot`（`-p` 语义，CI 用）/ `rpc`（常驻，平台接入）/ `debug`（交互排查，**仅 debug 变体镜像**，§8.5） |
 | **参数分派** | 无参数 = `interactive`；`-` 开头 = 透传 harness 原生参数；其它 = 命令（pi entrypoint 已实测的做法，通用化） |
 | **EPIPE** | 客户端提前关闭 stdout 会让子进程崩溃（pi 实测）→ RPC 客户端必须持续读取；基座侧捕获 EPIPE 并给出明确错误而非崩溃 |
 
@@ -883,6 +884,36 @@ registry/<agent-name>:<ver>@sha256:<digest>             ← 智能体镜像：�
 | 健康检查 | `interactive`/`oneshot`：进程存活即健康；`rpc`：适配器提供一个"零凭据可答"的探针调用（pi 的 `--mode rpc` + `get_state` 已实测无需凭据） |
 | 离线自检 | 容器内 `make doctor` 必须可跑（不需网络），供 K8s readiness 使用 |
 
+### 8.5 调试手段
+
+基座镜像本身携带三道**零侵入**调试面，第四道走**调试变体镜像**。原则：**调试面按侵入性递增；生产镜像只含前三道，交互排查工具绝不进生产镜像**——否则违反 §7.2 的最小权限 / 只读根 / 默认离线，并把调试行为与交付行为混进同一制品。
+
+| 道 | 手段 | 何时用 | 侵入性 |
+|---|---|---|---|
+| ① 自证 | 容器内 `make doctor`（闸门 2 解析自证，零网络） | 先问"harness 实际加载了什么" | 无（已在基座） |
+| ② 轨迹 + 退出码 | 统一轨迹 JSONL 到 stderr（`docker logs -f` 即读）+ §6.7 退出码定位失败层 | "它做了什么、在哪一步失败" | 无（已在基座） |
+| ③ 诊断重放 | 容器内 `make probe HARNESS=…` 单跑闸门 3 探针 | 把"网络层 vs 配置层"问题分开（§6.4） | 无（已在基座） |
+| ④ 交互排查 | `agent-base:<h>-debug` 变体 + `AGENT_RUN_MODE=debug` 进诊断 shell | 前三道不够，要进容器手动查 | 有（仅 debug 变体） |
+
+**调试变体镜像（④）**：
+
+```
+registry/agent-base:<h>-<ver>@sha256:<digest>          ← 生产基座镜像
+        │  FROM（同 digest）
+        ▼
+registry/agent-base:<h>-debug                           ← 只加调试层：shell + curl/ripgrep/jq + 诊断脚本
+```
+
+| 规则 | 说明 |
+|---|---|
+| **同 digest 派生** | debug 变体 `FROM base@sha256:<digest>` 只加一层调试工具，**不改渲染产物与行为定义**——保证 debug 时跑的就是生产那套（N19），杜绝"debug 正常、生产崩"的漂移 |
+| **显式标记** | debug 态在轨迹首行输出 `{"type":"run.meta","mode":"debug"}`，与交付态可区分（呼应 §11.3 把调试行为与交付行为分开的同一纪律） |
+| **临时放开仅限 debug 镜像** | 可写层、出站网络只在 debug 变体里放开（且需显式挂载），生产镜像仍保持只读根 + 默认离线（§7.2） |
+| **不进生产镜像** | 调试工具（shell、curl 等）有攻击面（出站、shell 逃逸），**绝不烤进生产基座镜像**；`conformance/C9` 断言生产镜像不含调试工具 |
+| **入口脚本拒绝越权** | 生产镜像的 entrypoint 遇到 `AGENT_RUN_MODE=debug` 必须失败（退出码 2）；只有 debug 变体的 entrypoint 接受它 |
+
+**崩溃取证**：退出码 50（harness 崩溃）时，entrypoint 把轨迹最后 N 行摘要 + `effectiveConfigDigest` 打到 stderr 后退出，保证"连 shell 都进不去"时也有可读线索。
+
 ---
 
 ## 9. 【不变量】双入口与差异
@@ -911,6 +942,24 @@ registry/<agent-name>:<ver>@sha256:<digest>             ← 智能体镜像：�
 | 文件权限 | 宿主 uid | uid 10001 | 挂载卷的属主需要对齐 |
 
 **结论**：本地验证通过 ≠ 容器行为一致。安全相关与交付契约相关的断言，只在容器内算数。
+
+### 9.3 本地开发环境与 run-local 挂载契约
+
+§9.1 的本地入口隐含一个前提——"本机已装好 pin 住的 harness"。本节把它从隐含前提变成**一条命令可复现**，否则换台机器或来个新人会被卡在"装哪个版本、挂到哪"上（违背 §1.3 可接手性）。
+
+| 命令 | 作用 |
+|---|---|
+| `make dev-env` | 按 `adapters/<h>/adapter.yaml` 的 `version` pin 安装/校验两个 harness 到一致版本，输出 `dsh --version` / `pi --version` 供确认 |
+| `make run-local HARNESS=<h>` | 用**隔离的临时 HOME/DSH_HOME** 跑原生 harness，`render` 产物挂/软链进去 |
+
+**run-local 挂载契约**（P-b 文件系统隔离：本地也不碰真实 `$HOME`，否则宿主机隐式技能源会混进来——§9.2 差异表第 4 行）：
+
+| harness | render 产物 | 挂/软链到 | 参数层来源 |
+|---|---|---|---|
+| pi | `agent-dir/` | 临时 `$HOME` 的 agent-dir；其 `.agents/skills` 留空 | shell 环境 / `.env` |
+| dsh | `profiles/<name>/` | 临时 `$DSH_HOME/profiles/<name>/` | shell 环境 / `.env` |
+
+**本地环境自检**：`make dev-env` 之后 `make validate && make doctor` 全绿，即证明环境可用（无需网络）。这条自检与容器内的 `doctor`（§8.4 离线自检）是**同一命令、同一判据**——本地与容器共享一个"环境是否就绪"的口径。
 
 ---
 
@@ -1125,8 +1174,10 @@ my-agent/
 | `make probe HARNESS=…` | 集成探针（默认假网关） | 3 |
 | `make smoke HARNESS=…` | 端到端冒烟（容器内加固参数） | 4 |
 | `make verify HARNESS=pi,dsh` | 四闸门 + 等价性比对 → `--json` | 1–4 + 等价 |
-| `make run-local HARNESS=…` | 本地交互入口 | — |
+| `make dev-env` | 按 pin 安装/校验两个 harness 到一致版本（§9.3） | — |
+| `make run-local HARNESS=…` | 本地交互入口（临时 HOME/DSH_HOME，§9.3） | — |
 | `make image HARNESS=…` | 产出智能体镜像 | — |
+| `make debug HARNESS=…` | 构建 debug 变体并进诊断 shell（§8.5 第④道） | — |
 | `make conformance HARNESS=…` | 对适配器跑合规套（开发适配器时用） | C1–C10 |
 
 ### 12.4 验收方式
@@ -1136,13 +1187,14 @@ my-agent/
 **流程甲（便捷启动）** —— 中途不需要理解任何 harness 概念：
 
 ```bash
-make new-agent NAME=my-agent          # 在基座仓库里执行一次
+make dev-env                          # ① 首次：按 pin 装两个 harness 到一致版本（§9.3，基座仓库里执行一次）
+make new-agent NAME=my-agent          # ② 派生（基座仓库里执行一次）
 cd my-agent                           # 之后都在派生目录里操作（Makefile 由模板生成）
 $EDITOR agent.yaml connectors.yaml skills/example/SKILL.md    # 只写业务
-make validate                         # ① 静态
-make run-local HARNESS=dsh             # ② 本地调想法（HMR）
-make verify HARNESS=dsh                # ③ 可用（四闸门）
-make image HARNESS=dsh                 # ④ 交付镜像
+make validate                         # ③ 静态
+make run-local HARNESS=dsh             # ④ 本地调想法（HMR）
+make verify HARNESS=dsh                # ⑤ 可用（四闸门）
+make image HARNESS=dsh                 # ⑥ 交付镜像
 ```
 
 **流程乙（换 harness）** —— 只改一个变量：
@@ -1240,6 +1292,8 @@ git -C ~/sandbox/agentic-2026/agent-base remote set-url origin <new-url>
 | 两个示例场景（P2） | `idea-to-proof`（纯技能型）+ `contract-review`（带 MCP，正好演示双 harness） | §2.4 |
 | `conformance` 严格度（P3） | **C1–C10 全为阻断性门槛** | §5.6 |
 | 第三个 harness（P4） | **不预留、不造桩**；通过 `conformance` 即可接入 | §5.7 |
+| 调试手段 | 四道调试面（自证 / 轨迹 / 探针 / 交互排查）；交互排查走 `agent-base:<h>-debug` 变体，调试工具不进生产镜像 | §8.5 / §7.2 |
+| 本地开发环境 | `make dev-env` 按 pin 装 harness 到一致版本；`run-local` 用临时 HOME/DSH_HOME 挂 render 产物 | §9.3 |
 
 ### 15.2 需要外部输入（评审无法代决）
 
@@ -1269,6 +1323,7 @@ git -C ~/sandbox/agentic-2026/agent-base remote set-url origin <new-url>
 | `conformance` 部分项仅告警（P3 的选项 B） | 会被软化的正是 C5/C8（静默失败检测力、参数层隔离），也就是最危险的两类退化 |
 | 先做一个"假 harness"最小桩验证契约（P4 的选项 B） | 多一份不产生业务价值的产物；`conformance` 的 C1–C10 本身就是契约的可执行形态（附录 B 的 S0–S1） |
 | 一镜像多智能体 + 运行期 `--patch`（`-pi` 候选稿 D6 的选项 A） | 同一镜像在不同 `--patch` 下行为不同，违反 N19；`--patch` 失败静默（dsh 实验 A）且绕过制品签名边界。且与它自己 §6 的分层原则自相矛盾。已由 §11.3 定为"每智能体一个 profile + 交付不接受 `--patch`" |
+| 调试工具常驻生产基座镜像 | 增加攻击面（出站、shell 逃逸），违反 §7.2 最小权限 / 只读根 / 默认离线；且调试行为与交付行为混进同一制品无法区分。已由 §8.5 定为"生产镜像只含前三道零侵入调试面，交互排查走 debug 变体" |
 
 ---
 
@@ -1383,6 +1438,6 @@ git -C ~/sandbox/agentic-2026/agent-base remote set-url origin <new-url>
 
 | | |
 |---|---|
-| 本文版本 | v2（2026-09-25，整合 `-dsh` / `-pi` 两份候选稿） |
+| 本文版本 | v2.1（2026-09-25，整合两份候选稿后增补 §8.5 调试手段、§9.3 本地开发环境） |
 | 依赖的上位实测 | dsh `0.1.7-rc.1` 实验 A–E；pi `0.87.1` 四层闸门与 smoke |
 | 待实测项 | §7.5（dsh 写保护扩展）、§8.3（dsh 轨迹映射——P1 定为强制统一 schema 后成为 dsh 适配器的必做项）、§10.3（pi RPC 完整会话、真实委派）、§11.5 |
