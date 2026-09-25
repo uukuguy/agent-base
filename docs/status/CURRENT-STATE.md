@@ -7,7 +7,7 @@
 - Theme-level focus: **首个示例走通（S4 `examples/idea-to-proof` 四道闸门 → 可用）**；下一步是双 harness 示例与 dsh 比较轨
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi。§7 记 dsh 实现待定项，§8 记 S3 进展）
-- Active work package: `S7` 版本策略 + CHANGELOG（M3）；随后 S8 三件小事
+- Active work package: `S8` 运行期无外网三件小事；随后 `S5 examples/contract-review`（M4，依赖 pi 的 MCP 客户端选型）
 
 ## Current Architecture
 

@@ -32,6 +32,7 @@
 
 | 文档 | 用途 |
 |---|---|
+| [`CHANGELOG.md`](../CHANGELOG.md) | **版本策略**（三个版本号的分工、什么算破坏性变更、兼容承诺）+ 变更条目 |
 | [设计正文](design/2026-09-25-unified-agent-base-design.md) | 为什么这样设计（含四类标记：不变量 / 适配契约 / 运行时专有 / 本项目决策） |
 | [上位依据 · pi](design/2026-09-25-pi-harness-design.md) | pi 专有实测约束的唯一事实来源 |
 | [上位依据 · dsh](design/2026-09-25-dsh-harness-design.md) | dsh 同上 |

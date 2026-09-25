@@ -299,6 +299,27 @@ function checkBase(report) {
     }
   }
 
+  // A5d 版本纪律：改了 package.json 的版本，就必须有对应的变更条目
+  // （否则会出现"版本变了但没人知道变了什么"—— 交付物最忌讳这个）
+  {
+    const cl = path.join(REPO, "CHANGELOG.md");
+    if (!fs.existsSync(cl)) {
+      report.fail(GATE, "docs/changelog-version", "缺 CHANGELOG.md —— 版本策略与变更条目无处可查");
+    } else {
+      const pkgVersion = JSON.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8")).version;
+      const text = fs.readFileSync(cl, "utf8");
+      // 必须是形如 `## <版本>` 的**发布条目**，不是文中随便出现这个字符串
+      // （第一版用 includes，结果版本策略里举的例子"从 0.1.0 升到 0.2.0"把检查骗过了）
+      const esc = pkgVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`^##\\s+.*${esc}(?!\\d)`, "m");
+      if (!re.test(text)) {
+        report.fail(GATE, "docs/changelog-version", `CHANGELOG.md 里没有形如「## ${pkgVersion}」的发布条目 —— 补条目再发版`);
+      } else {
+        report.pass(GATE, "docs/changelog-version", `CHANGELOG.md 有 ${pkgVersion} 的发布条目`);
+      }
+    }
+  }
+
   // A5c 生成的文档必须与真源同步
   // 手写文档不会报错地过期，然后开始骗人；所以凡是"由真源生成"的文档，都用机器拦同步。
   {

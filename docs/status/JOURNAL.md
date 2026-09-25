@@ -196,4 +196,7 @@
 - 22:21 踩坑两处：C3 的目录型声明（skills）被当文件读 → verify 支持目录；pi 的 enhancements 声明用文件存在性判断而路径基准错 → 改为按已声明的增强集合
 - 22:27 ✅ **M2 达成**：文档 12 篇全部完成 + 索引（`docs/README.md`）；00–11 覆盖 overview/quickstart/concepts/catalog/skills/connectors/deploy/troubleshooting/conventions/harness-contract/harness-selection/harness-enhancements
 - 22:27 文档质量做法：引用的 make 目标/路径/检查 id/适配器文件/连接器名字**全部与真源交叉校验**；未写完时不留死链；生成的 03 配同步检查；已知能力边界写进文档而不是只留在 issue
+- 22:28 ✅ **M3 达成**：交付 CHANGELOG.md（含版本策略：三个版本号分工 / 什么算破坏性变更 / 兼容承诺 / 摘要语义）+ 本期不包含清单
+- 22:28 新增闸门 1 检查 docs/changelog-version：改了 package.json 版本就必须有形如 `## <版本>` 的发布条目。**第一版用子串匹配被自己正文里的举例骗过**，已收紧并复验
+- 22:28 S7 在路线图标记闭环；文档索引与部署篇已互链到 CHANGELOG
 
