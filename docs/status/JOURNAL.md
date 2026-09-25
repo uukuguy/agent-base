@@ -38,3 +38,9 @@
 - 15:50 修正 §14 风险 12：pi 0.87.1 包内有 39 篇 docs（原称「npm 包内无 docs 目录」已过时）
 - 15:50 实测 dsh --dump-config 零凭据输出组合后的 profile 树 → dsh 侧自证原语；shipped 模板 acp/headless/sdk/sdk-minimal/web
 - 15:50 待用户裁决：connectors 在 pi 侧的落点（业务级增强 / 收窄可移植核心 / 第三方包 / 重估主力定位）
+- 16:12 用户方向：基座应预装 pi/dsh 都适用的最常用 MCP（能力在基座、选择在智能体）
+- 16:20 MCP 调研落库 docs/research/2026-09-25-mcp-ecosystem-survey.md（含 npm 实测存活表）
+- 16:20 🟢 实测 pi MCP 客户端生态已成熟：pi-mcp-adapter 2.37.0 / pi-mcp-extension 1.5.0 / @clawos-dev/pi-mcp-bridge（读 .mcp.json，正是 §10.2 预测形态）→ 自研非必需
+- 16:20 🔴 实测网络「MCP 排行」多指向废弃包：server-github/slack/postgres 已 deprecated；server-git/fetch 不在 npm（Python 的 uvx）
+- 16:20 实测官方 transport 规范与我们的 schema 一致：streamable-http 为准、SSE 已废弃 → connectors 枚举无需加 sse
+- 16:20 新设计缺口：企业级 MCP 要每用户鉴权，与参数层的单一服务凭据模型不匹配（记待办，不阻塞首个走通）

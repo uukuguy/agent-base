@@ -27,7 +27,9 @@
 
 ## Open Problems (theme-level)
 
-- 🔴 **pi 侧无 MCP**（实测）：pi 0.87.1 的 docs/README/CHANGELOG 零提及 MCP，无 `mcp.json`/`allowInstall`/`hostConfigDiscovery`；dsh 侧原生有 `@deepseek-ai/dsh-mcp-client`。connectors 是 N2 四大业务概念之一 → 直接冲击 J1「同一份定义两个 harness 都能跑通」与 P2 的 `contract-review`（"带 MCP，演示双 harness"）。**待裁决 `connectors` 在 pi 侧的落点**（见 RESUME 的 Open decisions）
+- 🟠 **pi 侧无 MCP 客户端**（实测）：pi 0.87.1 的 docs/README/CHANGELOG 零提及 MCP，无 `mcp.json`/`allowInstall`/`hostConfigDiscovery`；dsh 侧原生有 `@deepseek-ai/dsh-mcp-client`。**但第三方 pi MCP 扩展生态已成熟**（`pi-mcp-adapter` 2.37.0 等，见调研）→ 不必自研。待裁决：采用哪个扩展 + 预装哪些服务器
+- 企业级 MCP 的**每用户鉴权**与我们的参数层模型（单一服务凭据 `credentialRef`）不匹配 —— 记为设计缺口，排到首个走通之后
+- 网络「MCP 排行」普遍未校验包生命周期（实测：github/slack/postgres 已废弃，git/fetch 不在 npm）→ 预装清单只能来自实测，且需升级/退役机制
 - `adapters/{pi,dsh}/` 尚不存在 —— 因此闸门 2–4 无实现可跑，`usable` 目前恒为 false（只有闸门 1 实现了）
 - 闸门 2 的三个硬断言（技能集合 / 连接器集合 / 已加载扩展 id 集合）尚无真实 harness 可断言 —— 要等 S2 的 `doctor`
 - `conformance/C1–C10`（新 harness 准入门槛）尚未落地；C5（静默失败检测力）与 C8（参数层隔离）是灵魂
@@ -52,6 +54,7 @@
 - `docs/status/JOURNAL.md` —— 只追加事件日志
 
 ### Design truth source
+- `docs/research/2026-09-25-mcp-ecosystem-survey.md` —— MCP 生态调研（企业常用服务器、npm 实测存活表、pi 客户端生态、预装建议）
 - `docs/design/2026-09-25-unified-agent-base-design.md` —— **最终稿 v2.4**；§0.2 四个骨架级决策与 §15.1 取舍均已裁决，§15.2 仅剩 3 项待外部输入
 - `docs/design/2026-09-25-pi-harness-design.md` —— pi 专有实测约束的唯一事实来源（上位依据）
 - `docs/design/2026-09-25-dsh-harness-design.md` —— dsh 专有实测约束的唯一事实来源（上位依据）
