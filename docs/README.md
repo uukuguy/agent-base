@@ -17,9 +17,9 @@
 | 03 | [capability-catalog](03-capability-catalog.md) —— 有哪些能力可配（**由真源生成**，`make gen-docs` 刷新） | 业务开发者 | ✅ |
 | 04 | [skills](04-skills.md) —— 技能怎么写（含隐式技能源这个坑） | 业务开发者 | ✅ |
 | 05 | [connectors](05-connectors.md) —— 连接器怎么配（推荐的按名引用 + 凭据引用名） | 业务开发者 | ✅ |
-| 06 | `06-deploy.md` —— 镜像、环境变量、凭据、退出码、stdout/stderr 契约 | 平台/运维 | ⏳ |
+| 06 | [deploy](06-deploy.md) —— 镜像变体、固定路径、环境变量、入口与退出码、加固参数 | 平台/运维 | ✅ |
 | 07 | [troubleshooting](07-troubleshooting.md) —— **失败模式清单** | 全部 | ✅ |
-| 08 | `08-conventions.md` —— 分层纪律：哪层能放什么 | 平台/业务负责人 | ⏳ |
+| 08 | [conventions](08-conventions.md) —— 分层纪律：哪层能放什么（每条都标了执法项） | 平台/业务负责人 | ✅ |
 | 09 | `09-harness-contract.md` —— 适配契约、新运行时怎么接 | 平台开发者 | ⏳ |
 | 10 | `10-harness-selection.md` —— 两个运行时的差异与选型 | 架构/平台 | ⏳ |
 | 11 | `11-harness-enhancements.md` —— 业务级增强怎么写 | 业务开发者（要写增强时） | ⏳ |
