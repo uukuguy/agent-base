@@ -15,7 +15,7 @@
 
 | 文档 | 状态 | 作用 |
 |---|---|---|
-| [`docs/design/2026-09-25-unified-agent-base-design.md`](docs/design/2026-09-25-unified-agent-base-design.md) | **现行设计** | 统一基座 + 适配契约。§0.2 的四个骨架级决策已裁决，§15.2 尚有 4 项待拍板 |
+| [`docs/design/2026-09-25-unified-agent-base-design.md`](docs/design/2026-09-25-unified-agent-base-design.md) | **现行设计** | 统一基座 + 适配契约。§0.2 的四个骨架级决策与 §15.1 的其余取舍**均已裁决**；§15.2 仅剩 3 项需要外部输入（企业网关协议、内网私仓、首批业务场景），不阻塞实现 |
 | [`docs/design/2026-09-25-dsh-agent-base-design.md`](docs/design/2026-09-25-dsh-agent-base-design.md) | 上位依据（已整合） | dsh 专有实测机制仍以此为准 |
 | [`docs/design/2026-09-25-pi-agent-base-design.md`](docs/design/2026-09-25-pi-agent-base-design.md) | 上位依据（已整合） | pi 专有实测约束仍以此为准 |
 
