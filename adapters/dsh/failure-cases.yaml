@@ -1,0 +1,9 @@
+apiVersion: agent-base/v1
+# §5.5 要求：每条已知静默失败都配一个**可执行**的检测用例（conformance/C5 逐条跑）。
+# 本 harness 的哲学是"失败也继续跑"，所以这里的检测更多是在**替 harness 报它自己不报的错**。
+cases:
+  - id: D1
+    kind: patch-target-missing
+    failure: "patch 的 target id 不存在 → 只打警告、退出码 0、继续运行"
+    detectBy: doctor 断言「patch 的每个 target id 都出现在组合树里」
+    expectExitCode: 20

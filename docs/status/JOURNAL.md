@@ -98,4 +98,11 @@
 - 19:45 conformance 现状：C1–C5、C7、C8、C10 全绿（8 项）；C6/C9 记 pending 并非零退出（未实现不算通过，P3）
 - 19:45 路线图记录跨包依赖：C6 依赖 probe/smoke、C9 依赖容器内加固，两者按附录 B 都属 S3
 - 19:45 C8 实证：把 §2.3 禁止项带标记值注入后，产物摘要不变且标记值不出现在任何产物文件里
+- 20:10 dsh 预检完成（实测）：--dump-config 零凭据自证；patch 形状 {id,name,config,disabled}|{insert:[...]}
+- 20:10 实测 dsh 轨迹：$DSH_HOME/sessions/**/session.v4.jsonl（zstd 压缩 JSONL），骨架 {type,seq,time,data}，type 用 / 命名空间
+- 20:10 🟢 dsh 有原生 approval/policy + sandbox/mode 事件 → 能回答「谁放行了这次调用」（pi 侧是缺口 G3，两边不对称）
+- 20:10 实测 agent-instructions 是「工作区 AGENTS.md 发现器」而非 persona 注入点；skill-filesystem 用 customSkillDirs
+- 20:15 交付 adapters/dsh/{adapter.yaml, failures.md, failure-cases.yaml, exemptions.yaml}；render/doctor/trace **未实现**（诚实标注）
+- 20:15 路线图 §7 记录 dsh 预检结论 + 三个待定问题（Q1 persona 落点 / Q2 customSkillDirs 路径 / Q3 bundles 组合）
+- 20:15 conformance 现状：C1 与 C10 对 dsh 通过；C2–C5/C7/C8 报 dsh 未实现（runner 的预期行为，非回归）；C6/C9 待 S3
 

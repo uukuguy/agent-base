@@ -189,3 +189,42 @@ mcpServers:
 - 现状：§4.3 要求每条连接器都写全 `transport` + `command/args` 或 `urlRef` + 包名版本 —— 开发者必须知道实现细节，与「心智负担低、非专家可上手」相悖。
 - 影响面：`core/spec/connectors.schema.json`（新增 `ref` 形态，与原形态二选一）+ `core/catalog/{capabilities,params}.yaml` + 渲染器（S2）+ 设计 §4.3/§4.6。
 - 与既有决策的关系：**不冲突**，反而更贴 P-a（能力=基座持有的包与版本；选择=智能体写不写这个 ref）与「升级局部化」（换 pin 只改一处，所有智能体受益）。
+
+---
+
+## 7. S2 未完成项：dsh 适配器（预检已做，实现未做）
+
+**当前仓库状态（诚实标注）**：`adapters/dsh/` 已有 `adapter.yaml`（能力声明，全部来自实测/上位文档）、`failures.md`、`failure-cases.yaml`、`exemptions.yaml`；
+**`render.mjs` / `doctor.mjs` / `trace.mjs` 尚未实现**。因此 `make conformance` 对 dsh 会报 C2/C3/C4/C5/C7/C8 未通过 ——
+这是 runner 的预期行为（未实现不算通过），不是回归。
+
+### 7.1 预检实测结论（可直接作为实现依据）
+
+| 项 | 实测结果 |
+|---|---|
+| 版本 | `0.1.7-rc.1`（RC，接口可能变；升级时只复核 `adapters/dsh/`） |
+| **零凭据自证原语** | `dsh <name> --from-default-profile <tpl> --dump-config` 打印组合后的完整 profile 树后退出，不 mount、不连网 |
+| shipped 模板 | `acp` / `headless` / `sdk` / `sdk-minimal` / `web`（**`tui` 不是 shipped 模板**） |
+| profile 目录 | `$DSH_HOME/profiles/<name>/{cordis.patch.yml, package.json, cordis.yml, pnpm-workspace.yaml}` |
+| patch 形状 | 顶层 **YAML 数组**；元素为 `{id, name, config, disabled}`（覆盖既有 row）或 `{insert: [<row>…]}`（新增 row）；`!!js` 表达式可用 |
+| profile 元数据 | `package.json` 里 `dsh.profile.bundles: [@deepseek-ai/dsh-base, @deepseek-ai/dsh-web-app]` |
+| 关键 row 及其 config | `agent-instructions` → `{maxBytes}`（**它是工作区 AGENTS.md/CLAUDE.md 的发现器，persona 不由 config 注入**）；`agent-default-model` → `{provider, model}`；`skill-filesystem` → `{customSkillDirs: [...]}`；`tool-skill` 负责暴露技能工具；MCP 每服务器一条 `@deepseek-ai/dsh-mcp-client` row |
+| 原生轨迹 | `$DSH_HOME/sessions/--<cwd>--/<id>/session.v4.jsonl`，**zstd 压缩的 JSONL**；记录骨架 `{type, seq, time, data}`，type 用 `/` 命名空间 |
+| 轨迹类型（实测） | `session`(头) · `request/context`{contextWindow, model, provider} · `request/header` · `assistant/message`{message, usage} · `assistant/chunk` · `text-chunks` · `reasoning-chunks` · `tool-call-chunks` · `tool/call`{arguments, callId, name} · **`tool/result`{error, message, step, turn}（无 callId，需按 step 内顺序配对）** · `step/start`/`step/end` · `turn/start`/`turn/end` · `permission/preset` · `sandbox/mode` · `approval/policy` · `agent/inbox/spliced` · `session/title` |
+| 比另一个 harness 强的地方 | **原生的审批与沙箱事件** → 它能回答「谁放行了这次调用」（缺口 G3 在两边不对称） |
+
+### 7.2 实现前必须先定的三个问题（不要猜）
+
+| # | 问题 | 候选 | 影响 |
+|---|---|---|---|
+| **Q1** | persona 怎么进产物 | ① 渲染 `workspace/AGENTS.md`，运行期把该目录挂成 cwd（`agent-instructions` 按工作区根发现它，`.git` 为根标记）；② 找别的注入路径 | 决定渲染产物的顶层布局（是否要第二个输出根 `workspace/`） |
+| **Q2** | `customSkillDirs` 写什么路径 | ① 固定镜像内路径（如 `/opt/agent/skills`），manifest 记录映射，本地/暂存运行期用挂载或软链对齐；② 写渲染时绝对路径 | 决定「同一产物在本地与容器是否都能跑」。①更贴 §11.2「相对引用解析成镜像内固定路径」 |
+| **Q3** | `dsh.profile.bundles` 取哪套 | ① 照抄 shipped `web`（base + web-app，已验证能组合）；② 只 base（headless 取向，未验证） | 决定 profile 能否在 headless 下独立启动 |
+
+### 7.3 实现顺序建议
+
+1. 先定 Q1–Q3（它们决定产物布局，改起来会牵动 doctor 与 conformance）
+2. `render.mjs`（完整 config、不做增量假设 —— 直接对治 D6「重述腐化」）
+3. `doctor.mjs`（靠 `--dump-config` 组合树；**必须补上 patch target id 校验**，那是 D1 唯一的防线）
+4. `trace.mjs` + `conformance/fixtures/dsh-native-events.jsonl`（按 7.1 的轨迹类型表；`tool/result` 的 callId 配对要写进 trace-mapping.md）
+5. 跑 `make conformance` 直到 dsh 的 C2–C5/C7/C8 转绿；C6/C9 仍待 S3

@@ -1,0 +1,38 @@
+# dsh 适配器的等价性豁免（统一设计 §1.4 / §6.6）
+#
+# 与另一个 harness 的不对称要**显式**写在这里，不允许"沉默的差异"。
+- id: mcp-client-native
+  scope: connectors
+  reason: >
+    本 harness **原生支持** MCP（dsh-mcp-client），另一个 harness 是 unsupported（需基座补客户端扩展）。
+    因此带连接器的智能体在两边的等价性**不成立**；比对时必须在报告里标为"未比对"，
+    不得因为一边有、一边没有就静默当作通过。
+  reviewBy: 2027-06-30
+
+- id: approval-trace-available
+  scope: trajectory.tool.call.decision
+  reason: >
+    本 harness 有原生审批事件（approval/policy），可回答"谁放行了这次调用"；
+    另一个 harness 没有，只能记 allow（缺口 G3）。因此 decision 字段在两边的**可信度不同**，
+    跨 harness 比对时不得把它当作等价。
+  reviewBy: 2027-06-30
+
+- id: tool-naming
+  scope: tools.names
+  reason: 工具名由 harness 决定，业务不依赖；比对工具名会把命名习惯差异误判成行为不等价。
+  reviewBy: 2027-03-31
+
+- id: prompt-text
+  scope: persona.promptText
+  reason: 人设最终拼装方式由 harness 决定（本 harness 走工作区指令文件发现机制，不是固定路径注入）。
+  reviewBy: 2027-03-31
+
+- id: tool-call-order
+  scope: trajectory.toolOrder
+  reason: 受模型采样影响，不是 harness 差异。
+  reviewBy: 2027-03-31
+
+- id: token-count-and-latency
+  scope: model.usage, model.latency
+  reason: 运行时特性，不是定义的可移植性承诺。
+  reviewBy: 2027-03-31

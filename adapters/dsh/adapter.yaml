@@ -1,0 +1,95 @@
+harness: dsh
+version: "0.1.7-rc.1"      # 精确 pin（基线是 RC，接口可能变 —— 升级时只复核本文件与 render/doctor）
+adapterVersion: "0.1.0"
+
+renders:
+  output: dsh-home/profiles/<name>   # 渲染产物形态
+  deterministic: true
+
+# ============================================================================
+# 能力声明（统一设计 §5.2）·取值只用 §5.2 的枚举：supported | partial | unsupported | extension
+# 每条 note 标注依据：【实测】本机验证过；【文档】上游 README/文档；【待实测】尚未证实
+# ============================================================================
+capabilities:
+  nativeParamInterpolation: supported
+  nativeParamInterpolationNote: >
+    该 harness 的 patch 支持 `!!js` 表达式（实测 `--dump-config` 里就有
+    `disabled: !!js '!ctx.get(...)'`），因此凭据/端点可用 `!!js process.env.X` 在运行期解析。
+    但只允许读参数层清单里的名字（§11.3），否则等于绕开参数层纪律。
+
+  runtimeWritableConfig: partial
+  runtimeWritableConfigNote: >
+    基座 home 层与 profile 由镜像提供；`--dump-config` 本身不写任何东西【实测】。
+    但运行会话会写 `$DSH_HOME/sessions/`（实测目录存在且按项目分桶），故仍需可写卷承载会话与状态。
+
+  implicitSkillSources: partial
+  implicitSkillSourcesNote: >
+    **六个 rank 根**（project-dsh / project-agents / custom / user-dsh / user-agents / bundled）【文档 §11.1】，
+    关不掉。处置：文件系统隔离 + 渲染时把智能体技能**显式**写进 profile 的
+    `customSkillDirs`（rank 300，实测确认该 config 键存在），再由 doctor 断言集合相等。
+
+  configInclude: partial
+  configIncludeNote: >
+    四层合成（bundle → profile → home → `--patch`），但 patch 的 `config` 是**整体替换**而非深合并，
+    且 bundle 之间不可嵌套【文档 §11.1】。处置：渲染器产出**完整** config，不做增量假设。
+
+  hmr: supported
+  hmrNote: tui 上启用，headless/SDK/ACP 显式禁用（§9.1）。本地迭代用 tui，容器内验契约。
+
+  childAgents: supported
+  childAgentsNote: >
+    原生 subagent 体系【实测：组合树含 dsh-subagent / dsh-subagent-spawn-in-process /
+    dsh-tool-subagent 等 row】，另有 agent-team 实验插件。
+
+  osSandbox: partial
+  osSandboxNote: >
+    landlock 仅 Linux【文档 §11.1】；macOS 上无等价物。处置：安全断言只在容器内算数（§7.2）。
+
+  permissionModel: supported
+  permissionModelNote: >
+    原生权限预设 + 审批；**无应答者时 fail closed**【文档 §11.1】。
+    无人值守运行必须显式自动放行，否则卡死 —— 这条要进 failures.md。
+
+  traceEmit: supported
+  traceEmitNote: >
+    原生会话轨迹：`$DSH_HOME/sessions/--<cwd>--/<id>/session.v4.jsonl`（**zstd 压缩的 JSONL**，
+    版本 v4）【实测】。记录以 `{type, seq, time, data}` 为骨架，type 用 `/` 命名空间
+    （`tool/call`、`tool/result`、`request/context`、`approval/policy`、`sandbox/mode` …）。
+    比另一个 harness 更强的一处：**有原生的审批与沙箱事件**，可回答"谁放行了这次调用"。
+    映射规格见 trace-mapping.md。
+
+  mcpClient: supported
+  mcpClientNote: >
+    **原生支持**：`@deepseek-ai/dsh-mcp-client`（实测包存在），每个服务器一条 row；
+    `failOnStartupError` 默认 false（连不上也启动）【文档】—— 这正是要进 failures.md 的静默失败。
+
+  runModes: [interactive, oneshot, rpc, debug]
+
+failures: failures.md
+failureCases: failure-cases.yaml
+exemptions: exemptions.yaml
+
+# ============================================================================
+# 运行期契约（实测得出；S3 的 run-local / entrypoint 照此实现）
+# ============================================================================
+runtime:
+  home:
+    env: DSH_HOME
+    value: <render 产物>/dsh-home
+    why: profile 位于 `$DSH_HOME/profiles/<name>/`，模型路由**能力**在 home 层（§11.4）
+  profile:
+    flag: ["--profile", "<agent-name>"]
+    why: 每个智能体一个 profile，构建期生成；交付镜像不接受 `--patch`（§11.3）
+  selfReport:
+    flag: ["--dump-config"]
+    why: >
+      **零凭据自证原语**【实测】：打印组合后的完整 profile 树后退出，不 mount、不连网。
+      doctor 靠它回答"实际加载了什么"，而不是"我们渲染了什么"。
+  permissiveNeeded:
+    note: >
+      无人应答者时审批 fail closed。自动化验证必须显式给出放行策略，
+      否则进程会卡在审批上而看起来像"卡死"。
+  forbidPatch:
+    note: >
+      `--patch` 仅限本地调试。交付/验证入口遇到它必须失败（退出码 2），
+      否则"调试过的行为"会被误当交付行为（§11.3）。
