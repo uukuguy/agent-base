@@ -384,13 +384,13 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 
 ---
 
-## 13. dsh 适配器：渲染器已交付（2026-09-25）
+## 13. dsh 适配器：渲染器 + doctor 已交付（2026-09-25）
 
-**已交付并验证**：`adapters/dsh/render.mjs`。验证方式是**让真实 harness 组合我们的 profile**：
+**已交付并验证**：`adapters/dsh/render.mjs` + `adapters/dsh/doctor.mjs`（闸门 2，单跑九项全绿）。验证方式是**让真实 harness 组合我们的 profile**：
 `DSH_HOME=<产物>/dsh-home dsh <name> --dump-config` → 退出码 0，且组合树逐项对上了
 （模型覆盖、人设发现启用、技能目录指向镜像内固定路径、安全姿态以 `!!js` 表达式保留、工具边界禁用生效）。
 
-**conformance 现状**：dsh 的 **C2（渲染确定性）已通过**；C3/C4 未过，原因见下。
+**conformance 现状**：dsh 的 **C2（渲染确定性）与 C8（参数层隔离）已通过**；C3/C4/C5 未过 —— 但**原因不在适配器，在那三项检查本身**（见 §13.4）。
 
 ### 13.1 两处实测推翻/修正
 
@@ -412,9 +412,35 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 > 两条都属于同一类：**格式层的细节错误不会报错，只会让配置静默变成别的意思**。所以 doctor 必须
 > 对着组合树断言姿态，而不是相信渲染器写对了。
 
-### 13.3 下一步（dsh 轨余项）
+### 13.3 doctor 交付内容（闸门 2 · 零凭据）
 
-1. `adapters/dsh/doctor.mjs`（闸门 2）—— 靠 `--dump-config` 自证；**必须补 patch target id 校验**（failures.md D1：目标不存在时 dsh 只打警告、退出码 0）
-2. `adapters/dsh/trace.mjs` + `conformance/fixtures/dsh-native-events.jsonl`（C7）—— 会话格式是 zstd 压缩 JSONL v4，`tool/result` **没有 callId**，需按 step 内顺序配对
-3. **C3/C4 需要泛化**：这两项当初是按 pi 的产物形状写的（找 `AGENTS.md` / `settings.json` / `extensions`），
-   对第二个 harness 会误判。要改成**以 manifest 为映射**的中性判定，而不是认死某几个文件名
+靠 `--dump-config`（组合后打印完整 profile 树后退出，不挂载不连网）。九项检查全绿，其中：
+
+| 检查 | 作用 |
+|---|---|
+| `resolution/patch-targets` | **D1 的唯一防线**：patch 的每个 target id 必须出现在组合树里。该 harness 对"目标不存在"**只打警告、退出码 0**，所以这条是基座在替上游报它不报的错 |
+| `resolution/model-routes` | 实际生效的模型来自本次渲染产物，不是宿主配置 |
+| `resolution/skills-set` | 硬断言 1（口径：已配置且就位 —— 见下"不对称"） |
+| `resolution/connectors-set` | 硬断言 2（只认 `dsh-mcp-client` 行；`mcp-resources` 是 base 自带的，不是业务连接器） |
+| `resolution/enhancements-set` | 硬断言 3（**这边是真观测**：组合树列出全部 row） |
+| `resolution/posture` | 我们显式声明的安全姿态与工具边界，在组合树里真的生效 |
+
+解析组合树踩到的坑（都已修）：**不能用正则抓 config 块** —— 被两种形态坑过：数组值（`customSkillDirs:` 后跟 `- 值`）与折行值（`policy: !!js >-` 后跟续行）。改为**按行 + 缩进的状态机**。另外：组合树里**没有 `disabled` 行 = 默认启用**，不是"不在树里"。
+
+### 13.4 conformance 未过的三项，问题都在检查侧（不是适配器）
+
+| 用例 | 失败原因 | 该改什么 |
+|---|---|---|
+| **C3** 渲染完整性 | 检查按 pi 的产物形状写死：找 `AGENTS.md`、`settings.json`、`settings.extensions`。dsh 的产物是 profile patch + `workspace/AGENTS.md`，形状根本不同 ⇒ 误判 | 改成**以 manifest 为映射**的中性判定：渲染器**声明**每个定义字段落在产物的哪个位置，检查只验证"声明的位置存在且内容对"。认死文件名等于把第一个 harness 的形状当成契约 |
+| **C4** 解析自证 | 用例助手 `makeFullAgent` 声明的业务级增强是 pi 形态（`entry: extensions/risk-score.ts`）；dsh 的增强是 **cordis 插件 npm 包**，渲染器按 `package` 字段处理 ⇒ 声明的增强进不了组合树 | 让用例助手按被测 harness 写**该 harness 形态**的增强声明（pi: 文件；dsh: 包） |
+| **C5** 静默失败检测力 | 注入器不认识 dsh 的 `kind: patch-target-missing`（我已在 `failure-cases.yaml` 声明 D1 用例，但 runner 没有对应注入实现） | 加该注入：往 patch 里塞一个不存在的 target id，doctor **必须**报错（这条正是我新写的 D1 防线，值得机器验证） |
+
+> **注意**：这三项都不是"适配器还不行"，而是"**检查把第一个 harness 的形状当成了契约**"。
+> 因为踩过"检查写错方向比漏检更糟"，这里不打算改适配器去迁就检查。
+
+### 13.5 dsh 轨余项
+
+1. `adapters/dsh/trace.mjs` + `conformance/fixtures/dsh-native-events.jsonl`（C7）—— 会话是 zstd 压缩 JSONL v4；`tool/result` **没有 callId**，需按 step 内顺序配对
+2. 上面三项检查的泛化（C3 manifest 映射 / C4 增强声明按 harness / C5 注入器）
+3. `adapters/dsh/run.mjs`（本地运行入口）—— 目前 `run-local --harness dsh` 会响亮失败，这是设计要求的（不许静默用 pi 替代）
+

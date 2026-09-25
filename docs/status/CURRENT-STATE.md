@@ -55,7 +55,7 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 
 ## Open Problems (theme-level)
 
-- **dsh 适配器：`render` 已交付并验证**（真实 harness 能组合我们的 profile）；`doctor` / `trace` 未实现 → dsh 的 C3/C4/C7/C8 未过。J1「同一份定义两个 harness 都能跑通」还差 doctor 与 trace 这两步
+- **dsh 适配器：`render` + `doctor` 已交付并验证**（doctor 单跑九项全绿，含 D1 防线）；`trace` 未实现。dsh 的 C2/C8 已过，C3/C4/C5 未过 —— **但那三项问题在检查侧**（它们按第一个 harness 的产物形状写死），不在适配器
 - **conformance C3/C4 是按 pi 产物形状写的**，对第二个 harness 会误判（认死了 `AGENTS.md`/`settings.json`/`extensions`）→ 需要泛化成「以 manifest 为映射」的中性判定，否则第二个 harness 永远过不了
 - **G1 只剩一半**：回调能看到「harness 发了几个工具」，看不到「网关收到后有没有吞」。三条互补路径已定（链路观测 / 响应侧不一致检测 / 响应头回显对照，后者已实现但仅在网关回显时生效）
 - **G3 的真值需要「做决策的扩展」自己上报**：轨迹扩展观测不到别的 handler 是否阻断，因此 `tool.call.decision` 目前恒为 `unobserved`（诚实近似，不是等价）

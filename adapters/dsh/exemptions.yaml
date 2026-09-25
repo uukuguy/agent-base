@@ -36,3 +36,20 @@
   scope: model.usage, model.latency
   reason: 运行时特性，不是定义的可移植性承诺。
   reviewBy: 2027-03-31
+
+- id: skills-observation-scope
+  scope: trajectory.skills
+  reason: >
+    技能集合的口径两边不同（实测）：本 harness 没有"列出已发现技能"的零凭据原语，
+    doctor 只能给「已在 customSkillDirs 配置且 SKILL.md 就位」；另一个 harness 能问出"实际加载了哪些"。
+    因此跨 harness 比对技能集合时，本侧结论的强度较弱，必须在报告里标注。
+  reviewBy: 2027-06-30
+
+- id: tool-granularity
+  scope: tools.deny
+  reason: >
+    工具粒度不同（实测）：中性的 read/write/edit 在本 harness 是**同一个** tool-fs row，
+    禁用其一即禁用三者。因此"禁了 write 但保留 read"这种意图在本侧**做不到**，
+    跨 harness 比对工具边界时必须按 row 粒度而非工具名粒度看。
+  reviewBy: 2027-06-30
+

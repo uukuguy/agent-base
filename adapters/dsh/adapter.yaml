@@ -10,10 +10,9 @@ renders:
   # **bundles 用 base + dsh-headless**（不是 web）：实测 web 模板把
   #   agent-instructions / skill-filesystem / tool-skill / tool-fs 全部**禁用**（它由 Web UI 驱动），
   #   而 headless 全都启用。我们的用法是"跑一个任务看结果"。
-  output: "dsh-home + workspace"
-  deterministic: true
-  output: dsh-home/profiles/<name>   # 渲染产物形态
-  deterministic: true
+  output: dsh-home/profiles/<name>   # 渲染产物形态（实际目录树：dsh-home/ + workspace/ + skills/）
+  deterministic: true                # conformance C2 会验证「同输入同产物」
+  workspace: workspace/AGENTS.md     # 人设落点（agent-instructions 是工作区指令文件的发现器）
 
 # ============================================================================
 # 能力声明（统一设计 §5.2）·取值只用 §5.2 的枚举：supported | partial | unsupported | extension
@@ -69,16 +68,16 @@ capabilities:
 
   mcpClient: supported
   mcpClientNote: >
-    **原生支持**（实测）。每服务器一条 insert row：
+    **原生支持**（实测包存在：`@deepseek-ai/dsh-mcp-client`）。每服务器一条 insert row：
       - insert:
           - id: mcp-<name>
             name: '@deepseek-ai/dsh-mcp-client'
             config: { serverName, transport: stdio|streamable-http, command/args 或 url/headers }
     serverName 有硬约束 [A-Za-z0-9_-]{1,32}（不合法时渲染**响亮失败**，不悄悄改名）。
-    端点与凭据走参数下放：渲染成 `!!js process.env.<引用名>`，不写死真值。
-  mcpClientNote: >
-    **原生支持**：`@deepseek-ai/dsh-mcp-client`（实测包存在），每个服务器一条 row；
-    `failOnStartupError` 默认 false（连不上也启动）【文档】—— 这正是要进 failures.md 的静默失败。
+    端点与凭据走参数下放：渲染成 `!!js process.env.<引用名>`，不写死真值 ——
+    与该插件 README 的官方写法一致，所以这条不是权宜之计。
+    `failOnStartupError` 默认 false（连不上也启动）【文档】—— 这是 D3：必须由探针在闸门 3 抓，
+    不能指望它自己报错。
 
   runModes: [interactive, oneshot, rpc, debug]
 

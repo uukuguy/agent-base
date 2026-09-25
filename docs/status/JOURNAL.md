@@ -167,4 +167,9 @@
 - 21:30 ✅ 从插件 README 拿到 mcp-client 权威配置形状（serverName/transport/command/args/url/headers，官方用 !!js 注入参数）→ 连接器可正常渲染，不必再"响亮失败"
 - 21:30 🔴 两个格式层静默错误：① YAML 库自定义标签输出成 `!!js [object Object]`（改为自写 YAML 输出）② 表达式里的「冒号+空格」被当成嵌套映射 → `{'[object Object]': ask}`（改为必要时输出 `!!js "表达式"`，标签在引号外）
 - 21:30 dsh 的 conformance C2（渲染确定性）**已通过**；C3/C4 未过 —— C3/C4 当初按 pi 产物形状写，需泛化成"以 manifest 为映射"的中性判定；C4 还等 doctor
+- 21:34 交付 adapters/dsh/doctor.mjs（闸门 2，零凭据靠 --dump-config）：九项全绿，含 **D1 唯一防线**「patch 的每个 target id 必须出现在组合树里」与三条硬断言
+- 21:34 doctor 解析组合树踩坑：不能用正则抓 config 块（被「数组值 customSkillDirs: \n - 值」与「折行值 policy: !!js >-」坑过）→ 改为按行+缩进的状态机；另「没有 disabled 行 = 默认启用」不是"不在树里"
+- 21:34 dsh conformance 现状：**C2 渲染确定性 ✓、C8 参数层隔离 ✓**；C3/C4/C5 未过，且三项问题都在**检查侧**（C3 认死 pi 的产物文件名；C4 的用例助手只声明 pi 形态的增强；C5 注入器不认识 patch-target-missing）
+- 21:34 记下判断：不为了让 dsh 变绿去改适配器 —— 该改成中性判定的是检查（C3 应以 manifest 为映射）
+- 21:34 exemptions.yaml 补两条实测不对称：技能集合口径（本侧只能"已配置且就位"）、工具粒度（read/write/edit 在这边是同一个 row）
 
