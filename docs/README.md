@@ -14,15 +14,15 @@
 | 00 | [overview](00-overview.md) —— 这是什么、边界在哪、目录速览 | 全部 | ✅ |
 | 01 | [quickstart](01-quickstart.md) —— 四步跑通第一个智能体 | 业务开发者 | ✅ |
 | 02 | [concepts](02-concepts.md) —— 四个业务概念 ↔ 两个运行时的对应表 | 业务开发者 | ✅ |
-| 03 | [capability-catalog](03-capability-catalog.md) —— 有哪些能力可配 | 业务开发者 | ⏳ |
-| 04 | [skills](04-skills.md) —— 技能怎么写 | 业务开发者 | ⏳ |
-| 05 | [connectors](05-connectors.md) —— 连接器怎么配 | 业务开发者 | ⏳ |
-| 06 | [deploy](06-deploy.md) —— 镜像、环境变量、凭据、退出码、stdout/stderr 契约 | 平台/运维 | ⏳ |
+| 03 | [capability-catalog](03-capability-catalog.md) —— 有哪些能力可配（**由真源生成**，`make gen-docs` 刷新） | 业务开发者 | ✅ |
+| 04 | `04-skills.md` —— 技能怎么写 | 业务开发者 | ⏳ |
+| 05 | `05-connectors.md` —— 连接器怎么配 | 业务开发者 | ⏳ |
+| 06 | `06-deploy.md` —— 镜像、环境变量、凭据、退出码、stdout/stderr 契约 | 平台/运维 | ⏳ |
 | 07 | [troubleshooting](07-troubleshooting.md) —— **失败模式清单** | 全部 | ✅ |
-| 08 | [conventions](08-conventions.md) —— 分层纪律：哪层能放什么 | 平台/业务负责人 | ⏳ |
-| 09 | [harness-contract](09-harness-contract.md) —— 适配契约、新运行时怎么接 | 平台开发者 | ⏳ |
-| 10 | [harness-selection](10-harness-selection.md) —— 两个运行时的差异与选型 | 架构/平台 | ⏳ |
-| 11 | [harness-enhancements](11-harness-enhancements.md) —— 业务级增强怎么写 | 业务开发者（要写增强时） | ⏳ |
+| 08 | `08-conventions.md` —— 分层纪律：哪层能放什么 | 平台/业务负责人 | ⏳ |
+| 09 | `09-harness-contract.md` —— 适配契约、新运行时怎么接 | 平台开发者 | ⏳ |
+| 10 | `10-harness-selection.md` —— 两个运行时的差异与选型 | 架构/平台 | ⏳ |
+| 11 | `11-harness-enhancements.md` —— 业务级增强怎么写 | 业务开发者（要写增强时） | ⏳ |
 | — | 第 13 条说明 | —— | 上游运行时包内**没有 `docs/` 目录**，只有包级 README；两份上位设计文档里的实测结论已沉淀为 `docs/design/2026-09-25-{pi,dsh}-harness-design.md` |
 
 **状态说明**：`⏳` = 尚未撰写（会按 03–05 → 06 → 08–11 的顺序补齐）。

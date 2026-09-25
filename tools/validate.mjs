@@ -38,6 +38,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import Ajv2020 from "ajv/dist/2020.js";
+import { spawnSync } from "node:child_process";
 import { buildLock } from "../core/image/gen-preinstall-lock.mjs";
 import { EXIT_CODES, GateReport, digestDirectory } from "../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../core/image/resolve-preinstall.mjs";
@@ -296,6 +297,14 @@ function checkBase(report) {
       if (notAllowed.length) report.fail(GATE, "routes/param-allowed", `引用名未被参数层允许清单覆盖：${notAllowed.join(", ")}`);
       else report.pass(GATE, "routes/param-allowed", "路由引用名都在参数层允许清单内");
     }
+  }
+
+  // A5c 生成的文档必须与真源同步
+  // 手写文档不会报错地过期，然后开始骗人；所以凡是"由真源生成"的文档，都用机器拦同步。
+  {
+    const r = spawnSync(process.execPath, [path.join(REPO, "tools/gen-capability-doc.mjs"), "--check"], { encoding: "utf8" });
+    if (r.status === 0) report.pass(GATE, "docs/catalog-sync", "能力目录文档与 core/catalog 真源同步");
+    else report.fail(GATE, "docs/catalog-sync", `能力目录文档与真源不同步 —— 跑 make gen-docs 刷新（${(r.stderr ?? "").trim().slice(0, 120)}）`);
   }
 
   // A6 预装清单
