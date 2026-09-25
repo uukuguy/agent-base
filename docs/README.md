@@ -15,8 +15,8 @@
 | 01 | [quickstart](01-quickstart.md) —— 四步跑通第一个智能体 | 业务开发者 | ✅ |
 | 02 | [concepts](02-concepts.md) —— 四个业务概念 ↔ 两个运行时的对应表 | 业务开发者 | ✅ |
 | 03 | [capability-catalog](03-capability-catalog.md) —— 有哪些能力可配（**由真源生成**，`make gen-docs` 刷新） | 业务开发者 | ✅ |
-| 04 | `04-skills.md` —— 技能怎么写 | 业务开发者 | ⏳ |
-| 05 | `05-connectors.md` —— 连接器怎么配 | 业务开发者 | ⏳ |
+| 04 | [skills](04-skills.md) —— 技能怎么写（含隐式技能源这个坑） | 业务开发者 | ✅ |
+| 05 | [connectors](05-connectors.md) —— 连接器怎么配（推荐的按名引用 + 凭据引用名） | 业务开发者 | ✅ |
 | 06 | `06-deploy.md` —— 镜像、环境变量、凭据、退出码、stdout/stderr 契约 | 平台/运维 | ⏳ |
 | 07 | [troubleshooting](07-troubleshooting.md) —— **失败模式清单** | 全部 | ✅ |
 | 08 | `08-conventions.md` —— 分层纪律：哪层能放什么 | 平台/业务负责人 | ⏳ |
