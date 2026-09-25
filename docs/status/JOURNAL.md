@@ -44,3 +44,10 @@
 - 16:20 🔴 实测网络「MCP 排行」多指向废弃包：server-github/slack/postgres 已 deprecated；server-git/fetch 不在 npm（Python 的 uvx）
 - 16:20 实测官方 transport 规范与我们的 schema 一致：streamable-http 为准、SSE 已废弃 → connectors 枚举无需加 sse
 - 16:20 新设计缺口：企业级 MCP 要每用户鉴权，与参数层的单一服务凭据模型不匹配（记待办，不阻塞首个走通）
+- 16:40 用户纠正方向：预装的目标是「开发智能体便捷」（心智负担低/约定明确/改动局部化/非专家可上手），不是生产化能力裁剪
+- 16:45 实测浏览器类：@playwright/mcp 0.0.82 ✅ / chrome-devtools-mcp 1.10.1 ✅ / server-puppeteer ❌已废弃
+- 16:45 实测研发调试类：@cyanheads/git-mcp-server 2.15.3 ✅（补上 git 的 npm 空缺）/ repomix-mcp 1.0.3 ✅ / inspector 2.8.0 ✅
+- 16:50 交付 core/image/preinstall.yaml：15 条预装条目（含 3 条 planned 技能）+ 11 个开发者面向引用名 + 6 条排除项理由
+- 16:50 validate 新增 preinstall/* 组 10 项：精确 pin / devUse / 引用名双向一致 / 凭据引用名合法 / planned-skill 自洽
+- 16:50 待确认公开契约变更：connectors.yaml 支持 ref 按名引用基座预装条目（省掉开发者写包名版本参数）
+- 16:50 设计语言待对齐：§8.1 说镜像是「验证快照」，§8.5 说的是「生产基座镜像」；本清单只服务前者

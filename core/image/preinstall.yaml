@@ -1,0 +1,347 @@
+apiVersion: agent-base/v1
+
+# ============================================================================
+# 基座预装清单（独立可升级产物）
+#
+# ## 目的：让**开发智能体**这件事变便捷
+#
+#   判据不是「智能体运行时能多用几个工具」，而是「**快**」的定义（用户原话）：
+#     心智负担低、约定明确、改动局部化、能被非专家上手。
+#
+#   落到这份清单上，就是三条：
+#     ① **不必知道包名、版本、参数** —— 开发者只写一个名字（见 namedReferences）
+#     ② **升级局部化** —— 换 pin 只改这份文件，所有智能体一起受益，不重建智能体定义
+#     ③ **非专家可上手** —— 每条都写清「开发智能体时你会拿它做什么」，而不是罗列协议细节
+#
+#   所以：本清单**同时是基座的能力目录**，供 `connectors.yaml` 按名引用
+#   （`ref: filesystem` 即启用该连接器，不需要写 transport / command / args / 版本）。
+#
+# ## 与生产化的关系：不做生产式裁剪
+#
+#   目标镜像是**验证基座镜像**（§8.1「验证快照」语义），服务的是「把想法验证走通」。
+#   §7.2（只读根 / 默认离线）与 §8.5（调试工具不进生产镜像）属走通之后的阶段，
+#   到那时再回看本清单、必要时拆成两档。**现在拆是过早优化，只会让开发变慢。**
+#
+# ## 为什么独立成一份文件
+#
+#   预装内容的升级节奏与核心契约完全不同：核心契约动一次要全企业重建，这份清单只是换几个 pin。
+#   解耦之后才能「升级基座镜像」而不触碰公开契约。
+#
+# ## 判据（P-a 能力/选择分离）
+#
+#   预装 = **能力**（有哪些可连）；`connectors.yaml` 里引用它 = **选择**（这次连哪个）。
+#   MCP 服务器默认 `enabledByDefault: false`：装了 ≠ 启用。两条实际理由（与生产无关）——
+#     ① 工具描述每次请求都要读，连得越多模型越选不准；
+#     ② 闸门 2 的断言集只含 enabled 的（§6.3 断言 2），默认全开会让断言失去意义。
+#   模板（S3）会默认启用一个开发常用子集，让 `new-agent` 之后立刻能 `verify`（N4 开箱可跑）。
+#
+# ## verifiedAlive 是硬要求
+#
+#   本机 `npm view <pkg> version deprecated` 的实测日期。网络「MCP 排行」普遍未校验包生命周期
+#   （实测：github/slack/postgres 已废弃，git/fetch 不在 npm）。**死包躺在镜像里就是静默失败**，
+#   而开发者会以为是自己的配置错了 —— 这正是要避免的心智负担。
+# ============================================================================
+
+description: 验证基座镜像的预装内容。目标：让开发智能体这件事心智负担低、非专家可上手。
+
+purposes:
+  - 心智负担低：开发者不需要知道包名 / 版本 / 启动参数，只写一个名字
+  - 约定明确：名字 → 名字对应的确定实现，写进 connectors.yaml 即可用
+  - 改动局部化：升级 pin 只改本文件，不改任何智能体定义
+  - 非专家可上手：每条都说明「开发时拿它做什么」，不要求先懂 MCP
+
+# ---------------------------------------------------------------------------
+# 开发者面向的引用名（这就是「约定明确」的载体）
+#
+# connectors.yaml 里写 `ref: <name>` 即可启用；渲染器按本表解析成
+# transport / command / args / 版本。开发者**不需要**知道右侧的实现。
+# ---------------------------------------------------------------------------
+namedReferences:
+  filesystem: filesystem
+  memory: memory
+  thinking: sequential-thinking
+  git: git
+  repomix: repomix
+  inspector: inspector
+  reference-server: everything
+  playwright: playwright
+  chrome: chrome-devtools
+  cloud-browser: browserbase
+  docs: context7
+
+# ---------------------------------------------------------------------------
+categories:
+  - id: reference
+    label: 协议参考实现（零凭据、离线、小体积）
+  - id: dev-debug
+    label: 研发调试
+  - id: browser
+    label: 浏览器处理
+  - id: docs-research
+    label: 文档与检索
+  - id: memory-reasoning
+    label: 记忆与推理
+  - id: skills
+    label: 基座不变量技能
+
+# ---------------------------------------------------------------------------
+# 不预装：只有「装了也没用」或「装了会误导」才排除，不做生产式裁剪
+# ---------------------------------------------------------------------------
+excluded:
+  - id: browsermcp
+    package: "@browsermcp/mcp"
+    version: "0.1.3"
+    reason: >
+      它连的是宿主机上用户的真实浏览器（依赖宿主浏览器扩展）。镜像里装了也连不上 ——
+      属于「装了也没用」，且会误导开发者以为镜像里能连。需要在带登录态的既有会话里验证时走本地
+      `run-local`（§9.3）。
+  - id: server-puppeteer
+    package: "@modelcontextprotocol/server-puppeteer"
+    reason: 已 deprecated。浏览器类用 playwright / chrome-devtools 替代。
+  - id: server-github
+    package: "@modelcontextprotocol/server-github"
+    reason: 已 deprecated。GitHub 官方 MCP 非 npm 交付形态，需要时单独定安装方式。
+  - id: server-slack
+    package: "@modelcontextprotocol/server-slack"
+    reason: 已 deprecated。且 Slack 类需要每用户 OAuth，与当前参数层的单一服务凭据模型不匹配（见 missing-capabilities）。
+  - id: mcp-server-git-uvx
+    install: { registry: python, command: uvx, package: mcp-server-git }
+    reason: 官方 Git 服务器只有 Python 形态。为避免验证基座多引一条 Python 工具链，改用 npm 实现（entries.git）。
+  - id: mcp-server-fetch-uvx
+    install: { registry: python, command: uvx, package: mcp-server-fetch }
+    reason: 官方 Fetch 只有 Python 形态（npm 上 mcp-server-fetch 是 0.0.1-security 占位）。同上，暂不引 Python 工具链。
+
+# ---------------------------------------------------------------------------
+# 每条：pin 到实测版本；devUse 写「开发智能体时你会拿它做什么」
+# ---------------------------------------------------------------------------
+entries:
+  # ---------------- 协议参考实现 ----------------
+  - id: filesystem
+    refName: filesystem
+    kind: mcp
+    category: reference
+    transport: stdio
+    install: { registry: npm, package: "@modelcontextprotocol/server-filesystem", version: "2026.8.31" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 让智能体读写挂载目录里的文件 —— 处理本地数据的验证场景第一步
+    rationale: 通用文件能力，几乎所有验证场景都会用到
+    notes: 可访问范围由挂载卷决定，不由参数层决定
+
+  - id: sequential-thinking
+    refName: thinking
+    kind: mcp
+    category: memory-reasoning
+    transport: stdio
+    install: { registry: npm, package: "@modelcontextprotocol/server-sequential-thinking", version: "2026.8.31" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 把推理过程显式化 —— 开发时能看见「它为什么这么决定」，比看输出猜要省事
+    rationale: 推理可观察，直接降低排查智能体行为的心智负担
+    notes: 包名带连字符（server-sequential-thinking），漏了会 404
+
+  - id: memory
+    refName: memory
+    kind: mcp
+    category: memory-reasoning
+    transport: stdio
+    install: { registry: npm, package: "@modelcontextprotocol/server-memory", version: "2026.8.31" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 让智能体记住跨会话的事实 —— 验证多轮场景时不用每次重讲背景
+    rationale: 知识图谱式持久记忆
+    notes: 落盘位置必须在可写卷内（§8.4）
+
+  - id: everything
+    refName: reference-server
+    kind: mcp
+    category: reference
+    transport: stdio
+    install: { registry: npm, package: "@modelcontextprotocol/server-everything", version: "2026.8.31" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 协议面最全的测试靶子 —— 调连接器、写 conformance 用例时拿它当对手
+    rationale: 预装它让「接一个新 harness / 新连接器」有现成的验证对象，不必自己造
+    notes: 测试靶子，不是业务能力
+
+  # ---------------- 研发调试 ----------------
+  - id: git
+    refName: git
+    kind: mcp
+    category: dev-debug
+    transport: stdio
+    install: { registry: npm, package: "@cyanheads/git-mcp-server", version: "2.15.3" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 让智能体读/搜/改代码仓库 —— 研发类智能体的基础动作
+    rationale: 研发类验证场景的通用能力
+    notes: 第三方 npm 实现（官方只有 Python）。有意取舍：不多引 Python 工具链。需评审维护状况
+
+  - id: repomix
+    refName: repomix
+    kind: mcp
+    category: dev-debug
+    transport: stdio
+    install: { registry: npm, package: "repomix-mcp", version: "1.0.3" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 把整个仓库打包成一份上下文 —— 排查时一眼看全，省掉来回翻文件
+    rationale: 开发期排查效率
+    notes: ""
+
+  - id: inspector
+    refName: inspector
+    kind: mcp
+    category: dev-debug
+    transport: stdio
+    install: { registry: npm, package: "@modelcontextprotocol/inspector", version: "2.8.0" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 看一个 MCP 服务器**实际**暴露了什么 —— 连接器不生效时，先用它把「网络问题 vs 配置问题」分开
+    rationale: 与「让 harness 自证」同一思路，是排查连接器最省事的手段
+    notes: 它不是给智能体的能力，是给人调试连接器用的
+
+  - id: shell-toolchain
+    refName: null
+    kind: system
+    category: dev-debug
+    transport: null
+    install: { registry: system, packages: ["bash", "curl", "ripgrep", "jq", "git", "ca-certificates"] }
+    credentials: none
+    enabledByDefault: true
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 进容器就能查文件、翻日志、试端口 —— 没有 shell 就没法排查「只在容器里出现」的问题
+    rationale: 开发期必备；这是便捷性的下限
+    notes: 生产镜像是否保留属走通之后的议题（§8.5），本清单不预判
+
+  # ---------------- 浏览器处理 ----------------
+  - id: playwright
+    refName: playwright
+    kind: mcp
+    category: browser
+    transport: stdio
+    install: { registry: npm, package: "@playwright/mcp", version: "0.0.82" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    buildTimePrep: 构建期安装 Chromium，把浏览器烤进镜像
+    devUse: 让智能体操作网页 —— 网页调研、表单填写、UI 验证都靠它，不用自己造轮子
+    rationale: 浏览器类验证场景的通用能力；官方实现
+    notes: >
+      代价是镜像显著变大（Chromium 数百 MB）。这是**有意的**：开发期「打开就能用」比镜像体积重要。
+      构建期烤入而非运行期下载，运行期仍可离线。
+
+  - id: chrome-devtools
+    refName: chrome
+    kind: mcp
+    category: browser
+    transport: stdio
+    install: { registry: npm, package: "chrome-devtools-mcp", version: "1.10.1" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 看网页的网络请求、控制台报错、性能 —— 智能体跑不通网页任务时，第一眼要看的就是这些
+    rationale: Google 官方；CDP 级调试 + 浏览器自动化，排查前端问题的正解
+    notes: 与 playwright 的构建期烤入共用同一份浏览器
+
+  - id: browserbase
+    refName: cloud-browser
+    kind: mcp
+    category: browser
+    transport: stdio
+    install: { registry: npm, package: "@browserbasehq/mcp", version: "3.0.0" }
+    credentials: required
+    credentialRef: BROWSERBASE_API_KEY
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: false
+    devUse: 不想在镜像里带 Chromium 时的云浏览器备选 —— 预装好，需要时补一把 key 就能用
+    rationale: 多一条不依赖本地浏览器的路径
+    notes: 需要 API key → 参数层引用名（§2.3）。默认不启用：它把流量导向企业外部
+
+  # ---------------- 文档与检索 ----------------
+  - id: context7
+    refName: docs
+    kind: mcp
+    category: docs-research
+    transport: stdio
+    install: { registry: npm, package: "@upstash/context7-mcp", version: "4.1.1" }
+    credentials: optional
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: false
+    devUse: 拉库/框架的最新文档 —— 避免模型知识过期导致「验证结论是错的」
+    rationale: 减少因知识过期产生的假失败，省掉开发者的误判排查
+    notes: 需要出网；纯离线环境不可用，但预装不碍事
+
+  # ---------------- 基座不变量技能（§6.3 断言 1 的另一半） ----------------
+  # §6.3 断言 1：技能集合 == 基座不变量技能 ∪ 智能体定义技能 —— 基座本来就要有自己的一份技能。
+  # 这三条都是「开发智能体时用得上」的通用方法，与业务无关。
+  - id: skill-code-navigation
+    refName: null
+    kind: skill
+    category: skills
+    source: core/skills/code-navigation/
+    credentials: none
+    enabledByDefault: true
+    status: planned
+    targetPackage: S3
+    devUse: 跨文件定位与依赖追踪 —— 上手陌生代码库时省掉大量摸索
+    rationale: 通用方法，与业务无关
+    notes: >
+      status: planned 表示 SKILL.md 尚未落盘。本清单**刻意不生成空占位文件**（基座不接受空骨架）；
+      写内容属 S3，validator 强制 planned 条目写明 targetPackage。
+
+  - id: skill-debugging
+    refName: null
+    kind: skill
+    category: skills
+    source: core/skills/debugging/
+    credentials: none
+    enabledByDefault: true
+    status: planned
+    targetPackage: S3
+    devUse: 系统化排障（先复现、再二分、后修）—— 把「越改越乱」变成有章法
+    rationale: 通用方法，与业务无关
+    notes: ""
+
+  - id: skill-verification
+    refName: null
+    kind: skill
+    category: skills
+    source: core/skills/verification/
+    credentials: none
+    enabledByDefault: true
+    status: planned
+    targetPackage: S3
+    devUse: 「先跑验证再声称完成」—— 避免开发者在假成功上继续投入
+    rationale: 本基座对业务方的核心承诺，属基座不变量
+    notes: ""
+
+# ---------------------------------------------------------------------------
+# 已知缺口：不影响首个走通，但特定验证场景会撞上
+# ---------------------------------------------------------------------------
+missing-capabilities:
+  - id: per-user-oauth
+    problem: >
+      企业级 MCP 的通行要求是每用户鉴权（每人各自授权，权限边界 = 那个人本来能做什么），
+      而我们的参数层模型是单一服务凭据（credentialRef → 一个环境变量）。
+    affects: Slack / Salesforce / Google Workspace / Notion 等 SaaS
+    status: 记待办。首个走通场景是纯技能型（idea-to-proof），不碰这条

@@ -62,6 +62,7 @@
 
 ### Implementation entry points
 - `Makefile` —— 全部命令的唯一边界；已实现 `validate` / `validate-selftest` / `gates-selftest` / `trace-selftest` / `gateway-selftest`，其余目标**显式失败并指向所属包**（不静默通过）
+- `core/image/preinstall.yaml` —— **独立可升级的预装清单**：验证基座镜像预装什么 + 开发者面向的引用名（`namedReferences`，11 个名字）。目的是让**开发智能体**便捷；`make validate` 的 `preinstall/*` 组（10 项）守它不烂
 - `core/gates/` —— 四闸门框架：`orchestrator.mjs` 编排（首个失败即短路）、`assertions.mjs` 断言语言（12 种，含 `fails` = 静默通过即判失败）、`report.mjs` §6.7 报告与 `ok`/`usable` 之分、`exit-codes.mjs` 唯一定义处、`digest.mjs` 确定性摘要、`selftest.mjs` 框架自检
 - `core/trace/schema.json` —— 统一轨迹事件 schema（JSONL，七类事件 + `native.raw` 兜底必带 reason）；`trace/selftest.mjs` 为自检
 - `tools/fake-gateway/` —— 零凭据假网关：`core.mjs` 协议无关核心 + `protocols/openai.mjs` 适配 + `server.mjs`（导出 `startFakeGateway({port:0})` → `{url, port, traceLines, close()}`）；`tools` 计数与 `stream` 在三处独立暴露（响应体 / `x-fake-gateway-*` 头 / 轨迹）

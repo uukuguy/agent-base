@@ -239,7 +239,144 @@ function checkBase(report) {
     report.pass(GATE, "core/harness-name", "core/ 的代码与 schema 内无 harness 名（catalog/ 与文档按 §4.6 / §12.1 豁免）");
   }
 
+  // A6 预装清单
+  checkPreinstall(report);
+
   return { ajv, agentSchema, connectorsSchema, caps, params };
+}
+
+// ---------------------------------------------------------------------------
+// A6. 预装清单自洽（core/image/preinstall.yaml）
+//
+// 预装清单是「有意升级基座镜像」的账本，它的失效方式很安静：pin 漂了、包废弃了、
+// 技能声明了却没落盘 —— 镜像照样能建出来，只是能力悄悄没了。所以这里做机器校验。
+// ---------------------------------------------------------------------------
+const CREDENTIAL_KINDS = ["none", "optional", "required"];
+const EXACT_VERSION_RE = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function checkPreinstall(report) {
+  const file = path.join(CORE, "image", "preinstall.yaml");
+  if (!fs.existsSync(file)) {
+    report.fail(GATE, "preinstall/parse", `缺少 ${path.relative(REPO, file)}`);
+    return;
+  }
+  let list;
+  try {
+    list = loadYaml(file);
+  } catch (e) {
+    report.fail(GATE, "preinstall/parse", `preinstall.yaml 不是合法 YAML：${e.message}`);
+    return;
+  }
+  report.pass(GATE, "preinstall/parse", "preinstall.yaml 可解析");
+
+  const entries = list.entries ?? [];
+  const categoryIds = new Set((list.categories ?? []).map((c) => c.id));
+
+  // 每条必须有：id / kind / category / rationale / credentials
+  // verifiedAlive 只对「从 registry 安装的条目」有意义（mcp / system）——
+  // 技能是我们自己写的文件，没有包生命周期可查，靠 status 字段自洽。
+  const incomplete = [];
+  for (const [i, e] of entries.entries()) {
+    const where = e.id ?? `#${i}`;
+    if (!e.id) incomplete.push(`${where}: 缺 id`);
+    if (!e.kind) incomplete.push(`${where}: 缺 kind`);
+    if (!e.category) incomplete.push(`${where}: 缺 category`);
+    if (!e.rationale) incomplete.push(`${where}: 缺 rationale（这份清单是账本，不是堆放处）`);
+    if (!CREDENTIAL_KINDS.includes(e.credentials)) incomplete.push(`${where}: credentials 必须是 ${CREDENTIAL_KINDS.join(" | ")}`);
+    if (e.kind !== "skill" && (!e.verifiedAlive || !DATE_RE.test(String(e.verifiedAlive)))) {
+      incomplete.push(`${where}: verifiedAlive 缺失或不是 YYYY-MM-DD`);
+    }
+  }
+  if (incomplete.length) report.fail(GATE, "preinstall/entry-required", `条目字段不全：${incomplete.join("；")}`);
+  else report.pass(GATE, "preinstall/entry-required", `${entries.length} 条预装条目的必填字段齐全`);
+
+  // 版本必须精确 pin：范围/标签一律算错 —— 范围会让镜像随上游漂移
+  const loosePins = [];
+  for (const e of entries) {
+    if (e.kind !== "mcp") continue;
+    const v = e.install?.version;
+    if (v === undefined) continue;
+    if (!EXACT_VERSION_RE.test(String(v))) loosePins.push(`${e.id}: ${v}`);
+  }
+  if (loosePins.length) {
+    report.fail(GATE, "preinstall/pin", `版本不是精确 pin（不许范围/latest）：${loosePins.join("；")}`);
+  } else {
+    report.pass(GATE, "preinstall/pin", "所有 npm 条目都精确 pin 到具体版本");
+  }
+
+  // 分类必须已声明
+  const badCat = entries.filter((e) => e.category && !categoryIds.has(e.category)).map((e) => `${e.id}:${e.category}`);
+  if (badCat.length) report.fail(GATE, "preinstall/category", `引用了未声明的分类：${badCat.join("；")}`);
+  else report.pass(GATE, "preinstall/category", "所有条目的分类都已在 categories 中声明");
+
+  // id 唯一
+  const ids = entries.map((e) => e.id);
+  const dupes = ids.filter((x, i) => ids.indexOf(x) !== i);
+  if (dupes.length) report.fail(GATE, "preinstall/unique", `重复 id：${[...new Set(dupes)].join(", ")}`);
+  else report.pass(GATE, "preinstall/unique", "条目 id 唯一");
+
+  // 技能条目：planned 必须写明 targetPackage；shipped 必须有落盘的 source
+  const skillProblems = [];
+  for (const e of entries.filter((x) => x.kind === "skill")) {
+    if (e.status === "planned") {
+      if (!e.targetPackage) skillProblems.push(`${e.id}: status=planned 但没写 targetPackage`);
+    } else if (e.status === "shipped") {
+      if (!e.source) skillProblems.push(`${e.id}: status=shipped 但没写 source`);
+      else if (!fs.existsSync(path.join(REPO, e.source))) skillProblems.push(`${e.id}: status=shipped 但 ${e.source} 不存在`);
+    } else {
+      skillProblems.push(`${e.id}: status 必须显式写 planned 或 shipped`);
+    }
+  }
+  if (skillProblems.length) report.fail(GATE, "preinstall/planned-skill", `技能条目不自洽：${skillProblems.join("；")}`);
+  else report.pass(GATE, "preinstall/planned-skill", "技能条目的 status 与落盘情况一致（未落盘的都标了 planned）");
+
+  // 排除项必须写明理由
+  const noReason = (list.excluded ?? []).filter((x) => !x.reason).map((x) => x.id);
+  if (noReason.length) report.fail(GATE, "preinstall/excluded-reason", `排除项缺 reason：${noReason.join(", ")}`);
+  else report.pass(GATE, "preinstall/excluded-reason", `排除项都写明了理由（${(list.excluded ?? []).length} 条）`);
+
+  // 「非专家可上手」不能只靠文档承诺：每条都要写清开发时拿它做什么
+  const noDevUse = entries.filter((e) => !e.devUse).map((e) => e.id);
+  if (noDevUse.length) {
+    report.fail(GATE, "preinstall/dev-use", `缺 devUse（开发智能体时拿它做什么）：${noDevUse.join(", ")}`);
+  } else {
+    report.pass(GATE, "preinstall/dev-use", `${entries.length} 条都写明了「开发时拿它做什么」`);
+  }
+
+  // namedReferences ↔ entries.refName 双向一致 —— 这是「开发者只写一个名字」的契约本身
+  const named = list.namedReferences ?? {};
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const refProblems = [];
+  for (const [name, entryId] of Object.entries(named)) {
+    const e = byId.get(entryId);
+    if (!e) refProblems.push(`namedReferences.${name} 指向不存在的条目 ${entryId}`);
+    else if (e.refName !== name) refProblems.push(`namedReferences.${name} 与条目 ${entryId} 的 refName（${e.refName}）不一致`);
+  }
+  for (const e of entries) {
+    if (e.refName && named[e.refName] !== e.id) refProblems.push(`条目 ${e.id} 的 refName「${e.refName}」没有出现在 namedReferences 里`);
+  }
+  const dupRef = Object.keys(named).length !== new Set(Object.values(named)).size;
+  if (dupRef) refProblems.push("namedReferences 里有多个名字指向同一条目");
+  if (refProblems.length) {
+    report.fail(GATE, "preinstall/ref-name", `引用名契约不自洽：${refProblems.join("；")}`);
+  } else {
+    report.pass(GATE, "preinstall/ref-name", `引用名契约双向一致（${Object.keys(named).length} 个开发者可见名字）`);
+  }
+
+  // needsExternalCredential 的条目必须能对上参数层允许清单的命名约定
+  const params = loadYaml(path.join(CATALOG, "params.yaml"));
+  const patterns = (params.allowed ?? []).map((a) => new RegExp(a.pattern));
+  const unmatched = [];
+  for (const e of entries) {
+    if (e.credentials !== "required" || !e.credentialRef) continue;
+    if (!patterns.some((re) => re.test(e.credentialRef))) unmatched.push(`${e.id}: ${e.credentialRef}`);
+  }
+  if (unmatched.length) {
+    report.fail(GATE, "preinstall/credential-ref", `凭据引用名不落在参数层允许清单内：${unmatched.join("；")}`);
+  } else {
+    report.pass(GATE, "preinstall/credential-ref", "需要凭据的条目引用了合法的参数层名");
+  }
 }
 
 // ---------------------------------------------------------------------------
