@@ -39,12 +39,12 @@ function envPrefixFor(route) {
  *
  * @returns {{staging: string, placeholders: string[]}}
  */
-export function stageRenderDir(renderDir, endpoint, { zeroCredential = false } = {}) {
+export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, env: extraEnv = {} } = {}) {
   const manifest = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-run-"));
 
   // 端点由调用方给（探针/冒烟指向零凭据假网关）；其余参数走环境变量或清单里的默认值
-  const env = { ...process.env };
+  const env = { ...process.env, ...extraEnv };
   const endpointParam = (manifest.runtimeParams ?? []).find((p) => p.backs === "model.route" && !p.secret);
   if (endpoint && endpointParam) env[endpointParam.name] = endpoint;
 
@@ -132,8 +132,9 @@ export async function runAgent({
   // 零凭据模式：闸门 3/4（探针/冒烟）用假凭据跑，不需要任何真密钥。
   // 默认 **false**：真实运行不许静默用占位凭据（那会跑出"看起来正常、其实连不上"的结果）。
   zeroCredential = false,
+  env: extraEnv = {},
 }) {
-  const { staging, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential });
+  const { staging, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: extraEnv });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "agent-home-"));
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agent-cwd-"));
   const traceFile = trace ? path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-")), "trace.jsonl") : null;
@@ -141,6 +142,7 @@ export async function runAgent({
   const manifest = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
   const env = {
     ...process.env,
+    ...extraEnv,          // 调用方注入的运行期参数（本地便利开关等）
     ...localBinPathEnv(),
     HOME: home,
     PI_CODING_AGENT_DIR: staging,

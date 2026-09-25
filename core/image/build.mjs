@@ -99,7 +99,9 @@ function readHarnessSpecs() {
     if (!a?.package) throw new Error(`adapters/${name}/adapter.yaml 缺 package —— 镜像装什么无从得知`);
     // 表里**只放包坐标**：本文件在 core/ 下，出现 harness 名会违反 core/ 的分层规则，
     // 而构建/运行其实都不需要名字 —— 装什么由 package@version 决定。
-    specs.push({ package: a.package, version: a.version });
+    // 带上可执行名：镜像自己该知道"有哪些运行时、各自怎么起" ——
+  // 入口脚本据此在"只装了一个运行时"时免去调用方指定（并明确提示是按哪个起的）。
+  specs.push({ package: a.package, version: a.version, bin: a.bin });
   }
   specs.sort((a, b) => a.package.localeCompare(b.package));
   if (specs.length === 0) throw new Error("adapters/ 下没有可用的 adapter.yaml —— 镜像没有 harness 可装");

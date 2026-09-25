@@ -275,7 +275,7 @@ groups:
         valueRef: parameter
         harnesses:
           pi: { support: partial, verified: true, note: "启动期渲染；MCP 凭据治理未做（§10.3 缺口）" }
-          dsh: { support: partial, verified: true, note: "文件权限无法对 agent 进程隔离，容器边界由编排层负责（§7.2 / §11.1）" }
+          dsh: { support: partial, verified: true, note: "文件权限无法对 agent 进程隔离 —— 边界由**运行环境**提供（容器 / 沙箱 / 机器权限），基座不假定是哪一种（§7.2 / §11.1）" }
         doc: 凭据引用名。取值来自 params.yaml 的 connector-credential。
 
       - path: mcpServers[].command

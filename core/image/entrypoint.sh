@@ -64,8 +64,21 @@ case "${1:-agent}" in
   *) exec "$@" ;;
 esac
 
-# ---- ③ 不静默降级：harness 必须在场 ----
-[ -n "$HARNESS" ] || usage_exit "未指定 HARNESS —— 由调用方（基座工具）按智能体与运行时决定后传入。"
+# ---- ③ 运行时：只装了一个就不必强迫调用方指定 ----
+# 实际环境很杂（有人直接 docker run、有人包在编排里、有人在 CI 里）：只装了一个运行时的时候，
+# 要求调用方再传一次是没意义的。**但要把假定说出来** —— 有多个候选时仍然必须显式指定，
+# 而且绝不替调用方挑一个（那会让跨运行时结论失真）。
+if [ -z "$HARNESS" ] && [ -f "$HARNESS_JSON" ]; then
+  HARNESS="$(node -e '
+    const j = require(process.argv[1]);
+    const list = (j.harnesses || []).filter((h) => h && h.bin);
+    process.stdout.write(list.length === 1 ? list[0].bin : "");
+  ' "$HARNESS_JSON" 2>/dev/null || echo "")"
+  if [ -n "$HARNESS" ]; then
+    echo "ℹ️  未指定 HARNESS；镜像里只装了一个运行时，按 $HARNESS 运行（如需明确请显式传入）" >&2
+  fi
+fi
+[ -n "$HARNESS" ] || usage_exit "未指定 HARNESS，且镜像里装了不止一个（或读不到 $HARNESS_JSON）—— 请显式传入，基座不会替你挑一个。"
 if ! command -v "$HARNESS" >/dev/null 2>&1; then
   echo "❌ 镜像里没有可执行文件「$HARNESS」。镜像内已安装的运行时包：" >&2
   if [ -f "$HARNESS_JSON" ]; then

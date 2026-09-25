@@ -58,10 +58,37 @@ const mask = (v) => (v === undefined || v === null || v === "" ? "(空)" : "***"
 // --------------------------------------------------------------------------
 // ① 参数解析：环境变量 → `…_FILE` 指向的文件 → 清单里的默认值 → 失败
 // --------------------------------------------------------------------------
+/**
+ * 读一个"值来源"文件：容忍结尾换行（K8s secret 挂载会带，但文件来源不限于 K8s）。
+ * @returns {{ok: true, value: string} | {ok: false, reason: string}}
+ */
+function readValueFile(file) {
+  if (!fs.existsSync(file)) return { ok: false, reason: `文件不存在（${file}）` };
+  try {
+    return { ok: true, value: fs.readFileSync(file, "utf8").replace(/\r?\n$/, "") };
+  } catch (e) {
+    return { ok: false, reason: `读 ${file} 失败（${e.code ?? e.message}）` };
+  }
+}
+
+/**
+ * 解析运行期参数。
+ *
+ * **四种给法，没有哪一种被假定为"标准"**（实际环境很杂：有人直接 docker run、
+ * 有人包在编排里、有人在 CI 里跑、有人在机器上手工跑）：
+ *
+ *   ① 环境变量           NAME=VALUE
+ *   ② 指向文件           NAME_FILE=/path/to/file
+ *   ③ 凭据目录           AGENT_SECRETS_DIR=/dir   → 取 /dir/NAME 作为值
+ *   ④ 中性定义里的默认值（仅当该参数声明了 default）
+ *
+ * **优先级固定且只有这一处实现**：① > ② > ③ > ④。缺必填项即失败（退出码 2），点名引用名并列出**全部**给法。
+ */
 function resolveParams(manifest) {
   const declared = manifest.runtimeParams ?? [];
   const resolved = {};
   const problems = [];
+  const secretsDir = process.env.AGENT_SECRETS_DIR || null;
   for (const p of declared) {
     let value;
     let source = null;
@@ -70,25 +97,26 @@ function resolveParams(manifest) {
     if (value === undefined) {
       const fileVar = process.env[`${p.name}_FILE`];
       if (fileVar) {
-        if (!fs.existsSync(fileVar)) {
-          problems.push(`${p.name}：${p.name}_FILE 指向的文件不存在（${fileVar}）`);
-          continue;
-        }
-        try {
-          // 兼容 secret 文件常见的结尾换行（K8s secret 挂载默认带）
-          value = fs.readFileSync(fileVar, "utf8").replace(/\r?\n$/, "");
-          source = `file:${fileVar}`;
-        } catch (e) {
-          problems.push(`${p.name}：读 ${fileVar} 失败（${e.code ?? e.message}）`);
-          continue;
-        }
+        const r = readValueFile(fileVar);
+        if (!r.ok) { problems.push(`${p.name}：${p.name}_FILE ${r.reason}`); continue; }
+        value = r.value; source = `file:${fileVar}`;
+      }
+    }
+    if (value === undefined && secretsDir) {
+      const inDir = path.join(secretsDir, p.name);
+      if (fs.existsSync(inDir)) {
+        const r = readValueFile(inDir);
+        if (!r.ok) { problems.push(`${p.name}：AGENT_SECRETS_DIR 下的文件 ${r.reason}`); continue; }
+        value = r.value; source = `secrets-dir:${inDir}`;
       }
     }
     if (value === undefined && p.default !== undefined) { value = p.default; source = "definition-default"; }
     if (value === undefined && !p.required) { continue; }   // 非必填且无默认 ⇒ 不注入
     if (value === undefined) {
       problems.push(
-        `${p.name} 未提供。两种给法：① 环境变量 ${p.name}=… ② 环境变量 ${p.name}_FILE=/path/to/secret（挂载文件，推荐给凭据）`);
+        `${p.name} 未提供。给法（任选其一）：` +
+        `① 环境变量 ${p.name}=…　② 环境变量 ${p.name}_FILE=/path/to/value　` +
+        `③ 凭据目录 AGENT_SECRETS_DIR=/dir（读 /dir/${p.name}）`);
       continue;
     }
     if (p.validate === "in-route-models") {

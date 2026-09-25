@@ -73,11 +73,11 @@ export function digestOfRender(renderDir) {
  *
  * @returns {{staging: string, workspace: string, dshHome: string, placeholders: string[]}}
  */
-export function stageRenderDir(renderDir, endpoint, { zeroCredential = false } = {}) {
+export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, env: extraEnv = {} } = {}) {
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-run-"));
 
-  const env = { ...process.env };
+  const env = { ...process.env, ...extraEnv };
   const endpointParam = (manifest.runtimeParams ?? []).find((x) => x.backs === "model.route" && !x.secret);
   if (endpoint && endpointParam) env[endpointParam.name] = endpoint;
   // 零凭据模式（**显式开启**）：自证/探针/冒烟用假值补齐必填项；真实运行不允许
@@ -133,11 +133,11 @@ export function localInvocation({ profile, prompt }) {
  * 真跑一次。
  * @returns {Promise<{exitCode:number|string, stdout:string, stderr:string, events:object[], native:object[], staging:string, placeholders:string[]}>}
  */
-export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs = 60000, zeroCredential = false }) {
+export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs = 60000, zeroCredential = false, env: extraEnv = {} }) {
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
-  const { staging, workspace, dshHome, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential });
+  const { staging, workspace, dshHome, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: extraEnv });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-home-"));
-  const env = envFor({ manifest, dshHome, endpoint, home });
+  const env = { ...envFor({ manifest, dshHome, endpoint, home }), ...extraEnv };
 
   const { bin, args } = localInvocation({ profile: manifest.agent, prompt });
   const child = spawn(bin, args, { env, cwd: workspace });

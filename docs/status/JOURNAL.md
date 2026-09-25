@@ -222,4 +222,9 @@
 - 01:03 🔴 pin 的第三方 MCP 扩展**自带技能**（`resources_discover` 里注册 mcp-scripting，受它自己配置的 `scriptMode` 控制）→ 技能集合多一项。置 `scriptMode: false`：既清掉未声明技能，也关掉"跑可信 JavaScript"这个我们从未声明的能力
 - 01:03 零凭据模式改为**显式**：`zeroCredential` 默认 false，探针/冒烟/自证/本地自检各自显式打开；开发者用 `run-local --zero-credential`。真实运行不许静默用占位凭据
 - 01:03 ✅ 全量回归全绿：13 自检 + 两侧 conformance 10/10 + examples-check 全绿
+- 06:14 🔴 用户指出"别把运行环境想得那么死，没有统一走 k8s" —— 复查发现两处真实问题：**参数层声明的 `AGENT_SECRETS_DIR` 一直没有实现**；多处文案默认"有编排层"
+- 06:14 补齐四种并列给法（环境变量 / `NAME_FILE` / `AGENT_SECRETS_DIR` 目录 / 定义默认值），优先级固定且**只有一处实现**；缺项报错列出全部给法
+- 06:14 手工运行补便利开关：`run-local --endpoint/--api-key/--model/--secrets-dir/--param NAME=VALUE`（按产物声明映射，不猜引用名）
+- 06:14 容器在**只装一个运行时**时免去指定 HARNESS（入口按唯一那个起并在 stderr 说明）；多个候选仍强制显式选择，不替调用方挑。为此锁里补上 `bin`（镜像该知道自己的可执行名）
+- 06:14 自检扩到覆盖凭据目录与优先级（dsh 23 项 / pi 28 项）
 

@@ -45,7 +45,8 @@
 | `AGENT_CRASH_TAIL_LINES` | 30 | 崩溃时把轨迹末多少行打到 stderr |
 | `<PREFIX>_BASE_URL` / `<PREFIX>_API_KEY` | 无（**必填**） | **模型端点与凭据**。`<PREFIX>` 由路由名推导（见 `03-capability-catalog`） |
 | `<PREFIX>_MODEL` | 定义里的 `model.name` | **模型名的运行期覆盖**。同一份制品在不同环境常要指向不同模型名；取值须在该路由声明的模型名单内 |
-| `<任意引用名>_FILE` | 无 | **从文件读**该值（K8s/Docker secret 的标准接法）。环境变量优先于文件；文件结尾的换行会被去掉 |
+| `<任意引用名>_FILE` | 无 | **从文件读**该值。文件结尾的换行会被去掉 |
+| `AGENT_SECRETS_DIR` | 无 | **凭据目录**：读 `<目录>/<引用名>` 作为该参数的值（一次挂一整套凭据时省事）。优先级低于环境变量与 `_FILE` |
 | `AGENT_ARTIFACT_DIR` | `/opt/agent-base/artifact` | 产物根挂载点 |
 | `AGENT_RUN_DIR` | `/run/agent-base`（不可写时退回 `/tmp/agent-base-run`） | 暂存可写副本的位置 |
 | `<连接器引用名>` | 无 | 连接器的端点/凭据（如 `AGENT_JIRA_ENDPOINT_PROD`、`JIRA_TOKEN`） |
@@ -83,19 +84,38 @@ docker run … <镜像> <命令…>     # 其他：直接 exec 透传
 
 **两件事分开看：用哪个模型是定义决定的，连哪个端点是部署决定的。**
 
+**实际环境很杂**，所以基座**不假定任何编排层、也不假定哪一种给法是"标准"**。
+同一个值有四种给法，任选其一（优先级固定：① > ② > ③ > ④）：
+
+| # | 给法 | 形态 | 常见场景 |
+|---|---|---|---|
+| ① | 环境变量 | `NAME=value` | 任何地方都能用：`docker run -e`、systemd、CI、shell |
+| ② | 指向文件 | `NAME_FILE=/path/to/value` | 交给外部的密钥文件、临时凭证文件 |
+| ③ | **凭据目录** | `AGENT_SECRETS_DIR=/dir`，读 `/dir/NAME` | 一次性把整套凭据挂进一个目录（不必逐个文件设变量） |
+| ④ | 定义里的默认值 | `agent.yaml` 的 `model.name` 等 | 该参数有默认值时才成立 |
+
 ```bash
+# 直白的一种（不依赖任何编排）
 docker run --rm \
   -e HARNESS=pi \
   -e CORP_GATEWAY_BASE_URL=https://your-endpoint.internal/v1 \
-  -e CORP_GATEWAY_API_KEY=… \                 # 或 -e CORP_GATEWAY_API_KEY_FILE=/run/secrets/key
+  -e CORP_GATEWAY_API_KEY=… \
   -e CORP_GATEWAY_MODEL=corp-think \          # 可选：覆盖定义里的默认模型名
+  -v /path/to/render:/opt/agent-base/artifact:ro \
+  agent-base:0.1.0-arm64
+
+# 也可以用"凭据目录"一次给全（目录里的文件名 = 引用名）
+docker run --rm -e HARNESS=pi \
+  -e CORP_GATEWAY_BASE_URL=https://your-endpoint.internal/v1 \
+  -e AGENT_SECRETS_DIR=/secrets \
+  -v ./my-secrets:/secrets:ro \
   -v /path/to/render:/opt/agent-base/artifact:ro \
   agent-base:0.1.0-arm64
 ```
 
 启动时依次做四件事，**任何一步不满足就退出码 2 并说清缺什么**（不做静默降级）：
 
-1. **解析运行期参数**：环境变量 → `…_FILE` 指向的文件 → 定义里的默认值 → 缺必填项就失败
+1. **解析运行期参数**：四种给法按固定优先级取（环境变量 → `…_FILE` → `AGENT_SECRETS_DIR` → 定义默认值）→ 缺必填项就失败
 2. **校验模型名**：必须在该路由声明的模型名单内（写错当场报错并列出可用值，而不是等端点回一句看不懂的错）
 3. **暂存可写副本**：产物按只读挂载，运行时要写会话/缓存 ⇒ 复制一份到 `/run/agent-base` 再跑。
    **产物本身永不改写**（它有摘要，改了摘要就不成立）
@@ -103,6 +123,10 @@ docker run --rm \
 
 **凭据永不打印**：日志与 `--json` 输出里只显示 `***`（以及它来自环境变量还是文件）。
 **就绪探针**用 `config-check`：只校验、不落盘、不跑模型。
+**手工运行**（有人在机器上直接跑）：`make run-local` 提供了 `--endpoint` / `--api-key` / `--model` / `--secrets-dir` / `--param NAME=VALUE`
+这些便利开关 —— 直接映射到产物声明的运行期参数，不必去记由路由名推导出来的引用名。
+**只有一个运行时**时容器不必显式传 `HARNESS`（入口会按唯一那个起，并**在 stderr 明确说明**）；
+装了多个则仍然必须显式指定 —— 基座不替调用方挑运行时。
 
 ## 七、运行期无外网
 

@@ -182,6 +182,28 @@ if (rendersParams) {
     treeHas(work, "file-based-secret") && !treeHas(work, "file-based-secret\\n"));
 }
 
+// ⑤b 凭据目录（AGENT_SECRETS_DIR）：不依赖任何编排层的一种给法 ——
+//     目录里的文件名就是引用名，内容就是值。实际环境很杂，这条不能只有 K8s 一条路。
+const secretsDir = fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-secrets-"));
+fs.writeFileSync(path.join(secretsDir, secretParam), "from-secrets-dir\n");
+r = run(["prepare", "--json"], { [endpointParam.name]: "https://gw.internal/v1", AGENT_SECRETS_DIR: secretsDir });
+let prep4 = null;
+try { prep4 = JSON.parse(r.out); } catch { /* 下面按失败报 */ }
+check("凭据可从 AGENT_SECRETS_DIR 读取（来源标为目录）",
+  r.code === 0 && /^secrets-dir:/.test(prep4?.params?.[secretParam]?.source ?? ""),
+  `退出码 ${r.code} source=${prep4?.params?.[secretParam]?.source}`);
+if (rendersParams) {
+  check("从目录读到的凭据去掉结尾换行后落进产物",
+    treeHas(work, "from-secrets-dir") && !treeHas(work, "from-secrets-dir\\n"));
+}
+
+// ⑤c 优先级：显式环境变量 > 目录（固定优先级，只有一处实现）
+r = run(["prepare", "--json"], { [endpointParam.name]: "https://gw.internal/v1", [secretParam]: "from-env", AGENT_SECRETS_DIR: secretsDir });
+let prep5 = null;
+try { prep5 = JSON.parse(r.out); } catch { /* 下面按失败报 */ }
+check("优先级：环境变量 > 凭据目录", prep5?.params?.[secretParam]?.source === "env",
+  `source=${prep5?.params?.[secretParam]?.source}`);
+
 // ⑥ 负向：_FILE 指向不存在的文件
 r = run(["prepare"], { [endpointParam.name]: "https://gw.internal/v1", [`${secretParam}_FILE`]: "/nope/missing" });
 check("_FILE 不存在 → 退出码 2 且说明", r.code === EXIT_CODES.usage && /不存在/.test(r.err));

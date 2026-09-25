@@ -109,7 +109,7 @@
 | `log-level` | observability | `^AGENT_LOG_LEVEL$` | 否 |  | — |
 | `trace-dest` | observability | `^AGENT_TRACE_DEST$` | 否 |  | 轨迹输出位置。轨迹格式本身由 core/trace/schema.json 强制，不因目的地而变。 |
 | `run-mode` | runtime | `^AGENT_RUN_MODE$` | 否 |  | debug 只在 agent-base:<h>-debug 变体里有效；生产基座 entrypoint 遇到 AGENT_RUN_MODE=debug 即以退出码 2 退出（§8.5）。 |
-| `secrets-dir` | runtime | `^AGENT_SECRETS_DIR$` | 否 |  | 凭据挂载目录。注意 §7.2 的限制：凭据无法对 agent 工具进程做 OS 级隔离，容器边界由编排层负责。 |
+| `secrets-dir` | runtime | `^AGENT_SECRETS_DIR$` | 否 |  | 凭据目录：读 `<目录>/<引用名>` 作为该参数的值。与"逐个设环境变量"并列的一种给法， 不绑定任何编排层（有人直接 docker run、有人包在编排里、有人在 CI 里跑）。 优先级：环境变量 > `…_FILE` > 本目录 > 定义里的默认值（唯一实现在 core/image/startup.mjs）。 注意 §7.2 的限制：凭据无法对 agent 工具进程做 OS 级隔离 —— 边界由**运行环境**（容器、沙箱、机器权限）提供， 基座不假定它是哪一种。 |
 
 ### 禁止（forbidden）
 
