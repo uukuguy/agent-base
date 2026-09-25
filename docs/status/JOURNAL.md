@@ -172,4 +172,8 @@
 - 21:34 dsh conformance 现状：**C2 渲染确定性 ✓、C8 参数层隔离 ✓**；C3/C4/C5 未过，且三项问题都在**检查侧**（C3 认死 pi 的产物文件名；C4 的用例助手只声明 pi 形态的增强；C5 注入器不认识 patch-target-missing）
 - 21:34 记下判断：不为了让 dsh 变绿去改适配器 —— 该改成中性判定的是检查（C3 应以 manifest 为映射）
 - 21:34 exemptions.yaml 补两条实测不对称：技能集合口径（本侧只能"已配置且就位"）、工具粒度（read/write/edit 在这边是同一个 row）
+- 21:43 ✅ C5 治本：注入器改为**声明式**（适配器在 failure-cases.yaml 给 `inject: {file: glob, append}`，检查只执行）→ dsh 的 D1 用例被机器抓到（证据 D1→20）
+- 21:43 ✅ C4 治本：增强**声明形态由适配器决定**（adapter.yaml 新增 `enhancementShape: file|package`），助手据此写声明 → dsh 的 C4 通过
+- 21:43 🔴 抓到一个掩盖真因的写法：adapterField 的 try/catch 吞掉了"忘 import YAML"，形态判断静默回退成默认值（表现为"dsh 又拿到错声明"）→ 补 import + 让 catch 出声
+- 21:43 dsh conformance **7/10**（C1/C2/C4/C5/C8/C9/C10）；未过 C3（检查仍按 pi 形状写死）、C6（probe/smoke 只走 pi，需 dsh run.mjs）、C7（trace 未实现）。pi 侧仍 10/10，无回归
 

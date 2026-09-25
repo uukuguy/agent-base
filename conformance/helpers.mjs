@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import YAML from "yaml";
 
 export const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "..");
@@ -46,6 +47,22 @@ export function tmpdir(prefix) {
  * 刻意不声明连接器：该 harness 原生无 MCP 客户端时，声明连接器会让 render 响亮失败——
  * 那是 C5 的注入场景，不是 C3 的输入。
  */
+/**
+ * 读适配器 adapter.yaml 里的一个字段（用例助手据此适配 harness 形态）。
+ * 返回 undefined 表示该适配器没有这个字段。
+ */
+export function adapterField(harness, field) {
+  const f = path.join(REPO, "adapters", harness, "adapter.yaml");
+  if (!fs.existsSync(f)) return undefined;
+  try {
+    return YAML.parse(fs.readFileSync(f, "utf8"))[field];
+  } catch (e) {
+    // 响亮一点：这里曾经因为缺 import 而静默返回 undefined，导致形态判断悄悄回退成默认值
+    process.stderr.write(`⚠️ 读取 adapters/${harness}/adapter.yaml 的 ${field} 失败：${e.message}\n`);
+    return undefined;
+  }
+}
+
 export function makeFullAgent(dir, { name = "conformance-agent", reasoningEffort = null, enhancements = false, harness = null } = {}) {
   fs.mkdirSync(path.join(dir, "skills", "alpha"), { recursive: true });
   fs.mkdirSync(path.join(dir, "prompts"), { recursive: true });
@@ -75,10 +92,18 @@ export function makeFullAgent(dir, { name = "conformance-agent", reasoningEffort
     // **必须显式传被测 harness**：早期这里用 adaptersPresent()[0]，加入第二个适配器后
     // 就悄悄指向了另一个 harness，导致"增强没进产物"的假失败（真因是用例自己写错了目录）。
     const h = harness ?? adaptersPresent()[0];
-    fs.mkdirSync(path.join(dir, "harness", h, "extensions"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "harness", h, "enhancements.yaml"),
-      "apiVersion: agent-base/v1\nharness: " + h + "\nenhancements:\n  - kind: tool\n    id: risk-score\n    entry: extensions/risk-score.ts\n");
-    fs.writeFileSync(path.join(dir, "harness", h, "extensions", "risk-score.ts"), "export default function () {}\n");
+    // 增强的**声明形态由适配器决定**（file=产物里的文件 / package=npm 包）——
+    // 别在检查侧写死某一种形态：那等于把第一个 harness 的形状当成契约（C4 曾因此误判 dsh）。
+    const shape = adapterField(h, "enhancementShape") ?? "file";
+    fs.mkdirSync(path.join(dir, "harness", h), { recursive: true });
+    const decl = shape === "package"
+      ? "apiVersion: agent-base/v1\nharness: " + h + "\nenhancements:\n  - kind: plugin\n    id: risk-score\n    package: '@example/agent-base-risk-score'\n"
+      : "apiVersion: agent-base/v1\nharness: " + h + "\nenhancements:\n  - kind: tool\n    id: risk-score\n    entry: extensions/risk-score.ts\n";
+    fs.writeFileSync(path.join(dir, "harness", h, "enhancements.yaml"), decl);
+    if (shape !== "package") {
+      fs.mkdirSync(path.join(dir, "harness", h, "extensions"), { recursive: true });
+      fs.writeFileSync(path.join(dir, "harness", h, "extensions", "risk-score.ts"), "export default function () {}\n");
+    }
   }
   return dir;
 }

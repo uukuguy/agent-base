@@ -15,6 +15,24 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { REPO, adaptersPresent, copyDir, doctor, jsonOf, makeFullAgent, render, run, tmpdir, validate } from "../helpers.mjs";
 import { runImageChecks } from "../image-checks.mjs";
 
+/**
+ * 在渲染产物里按 glob 找文件（只支持路径段级的 `*`，够用且不引依赖）。
+ * 用途：让适配器在 failure-cases.yaml 里声明"注入到哪个产物文件"，而不是把路径写死在检查里。
+ */
+function globUnder(root, pattern) {
+  const parts = String(pattern).split("/").filter(Boolean);
+  const walk = (dir, i) => {
+    if (i === parts.length) return fs.existsSync(dir) && fs.statSync(dir).isFile() ? [dir] : [];
+    const seg = parts[i];
+    if (seg === "*") {
+      if (!fs.existsSync(dir)) return [];
+      return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => walk(path.join(dir, e.name), i + 1));
+    }
+    return walk(path.join(dir, seg), i + 1);
+  };
+  return walk(root, 0);
+}
+
 const ok = (detail, evidence) => ({ ok: true, detail, evidence });
 const bad = (detail, evidence) => ({ ok: false, detail, evidence });
 const pending = (detail) => ({ ok: false, pending: true, detail });
@@ -223,6 +241,14 @@ const cases = [
               result = r2.status === 0 ? doctor(h, out) : { status: r2.status, stderr: r2.stderr };
             } else if (c.kind === "thinking-clamp") {
               result = doctor(h, out); // agentOptions 里声明了 reasoningEffort
+            } else if (c.inject?.file) {
+              // **通用注入**：注入位置由适配器在 failure-cases.yaml 里声明（glob + 追加文本），
+              // 检查侧只负责执行。这样加第二个 harness 不必再改检查代码 —— 之前的写法
+              // 把 pi 的产物路径（agent-dir/...）硬编码在这里，等于把第一个 harness 的形状当契约。
+              const targets = globUnder(out, c.inject.file);
+              if (!targets.length) { problems.push(`${h}/${c.id}: 注入目标不存在（${c.inject.file}）`); continue; }
+              for (const f of targets) fs.appendFileSync(f, c.inject.append ?? "");
+              result = doctor(h, out);
             } else {
               problems.push(`${h}/${c.id}: 未知注入类型 ${c.kind}`);
               continue;

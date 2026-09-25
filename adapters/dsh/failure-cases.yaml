@@ -7,3 +7,10 @@ cases:
     failure: "patch 的 target id 不存在 → 只打警告、退出码 0、继续运行"
     detectBy: doctor 断言「patch 的每个 target id 都出现在组合树里」
     expectExitCode: 20
+    # 注入方式（声明式：位置由适配器给，检查侧只执行 —— 不把路径写进检查代码）
+    inject:
+      file: "dsh-home/profiles/*/cordis.patch.yml"
+      append: |
+        - id: does-not-exist-target
+          config: {}
+

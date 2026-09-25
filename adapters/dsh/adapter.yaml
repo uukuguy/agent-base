@@ -81,6 +81,11 @@ capabilities:
 
   runModes: [interactive, oneshot, rpc, debug]
 
+# 业务级增强的**声明形态**（决定用例助手怎么写声明、渲染器怎么读）：
+#   file    = 扩展是产物里的文件，用 `entry:` 指向（如 extensions/x.ts）
+#   package = 扩展是 npm 包（如 cordis 插件），用 `package:` 指向
+enhancementShape: package
+
 failures: failures.md
 failureCases: failure-cases.yaml
 exemptions: exemptions.yaml

@@ -390,7 +390,7 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 `DSH_HOME=<产物>/dsh-home dsh <name> --dump-config` → 退出码 0，且组合树逐项对上了
 （模型覆盖、人设发现启用、技能目录指向镜像内固定路径、安全姿态以 `!!js` 表达式保留、工具边界禁用生效）。
 
-**conformance 现状**：dsh 的 **C2（渲染确定性）与 C8（参数层隔离）已通过**；C3/C4/C5 未过 —— 但**原因不在适配器，在那三项检查本身**（见 §13.4）。
+**conformance 现状**：dsh **7/10 通过**（C1 声明完整性 · C2 渲染确定性 · C4 解析自证 · C5 静默失败检测力 · C8 参数层隔离 · C9 安全下限 · C10 退出码契约）；未过 **C3 / C6 / C7**。pi 侧仍 10/10（无回归）。
 
 ### 13.1 两处实测推翻/修正
 
@@ -427,7 +427,25 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 
 解析组合树踩到的坑（都已修）：**不能用正则抓 config 块** —— 被两种形态坑过：数组值（`customSkillDirs:` 后跟 `- 值`）与折行值（`policy: !!js >-` 后跟续行）。改为**按行 + 缩进的状态机**。另外：组合树里**没有 `disabled` 行 = 默认启用**，不是"不在树里"。
 
-### 13.4 conformance 未过的三项，问题都在检查侧（不是适配器）
+### 13.4 三项"检查按第一个 harness 的形状写死"——已修两项
+
+**已修（都在检查侧治本，没有去改适配器迁就检查）：**
+
+| 用例 | 原来的问题 | 处置 |
+|---|---|---|
+| **C5** | 注入器把 pi 的产物路径（`agent-dir/...`）硬编码在检查代码里，不认识 dsh 的 `patch-target-missing` | 改为**声明式注入**：适配器在 `failure-cases.yaml` 里给出 `inject: {file: glob, append: 文本}`，检查侧只负责执行。于是加第二个 harness 不必改检查代码。**实测证据：`D1→20`** —— 刚写的 D1 防线被机器抓到了 |
+| **C4** | 用例助手声明的业务级增强是 pi 形态（`entry: extensions/x.ts`），dsh 的增强是 cordis 插件 npm 包 ⇒ 声明的增强进不了组合树 | 增强**声明形态由适配器决定**：`adapter.yaml` 新增 `enhancementShape: file \| package`，助手据此写声明。这也是"契约归适配器、不归检查" |
+
+> 顺带抓到一个**会掩盖真因**的写法：`adapterField()` 的 try/catch 把"忘了 import YAML"也吞了，
+> 于是形态判断静默回退成默认值，表现为"dsh 又拿到错声明"。已补 import，并让 catch 出声。
+
+### 13.5 仍未过的一项检查 + 两个适配器缺口
+
+| 项 | 状态 | 下一步 |
+|---|---|---|
+| **C3** 渲染完整性 | 未过。检查按 pi 的产物形状写死（找 `AGENTS.md`、`settings.json`、`extensions`） | 改成**以 manifest 为映射**的中性契约：渲染器在 manifest 里声明「定义字段 → 产物位置」（`expresses` 映射），检查只验证声明的位置存在且内容对。认死文件名等于把第一个 harness 的形状当契约 |
+| **C6** 零凭据闸门 3/4 | 未过。`tools/probe.mjs` / `smoke.mjs` 目前只走 pi（`adapters/pi/run.mjs`） | 需要 `adapters/dsh/run.mjs`（运行器），让 probe/smoke 对 dsh 也能跑 |
+| **C7** 轨迹合规 | 未过，`trace.mjs` 未实现 | 会话是 zstd 压缩 JSONL v4；`tool/result` **没有 callId**，需按 step 内顺序配对 |
 
 | 用例 | 失败原因 | 该改什么 |
 |---|---|---|
@@ -438,9 +456,9 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 > **注意**：这三项都不是"适配器还不行"，而是"**检查把第一个 harness 的形状当成了契约**"。
 > 因为踩过"检查写错方向比漏检更糟"，这里不打算改适配器去迁就检查。
 
-### 13.5 dsh 轨余项
+### 13.6 dsh 轨余项（按依赖排序）
 
-1. `adapters/dsh/trace.mjs` + `conformance/fixtures/dsh-native-events.jsonl`（C7）—— 会话是 zstd 压缩 JSONL v4；`tool/result` **没有 callId**，需按 step 内顺序配对
-2. 上面三项检查的泛化（C3 manifest 映射 / C4 增强声明按 harness / C5 注入器）
-3. `adapters/dsh/run.mjs`（本地运行入口）—— 目前 `run-local --harness dsh` 会响亮失败，这是设计要求的（不许静默用 pi 替代）
+1. `adapters/dsh/run.mjs`（运行器）→ 解锁 **C6**（probe/smoke 对 dsh 也能跑）与 `run-local --harness dsh`
+2. `adapters/dsh/trace.mjs` + `conformance/fixtures/dsh-native-events.jsonl` → **C7**
+3. **C3 的中性化**（manifest `expresses` 映射）—— 这是唯一还"按 pi 形状写死"的检查
 
