@@ -334,6 +334,10 @@
           "type": "string",
           "minLength": 1,
           "description": "与 tool.call 的 callId 配对。"
+        },
+        "msIsEstimated": {
+          "type": "boolean",
+          "description": "ms 是否为推算值。部分 harness 的 tool_execution_end 事件不含耗时字段（缺口 G2），只能按事件到达时间推算——必须标出来，否则推算值会被当成实测值用于性能结论。"
         }
       }
     },

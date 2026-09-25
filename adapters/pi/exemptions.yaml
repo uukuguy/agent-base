@@ -1,0 +1,61 @@
+# pi 适配器的等价性豁免（统一设计 §1.4 / §6.6）
+#
+# 豁免 = 承认「这条做不到/不该比」，但**必须显式**：写清范围、理由、复核期限。
+# §5.4 只允许三种处置：等效替代 / 豁免 / 拒绝支持。**静默降级不在其中。**
+#
+# `validate` 会检查：豁免条目未过期；豁免涉及的字段确实在比对集里；比对集里任何不等项
+# 若无豁免条目，`verify` 直接失败（不允许"沉默的差异"）。
+
+- id: tool-naming
+  scope: tools.names
+  reason: >
+    工具名（`mcp__<server>__<tool>` 等）由 harness 决定，业务不依赖它。
+    比对工具名会把"命名习惯差异"误判成"行为不等价"。
+  reviewBy: 2027-03-31
+
+- id: prompt-text
+  scope: persona.promptText
+  reason: 人设文本的最终拼装由 harness 决定（注入位置、前后缀、系统提示结构都不同）。比对渲染前的定义即可。
+  reviewBy: 2027-03-31
+
+- id: tool-call-order
+  scope: trajectory.toolOrder
+  reason: 工具调用顺序受模型采样影响，不是 harness 差异；把它算进等价性会让比对结果随采样抖动。
+  reviewBy: 2027-03-31
+
+- id: token-count-and-latency
+  scope: model.usage, model.latency
+  reason: token 数与耗时是运行时特性，不是定义的可移植性承诺。
+  reviewBy: 2027-03-31
+
+- id: thinking-level-clamped-by-model
+  scope: model.reasoningEffort
+  reason: >
+    harness 会把推理强度**钳到模型声明支持的档位**（实测：声明 high 得到 off，静默）。
+    这属"模型能力差异"而非"定义不等价"，因此两边比对时只断言「声明的档位 == 生效的档位」
+    （该断言在闸门 2 里，见 failures.md F5），不把两边的绝对档位当等价性判据。
+  reviewBy: 2027-03-31
+
+- id: tool-decision-approximation
+  scope: trajectory.tool.call.decision
+  reason: >
+    原生事件流里没有审批字段（缺口 G3），因此 `tool.call.decision` 目前恒记 `allow`
+    （执行了即放行）。这是**诚实近似，不是等价** —— 在补上审批语义之前，
+    不得用该字段回答"谁放行了这次调用"。
+  reviewBy: 2027-06-30
+
+- id: native-tools-count-not-wire-level
+  scope: trajectory.model.request.tools
+  reason: >
+    原生事件流没有 wire 级的工具计数（缺口 G1），轨迹里的 `tools` 是 **harness 侧声明的工具数**。
+    因此它不能用来断言"网关没有吞掉 tools 字段"——那条必须在链路上观测（本地记录代理）。
+    跨 harness 比对时也不要拿这个数当"发出去的工具数"。
+  reviewBy: 2027-03-31
+
+- id: mcp-client-absent
+  scope: connectors
+  reason: >
+    该 harness **原生没有 MCP 客户端**（实测），连接器能力需由基座提供客户端扩展补。
+    在客户端选定之前：声明了连接器的智能体在本 harness 上**渲染即失败**（响亮，不静默）；
+    跨 harness 等价性比对对带连接器的智能体**不成立**，必须在报告里显式标出，不得当作已比对。
+  reviewBy: 2027-06-30

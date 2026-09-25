@@ -13,11 +13,24 @@
 | F3 | 端点配了没生效 | `models.json` 的 `baseUrl` **不做环境插值**（只有 apiKey/headers 插值） | 断言启动期渲染后的 `models.json` 里 `baseUrl` 来自参数层，而不是模板占位符 | 2 |
 | F4 | 人设没生效 | `AGENTS.md` 解析失败，或 `AGENTS.override.md` 静默覆盖了它 | 断言 `get_state` 能起来且 agent-dir 指向本次渲染产物（`definitionPath`） | 2 |
 | F5 | **推理强度配了没生效** | pi 把 thinking level **钳到模型声明支持的档位**；模型无该元数据时**静默降为 `off`**【实测：settings.json 的 `defaultThinkingLevel: high` 与 CLI `--thinking high` 都得到 `thinkingLevel=off`】 | 若定义声明了 `model.reasoningEffort`，断言 `get_state.thinkingLevel` 与之**一致**；不一致即失败（不许静默降级） | 2 |
-| F6 | 扩展没加载 | 扩展加载抛错被忽略（pi 约束 7：扩展入参未校验） | 已加载扩展 id 集合 == `enhancements.yaml` 声明集合（`set-equals`） | 2 |
+| F6 | 扩展没加载 | 扩展加载抛错被忽略（pi 约束 7：扩展入参未校验） | 见下方**当前的观测口径说明**：`doctor` 目前断言到「已进入产物」（实体文件已打包 + 已登记 settings.extensions），离真正的「已加载」还差一步 | 2 |
 | F7 | 工具黑名单没生效 | `tools.deny` 靠**运行参数** `--exclude-tools` 生效（实测：不传时请求里 4 个工具，传 `--exclude-tools bash` 后 3 个）。**手工直接启动 pi 会绕过它** | ① 断言交付入口/`run-local` 确实传了 `--exclude-tools`；② 经假网关断言请求里的 `tools` 计数 == 内置集合减去 deny | 1 + 3 |
 | F8 | 运行期写入失败被当成"配置错误" | pi 会写 `<agent-dir>/{models-store.json,auth.json}`，只读挂载下会失败 | 断言 agent-dir 可写，或断言已按启动期暂存为可写副本 | 1 |
 | F9 | 配置目录不是本次渲染产物 | pi 从 `PI_CODING_AGENT_DIR` 取目录，环境变量缺失时回落到真实的 `~/.pi/agent`，**带着宿主机配置照常启动** | 断言 `doctor` 报告的 `definitionPath` == 期望的渲染产物路径 | 2 |
 | F10 | **连接器被静默忽略** | pi **原生没有 MCP 客户端**（`capabilities.mcpClient: absent`）。若渲染器选择"跳过不支持的连接器"，就会渲染出一个没有连接器的智能体而无人察觉 | 声明了 `mcpServers` 时，渲染必须**显式失败**；选定第三方客户端扩展后，改为断言已加载的服务器集合 == 声明集合 | 1 + 2 |
+
+### F6 当前的观测口径（诚实说明，别把它当已解决）
+
+设计 §6.3 要求断言「**已加载**扩展 id 集合 == 声明集合」。实测下来这件事分两步：
+
+| 能断言到的 | 怎么断言 | 现状 |
+|---|---|---|
+| ① 声明的增强有实体文件 | `enhancement-entries`：`enhancements.yaml` 里每个 `entry` 必须在产物里存在 | ✅ 已实现（缺文件即失败） |
+| ② 增强已登记进 `settings.extensions` | `enhancement-packaged` | ✅ 已实现 |
+| ③ **harness 真的把它加载起来了** | 需要扩展自身向 harness 登记后能被枚举（如注册了工具/命令的扩展会出现在 `get_commands` 的 `source=extension` 里） | ⚠️ **未完成**：只对"会注册工具/命令"的扩展有效；纯钩子型扩展目前观测不到 |
+
+因此 `doctor` 的 `enhancements[]` 语义是「已进入产物」，并在输出里额外报告 `observableFromHarness`。
+**这是已知缺口，不是已解决的问题** —— 补法是让基座种子里的增强自证（扩展启动时登记自己的 id），属 S2 未完成项。
 
 ## 与设计 §5.5 原有条目的对应
 

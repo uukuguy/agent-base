@@ -13,12 +13,14 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 AGENT_DIR ?=
+RENDER_DIR ?=
 HARNESS ?= pi
+JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 NOT_YET = @echo "❌ $@ 尚未实现（包 $(1)）——见 docs/plans/IMPLEMENTATION-ROADMAP.md"; exit 1
 
-.PHONY: help validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -26,7 +28,7 @@ help: ## 列出可用命令
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "参数：AGENT_DIR=<智能体目录>  HARNESS=pi|dsh"
+	@echo "参数：AGENT_DIR=<智能体目录>  RENDER_DIR=<渲染产物目录>  HARNESS=pi|dsh  JSON=1"
 
 # --- 闸门 1：静态校验（S0 已交付）------------------------------------------
 validate: ## 闸门 1：schema + 引用 + 凭据引用 + 命名 + 层纪律
@@ -52,11 +54,18 @@ gateway-selftest: ## 零凭据假网关自检：无 Authorization 可用、流�
 	@node tools/fake-gateway/selftest.mjs
 
 # --- 后续包的目标（显式失败，避免静默通过）----------------------------------
-render: ## 确定性渲染 + 输出 digest（S2）
-	$(call NOT_YET,S2)
+render: ## 确定性渲染 + 输出 digest（需 AGENT_DIR；可选 OUT）
+	@node adapters/$(HARNESS)/render.mjs $(AGENT_DIR) $(if $(OUT),--out $(OUT),) --json
 
-doctor: ## 闸门 2：解析自证（S2）
-	$(call NOT_YET,S2)
+doctor: ## 闸门 2：解析自证（需 RENDER_DIR = render 的产物目录）
+	@node adapters/$(HARNESS)/doctor.mjs $(RENDER_DIR) $(if $(JSON),--json,)
+
+# --- 适配器自检（S2 验收证据）----------------------------------------------
+pi-selftest: ## pi 适配器自检：render 确定性 + doctor 七字段/三条硬断言 + 静默失败必被抓到
+	@node adapters/pi/selftest.mjs
+
+pi-trace-selftest: ## pi 轨迹映射自检：不许丢事件 / 推算值必须标注 / 输出过 schema
+	@node adapters/pi/trace-selftest.mjs
 
 probe: ## 闸门 3：集成探针（默认假网关，零凭据）（S3）
 	$(call NOT_YET,S3)

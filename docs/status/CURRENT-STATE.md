@@ -4,10 +4,10 @@
 
 - Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，当前主力 pi）
 - Current branch: `main`
-- Theme-level focus: 契约基线与验证框架（S0–S1）已交付 —— 下一个包是把两份 adapter 与准入门槛 conformance 做出来（S2）
+- Theme-level focus: pi 适配器（render + doctor + 轨迹映射）已落地并自检全绿 —— 剩 conformance C1–C10 与 dsh 适配器
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi）
-- Active work package: `S2` render + doctor（pi 与 dsh）+ `conformance` C1–C10（S0/S1 已交付，见 JOURNAL）
+- Active work package: `S2`（pi 轨道已交付；余下：`conformance` C1–C10、dsh 适配器）
 
 ## Current Architecture
 
@@ -72,8 +72,9 @@
 - `core/catalog/capabilities.yaml` —— 每个字段的类型/默认值/所属层/各 harness 支持度与降级行为（J2 第二个执法点）
 - `core/spec/fixtures/` —— 1 个合法样本 + 8 个注入式非法样本（每个 `expect.yaml` 声明它必须撞上的失败项）
 - `package.json` / `package-lock.json` —— 基座工具链依赖（`ajv`、`yaml`，精确 pin；`node_modules/` 已 gitignore）
-- `adapters/pi/`、`adapters/dsh/` —— adapter.yaml / render / doctor / probes / trace / exemptions / failures（待 S2）
-- `conformance/` —— C1–C10 用例与 runner（**C5 静默失败检测力、C8 参数层隔离是灵魂**）（待 S2）
+- `adapters/pi/` —— ✅ `adapter.yaml`·`render.mjs`·`doctor.mjs`·`trace.mjs`·`seed/`·`failures.md`·`exemptions.yaml`·`trace-mapping.md`·`selftest.mjs`（探针/smoke 待 S3）
+- `adapters/dsh/` —— 同构（**待做**）
+- `conformance/` —— C1–C10 用例与 runner（**C5 静默失败检测力、C8 参数层隔离是灵魂**）（**待做**）
 - `core/image/` —— 基座镜像与 debug 变体（待 S3+）
 
 ## Resume Instructions

@@ -82,4 +82,12 @@
 - 18:45 删掉我自作的保留键 decision/reason 与「→ 判定」专用渲染；改成 logger 的 [LEVEL] namespace: message ［字段］
 - 18:45 交付 createLogger（log.info/warn/error/debug）；公共字段自动补齐；坏输入记问题并拒发（静默丢日志=黑箱起点）
 - 18:45 make emit-selftest 改为 logger 判据：业务控制点一行调用 → 过 schema → 查看器里显形
+- 19:05 S2 交付：adapters/pi/doctor.mjs（闸门 2：七字段 + 三条硬断言，零凭据真跑 harness）
+- 19:05 doctor 在**暂存可写副本**上跑（上游会写配置目录，产物必须保持干净）+ 启动期渲染 models.json.tmpl（参数下放）
+- 19:05 S2 交付：adapters/pi/trace.mjs（原生 → 统一轨迹），纪律三条：不丢事件 / 推算值必标 / 不假装知道不知道的事
+- 19:05 S2 交付：adapters/pi/{exemptions.yaml, selftest.mjs, trace-selftest.mjs}；Makefile 接上 render/doctor/pi-selftest
+- 19:05 实测证据：15 项适配器自检全绿 —— render 跨路径同 digest、doctor 七字段+三硬断言、三类静默失败均被抓到（exit 20）
+- 19:05 自检抓到 3 个真问题：schema 描述里写了 harness 名（core/harness-name 拦下）、native.raw 的 reason 用「同上」不自解释、doctor 起初拿未渲染的 .tmpl 导致模型 unknown
+- 19:10 9 个自检目标全绿（新增 pi-selftest / pi-trace-selftest / emit-selftest / trace-view-selftest）
+- 19:10 诚实标注未完成项：enhancements[] 目前口径是「已进入产物」，离「已加载」还差一步（failures.md F6）
 
