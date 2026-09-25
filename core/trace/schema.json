@@ -5,15 +5,25 @@
   "description": "统一设计 §8.3 的唯一真源。企业要回答「这个智能体为什么这么决策」，而各 harness 的原生轨迹形状不同：审计工具绝不能按 harness 分叉。因此轨迹事件强制统一 schema；无法映射的原生事件必须输出 type=native.raw（带 reason），不许丢弃 —— 丢掉的往往正是排障最需要的那条（P1 决策）。",
   "type": "object",
   "allOf": [
-    { "$ref": "#/$defs/common" },
-    { "$ref": "#/$defs/typed" }
+    {
+      "$ref": "#/$defs/common"
+    },
+    {
+      "$ref": "#/$defs/typed"
+    }
   ],
   "unevaluatedProperties": false,
   "$defs": {
     "common": {
       "type": "object",
-      "description": "每条事件都必须带的字段。",
-      "required": ["ts", "seq", "run", "type", "effectiveConfigDigest"],
+      "description": "每条事件都必须带的字段，以及业务层可介入的受控扩展点。",
+      "required": [
+        "ts",
+        "seq",
+        "run",
+        "type",
+        "effectiveConfigDigest"
+      ],
       "properties": {
         "ts": {
           "type": "string",
@@ -23,22 +33,67 @@
         "seq": {
           "type": "integer",
           "minimum": 0,
-          "description": "同一 run 内单调递增的序号。用于检测丢行与排序。"
+          "description": "同一 run 内单调递增的序号。用于检测丢行与排序；可视化按它线性回放。"
         },
         "run": {
           "type": "string",
           "minLength": 1,
           "description": "一次运行（run）的 id。所有事件按 run 分组。"
         },
-        "type": { "type": "string" },
+        "type": {
+          "type": "string"
+        },
         "effectiveConfigDigest": {
           "type": "string",
           "pattern": "^sha256:[0-9a-f]{64}$",
           "description": "§6.7 的生效配置摘要。**每条事件都带**：事后归因不必再追问「当时生效的是什么」。"
         },
-        "agent": { "type": "string", "minLength": 1 },
-        "harness": { "type": "string", "minLength": 1 },
-        "harnessVersion": { "type": "string", "minLength": 1 }
+        "agent": {
+          "type": "string",
+          "minLength": 1
+        },
+        "harness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "harnessVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "biz": {
+          "$ref": "#/$defs/bizBag"
+        }
+      }
+    },
+    "bizBag": {
+      "type": "object",
+      "description": "业务层介入轨迹的受控扩展位：可挂在**任何**事件上，用来给核心事件补充业务上下文（如合同号、客户、批次）。基座只校验**形状**，不解释语义——语义是业务自己的事。这样审计工具仍可只读核心字段而不必懂业务。",
+      "maxProperties": 20,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+        "description": "用小写点分命名空间（如 contract.id、risk.level），避免业务字段与核心字段撞名。"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ],
+        "maxLength": 500,
+        "description": "只允许标量：保证可序列化、可对比、可视化时能直接渲染。"
+      }
+    },
+    "bizData": {
+      "type": "object",
+      "description": "业务自定义事件的载荷。与 bizBag 同样只允许标量，理由相同。",
+      "maxProperties": 50,
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ],
+        "maxLength": 2000
       }
     },
     "digest": {
@@ -66,31 +121,88 @@
           "$ref": "#/$defs/gate"
         },
         {
+          "$ref": "#/$defs/bizEvent"
+        },
+        {
           "$ref": "#/$defs/nativeRaw"
         }
       ]
     },
     "runMeta": {
       "type": "object",
-      "description": "运行元信息，通常是首行。debug 态在此显式标记，与交付态可区分（§8.5）。",
-      "required": ["type", "mode"],
+      "description": "运行元信息，通常是首行。debug 态与内容模式在此显式标记，使「这份轨迹是什么性质」本身可审计。",
+      "required": [
+        "type",
+        "mode"
+      ],
       "properties": {
-        "type": { "const": "run.meta" },
+        "type": {
+          "const": "run.meta"
+        },
         "mode": {
           "type": "string",
-          "enum": ["interactive", "oneshot", "rpc", "debug"],
+          "enum": [
+            "interactive",
+            "oneshot",
+            "rpc",
+            "debug"
+          ],
           "description": "对应 AGENT_RUN_MODE。debug 只在 debug 变体镜像里出现。"
+        },
+        "contentMode": {
+          "type": "string",
+          "enum": [
+            "digest",
+            "full"
+          ],
+          "default": "digest",
+          "description": "内容模式。`digest`（默认）= 工具入参/结果只留摘要，防泄漏（§8.3）；`full` = 轨迹里含明文，供可视化与排障。**必须显式标注**：一份含明文的轨迹与一份纯摘要的轨迹，性质不同，不能在下游被当成同一种东西（否则可视化要的明文与审计要的脱敏会互相污染）。"
+        }
+      }
+    },
+    "bizEvent": {
+      "type": "object",
+      "description": "业务自定义事件：让业务开发层能把自己的**领域事件**写进同一条轨迹，使轨迹读起来是业务叙事，而不只是工具调用流水。基座只校验形状，不解释语义。",
+      "required": [
+        "type",
+        "name"
+      ],
+      "properties": {
+        "type": {
+          "const": "biz.event"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "description": "必须带命名空间（至少一个点，如 contract.risk_found）——强制命名空间是为了让审计方一眼看出「这是业务语义」，而不是核心事件。"
+        },
+        "data": {
+          "$ref": "#/$defs/bizData"
         }
       }
     },
     "modelRequest": {
       "type": "object",
       "description": "一次模型调用请求。tools 计数是闸门 3 的核心断言对象。",
-      "required": ["type", "route", "model", "tools", "stream"],
+      "required": [
+        "type",
+        "route",
+        "model",
+        "tools",
+        "stream"
+      ],
       "properties": {
-        "type": { "const": "model.request" },
-        "route": { "type": "string", "minLength": 1 },
-        "model": { "type": "string", "minLength": 1 },
+        "type": {
+          "const": "model.request"
+        },
+        "route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
         "tools": {
           "type": "integer",
           "minimum": 0,
@@ -105,66 +217,148 @@
     "modelError": {
       "type": "object",
       "description": "模型调用失败。路由名写错、凭据缺失等必须留痕，不能只在请求期冒泡一次。",
-      "required": ["type", "code", "route"],
+      "required": [
+        "type",
+        "code",
+        "route"
+      ],
       "properties": {
-        "type": { "const": "model.error" },
-        "code": { "type": "string", "minLength": 1 },
-        "route": { "type": "string", "minLength": 1 },
-        "message": { "type": "string" }
+        "type": {
+          "const": "model.error"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string"
+        }
       }
     },
     "toolCall": {
       "type": "object",
       "description": "一次工具调用及其判定。入参只存 digest，不存明文——防泄漏。",
-      "required": ["type", "tool", "inputDigest", "decision"],
+      "required": [
+        "type",
+        "callId",
+        "tool",
+        "inputDigest",
+        "decision"
+      ],
       "properties": {
-        "type": { "const": "tool.call" },
-        "tool": { "type": "string", "minLength": 1 },
+        "type": {
+          "const": "tool.call"
+        },
+        "tool": {
+          "type": "string",
+          "minLength": 1
+        },
         "inputDigest": {
           "$ref": "#/$defs/digest",
           "description": "工具入参的 digest。需要明文时按 digest 去会话目录取（§8.3）。"
         },
         "decision": {
           "type": "string",
-          "enum": ["allow", "deny", "ask"],
+          "enum": [
+            "allow",
+            "deny",
+            "ask"
+          ],
           "description": "边界判定结果。人在环审批走 ask（§8.5 第 ④ 道）。"
+        },
+        "callId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "工具调用关联 id（对应原生 toolCallId）。可视化靠它把 call 与 result 配成一条线——没有它，轨迹只能线性回放，画不出调用嵌套/耗时。"
         }
       }
     },
     "toolResult": {
       "type": "object",
       "description": "工具调用结果。",
-      "required": ["type", "ok", "ms"],
+      "required": [
+        "type",
+        "callId",
+        "ok",
+        "ms"
+      ],
       "properties": {
-        "type": { "const": "tool.result" },
-        "tool": { "type": "string", "minLength": 1 },
-        "ok": { "type": "boolean" },
-        "ms": { "type": "number", "minimum": 0 },
-        "outputDigest": { "$ref": "#/$defs/digest" }
+        "type": {
+          "const": "tool.result"
+        },
+        "tool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "outputDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "callId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "与 tool.call 的 callId 配对。"
+        }
       }
     },
     "gate": {
       "type": "object",
       "description": "一次闸门探针结果。让「过没过」这件事本身也进轨迹。",
-      "required": ["type", "name", "target", "ok"],
+      "required": [
+        "type",
+        "name",
+        "target",
+        "ok"
+      ],
       "properties": {
-        "type": { "const": "gate" },
+        "type": {
+          "const": "gate"
+        },
         "name": {
           "type": "string",
-          "enum": ["static", "resolution", "probes", "smoke"],
+          "enum": [
+            "static",
+            "resolution",
+            "probes",
+            "smoke"
+          ],
           "description": "四道闸门的 id（§6.1）。"
         },
-        "target": { "type": "string", "minLength": 1 },
-        "ok": { "type": "boolean" },
-        "detail": { "type": "string" }
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "detail": {
+          "type": "string"
+        }
       }
     },
     "nativeRaw": {
       "type": "object",
       "description": "无法映射到统一 schema 的原生事件。**必须原样带上，不许丢弃**——映射失败往往是「这个 harness 出了新事件」的第一信号（§8.3，conformance/C7 检查无静默丢弃）。reason 必填：raw 事件必须自解释为什么没被映射。",
-      "required": ["type", "nativeType", "reason", "raw"],
+      "required": [
+        "type",
+        "nativeType",
+        "reason",
+        "raw"
+      ],
       "properties": {
-        "type": { "const": "native.raw" },
+        "type": {
+          "const": "native.raw"
+        },
         "nativeType": {
           "type": "string",
           "minLength": 1,

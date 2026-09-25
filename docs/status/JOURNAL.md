@@ -66,3 +66,8 @@
 - 17:35 实测 F5 闭环：settings 的 defaultThinkingLevel 与 CLI --thinking 都被静默钳到 off（模型无 thinking 元数据）
 - 17:40 实测 tools.deny → --exclude-tools 生效（请求里 4 个工具降为 3 个）；且 pi 能零凭据打到我们的假网关（N14 闭环）
 - 17:40 实测发现：假网关在带 tools 时会一直返回工具调用 → pi 无限循环；门 3/4 需要「会话终止」语义（记入待办）
+- 17:50 用户方向：轨迹跟踪值得花大力气，可考虑可视化，且上端业务开发层应能介入轨迹
+- 17:55 trace/schema.json 增三处受控设计：biz 扩展位（命名空间+标量）、biz.event 业务领域事件、run.meta.contentMode（digest|full）
+- 17:55 trace/schema.json 增 tool.call/tool.result 的 callId 必填（可视化的调用配对键）
+- 17:55 trace 自检扩到 8 类合法 + 17 类必拒（新增 biz 键未命名空间/值嵌套/biz.event 名未命名空间/缺 callId/contentMode 非法）
+- 18:00 交付 core/trace/README.md：三层分工、业务介入三法、可视化承诺、内容 vs 摘要的取舍；设计 §8.3 同步增补

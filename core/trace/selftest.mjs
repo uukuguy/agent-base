@@ -47,8 +47,10 @@ const validEvents = {
   "run.meta": { ...base, type: "run.meta", mode: "debug" },
   "model.request": { ...base, type: "model.request", route: "corp-gateway", model: "corp-think", tools: 10, stream: true },
   "model.error": { ...base, type: "model.error", code: "MISSING_CREDENTIAL", route: "corp-gateway" },
-  "tool.call": { ...base, type: "tool.call", tool: "mcp__jira__get_issue", inputDigest: `sha256:${B}`, decision: "allow" },
-  "tool.result": { ...base, type: "tool.result", tool: "mcp__jira__get_issue", ok: true, ms: 840 },
+  "tool.call": { ...base, type: "tool.call", callId: "call_abc", tool: "mcp__jira__get_issue", inputDigest: `sha256:${B}`, decision: "allow" },
+  "tool.result": { ...base, type: "tool.result", callId: "call_abc", tool: "mcp__jira__get_issue", ok: true, ms: 840 },
+  "带业务扩展位的核心事件": { ...base, type: "gate", name: "probes", target: "jira", ok: true, biz: { "contract.id": "C-1024", "risk.level": 3 } },
+  "biz.event（业务领域事件）": { ...base, type: "biz.event", name: "contract.risk_found", data: { clause: "7.2", level: 3 } },
   "gate": { ...base, type: "gate", name: "probes", target: "jira", ok: true },
   "native.raw": { ...base, type: "native.raw", nativeType: "brand.new.event", reason: "统一 schema 尚无对应形状", raw: { whatever: [1, 2, 3] } },
 };
@@ -71,6 +73,11 @@ const invalidCases = {
   "tool.call 的 decision 取值非法": { ...base, type: "tool.call", tool: "t", inputDigest: `sha256:${B}`, decision: "maybe" },
   "gate 的 name 不是四道闸门之一": { ...base, type: "gate", name: "lint", target: "x", ok: true },
   "run.meta 的 mode 非法": { ...base, type: "run.meta", mode: "production" },
+  "biz 键没有命名空间（大写）": { ...base, type: "run.meta", mode: "debug", biz: { ContractId: "x" } },
+  "biz 值不是标量（嵌套对象）": { ...base, type: "run.meta", mode: "debug", biz: { "contract.id": { nested: 1 } } },
+  "biz.event 的 name 没有命名空间": { ...base, type: "biz.event", name: "riskfound" },
+  "tool.call 缺 callId（画不出调用配对）": { ...base, type: "tool.call", tool: "t", inputDigest: `sha256:${B}`, decision: "allow" },
+  "contentMode 取值非法": { ...base, type: "run.meta", mode: "debug", contentMode: "verbose" },
 };
 for (const [name, ev] of Object.entries(invalidCases)) {
   const rejected = !validate(ev);
