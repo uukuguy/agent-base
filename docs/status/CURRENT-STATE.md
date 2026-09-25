@@ -102,6 +102,7 @@ Makefile 共 30 个目标，已实现 28 个；**未实现 2 个**：`dev-env` /
 - `core/catalog/{capabilities,params}.yaml` —— 两个执法点：字段所属层 + 参数层允许/禁止清单
 - `core/image/preinstall.yaml` —— 独立可升级的预装清单（开发者面向引用名 + 精确 pin + 存活实测 + 排除项理由）
 - `conformance/` —— **pi 侧 C1–C10 全绿（10/10）**；准入门槛全阻断，未实现记 pending 并非零退出；`--harness` 可单独断言某适配器
+- 本机容器环境：**OrbStack 2.2.3** 管理 Docker（context `orbstack`，只有 `docker` 驱动 ⇒ 多架构打包需自建 `docker-container` builder `ab-multi`；x86_64 走 Rosetta）。详见路线图 §10.2
 - `core/image/` —— 基座镜像与调试变体：`Dockerfile`/`Dockerfile.debug`/`entrypoint.sh`/`gen-preinstall-lock.mjs`/`build.mjs`；按架构分开构建 + 一步合并多架构 manifest；`conformance/image-checks.mjs` 做容器内实测
 - `tools/fake-gateway/` —— 零凭据假网关（协议无关核心 + 协议适配；已含会话终止语义）
 - `tools/trace-view/` —— 轨迹查看器参考实现（业务附加协议 + 机械回退；源码不含业务词汇）

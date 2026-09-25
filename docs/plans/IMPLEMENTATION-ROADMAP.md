@@ -283,7 +283,17 @@ mcpServers:
 - **打包路径**：`--manifest` 用 `docker-container` 驱动的 builder 产出**真正的多架构 manifest list**（OCI 归档落盘）
 - 日常开发不为模拟付代价，消费者最终仍拿到"一个 tag 两个架构"
 
-### 10.2 实测踩到的四个坑（都已固化进代码或检查里）
+### 10.2 本机的容器环境（OrbStack）
+
+本机 Docker **一直由 OrbStack 管理**（不是 Docker Desktop）。对镜像工作有三点直接后果：
+
+| 事实 | 后果 |
+|---|---|
+| context 只有 `docker` 驱动（`default` 与 `orbstack` 两个 builder 都是） | 该驱动**不支持 OCI 导出** ⇒ 多架构打包**只能**用自建的 `docker-container` 驱动 builder（`ab-multi`）。这不是多此一举，是本环境下的唯一路径 |
+| x86_64 走 Rosetta 模拟（比 QEMU 快） | amd64 镜像构建/实测代价可接受（实测 base+debug 约 2.5 分钟） |
+| builder 是容器形态，OrbStack 重启后可能未就绪 | `--manifest` 复用 builder 前先 `inspect --bootstrap` 确保就绪，否则会拿到含糊的 "no builder" 失败 |
+
+### 10.3 实测踩到的四个坑（都已固化进代码或检查里）
 
 | 坑 | 现象 | 处置 |
 |---|---|---|
@@ -294,7 +304,7 @@ mcpServers:
 
 > 第 4 条值得单独记住：**检查写错方向比漏检更糟** —— 它会让人去修一个本来正确的东西。
 
-### 10.3 分层纪律的一次自纠
+### 10.4 分层纪律的一次自纠
 
 坐标表最初用 harness 名做键，被 `core/harness-name` 判红；去掉名字改用包坐标后**仍**判红 —— 因为**包名本身就含 harness 名**（scope 与包名里都有）。最终处置不是放宽规则，而是纠正分层：**生成的构建输入不是源码**，落到 `dist/image/context/`（已 gitignore），`core/` 只留人工维护的源文件；harness 的可执行名归 `adapters/<h>/adapter.yaml` 的 `bin:`。
 

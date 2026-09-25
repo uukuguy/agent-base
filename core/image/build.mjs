@@ -162,15 +162,21 @@ function main() {
   }
 
   if (flags.has("--manifest")) {
-    // 多架构 manifest 需要能导出 OCI 的 builder：本机默认的 `docker` 驱动**不支持**
-    // （实测报错 "OCI exporter is not supported for the docker driver"）。
-    // 所以自建一个 `docker-container` 驱动的 builder —— 这是官方建议的替代路径。
+    // 多架构 manifest 需要能导出 OCI 的 builder。本机由 **OrbStack** 管理 Docker，
+    // 它的 context 只有 `docker` 驱动（default / orbstack 两个 builder 都是），
+    // 而该驱动**不支持 OCI 导出**（实测报错 "OCI exporter is not supported for the docker driver"）。
+    // 因此必须用 `docker-container` 驱动的 builder —— 这不是多此一举，是本环境下的唯一路径。
+    // 复用已存在的那个；若它只是存在但没起来，先 bootstrap（OrbStack 重启后会遇到）。
     const BUILDER = "ab-multi";
     const have = spawnSync("docker", ["buildx", "ls", "--format", "{{.Name}}"], { encoding: "utf8" }).stdout.split("\n").map((x) => x.trim());
     if (!have.includes(BUILDER)) {
-      log(`▶ 创建多架构 builder：${BUILDER}（docker-container 驱动）`);
+      log(`▶ 创建多架构 builder：${BUILDER}（docker-container 驱动 —— 本机 docker 驱动不支持 OCI 导出）`);
       const c = docker(["buildx", "create", "--name", BUILDER, "--driver", "docker-container", "--bootstrap"], { capture: true });
       if (c.status !== 0) { log(c.stdout + c.stderr); log("\n❌ 无法创建多架构 builder"); process.exit(EXIT_CODES.crash); }
+    } else {
+      // 复用前确认它真的在跑：只 ls 到名字就开工会拿到一个含糊的 "no builder" 失败
+      const b = docker(["buildx", "inspect", BUILDER, "--bootstrap"], { capture: true });
+      if (b.status !== 0) { log(b.stdout + b.stderr); log(`\n❌ 多架构 builder ${BUILDER} 无法就绪`); process.exit(EXIT_CODES.crash); }
     }
     // 真正的多架构 manifest list：用一次多平台构建产出 OCI 归档。
     // 没有 registry 也能落盘验证；将来 I2（内网能否推镜像）解决后换成 --push 即可。

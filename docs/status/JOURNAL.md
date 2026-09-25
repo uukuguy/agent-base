@@ -146,4 +146,6 @@
 - 18:25 🔴 抓到"检查写错方向"：C9 曾测 npx --offline（系统从不使用的命令）⇒ 必然 ENOTCACHED ⇒ 报假缺陷。改为测连接器真实命令 npx -y <pkg>@<ver> 后全绿。**错方向的检查比漏检更糟**
 - 18:25 🔴 分层自纠：坐标表用 harness 名做键被判红；去掉名字后仍红（包名本身含 harness 名）。最终纠正分层 —— 生成的构建输入不是源码，落 dist/image/context/；可执行名归 adapter.yaml 的 bin:
 - 18:25 删掉"预热 npx 缓存"这一伪步骤（npm cache add 无效；真正生效的是按精确 pin 全局安装）
+- 18:45 用户澄清：本机 Docker **一直由 OrbStack 管理**（2.2.3）。核实：orbstack context 只有 docker 驱动 ⇒ 不支持 OCI 导出 ⇒ 自建 docker-container builder 是本环境唯一路径（非多余）；x86_64 走 Rosetta
+- 18:45 加固：--manifest 复用 builder 前先 inspect --bootstrap（OrbStack 重启后 builder 可能未就绪）；并真正走 make image-manifest 验证通过（1.68 GB 归档）
 
