@@ -47,6 +47,27 @@ const specsArg = (specs) => specs.map((s) => `${s.package}@${s.version}`).join("
  * OrbStack 也未暴露 containerd 镜像存储开关。因此多架构必须落到 `docker-container` 驱动的 builder。
  */
 const MULTI_BUILDER = "ab-multi";
+
+/**
+ * 找出一个 **docker 驱动**的 builder 名字。
+ *
+ * 为什么单架构/调试变体必须用它，而不是 container builder：
+ *   · 调试变体是 `FROM <基础镜像 tag>`，而基础镜像只在**本地镜像库**里；
+ *   · `docker-container` 驱动的 builder 有自己独立的镜像库，**看不到**前者 ⇒ 找不到基础镜像。
+ * 这正是"把当前 builder 切成 container 后，`--all --debug` 开始失败"的原因。
+ *
+ * 反过来，多平台构建必须在 container builder 上做（docker 驱动不支持）。
+ * 所以结论是：**每次构建显式指定对的 builder**，不要依赖"当前 builder"。
+ */
+function dockerDriverBuilder() {
+  const out = spawnSync("docker", ["buildx", "ls", "--format", "{{.Name}}|{{.Driver}}"], { encoding: "utf8" }).stdout;
+  const rows = out.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => l.split("|"));
+  const dockerOnes = rows.filter((r) => r[1] === "docker").map((r) => r[0]);
+  if (!dockerOnes.length) return null;
+  // 优先与当前 docker context 同名的那个（OrbStack 下即为 `orbstack`），否则退到第一个
+  const ctx = spawnSync("docker", ["context", "show"], { encoding: "utf8" }).stdout.trim();
+  return dockerOnes.includes(ctx) ? ctx : dockerOnes[0];
+}
 function ensureMultiBuilder() {
   const have = spawnSync("docker", ["buildx", "ls", "--format", "{{.Name}}"], { encoding: "utf8" }).stdout.split("\n").map((x) => x.trim());
   if (!have.includes(MULTI_BUILDER)) {
@@ -124,6 +145,10 @@ function buildArch({ arch, tag, baseTag, debug, specs, ctx, noCache }) {
     "buildx", "build", `--platform`, platform, "--load",
     "-t", tag,
   ];
+  // 显式指定 docker 驱动的 builder：调试变体要 FROM 本地基础镜像，只有它能看见本地镜像库
+  const localBuilder = dockerDriverBuilder();
+  if (localBuilder) args.push("--builder", localBuilder);
+  else log("⚠️ 没找到 docker 驱动的 builder，将沿用当前 builder（若当前是 container 驱动，调试变体会因看不到本地镜像而失败）");
   if (noCache) args.push("--no-cache");
   if (debug) {
     // 显式传基础镜像 tag：早前用 `tag.replace(/-debug$/, "")` 猜，而调试 tag 形如
