@@ -105,4 +105,11 @@
 - 20:15 交付 adapters/dsh/{adapter.yaml, failures.md, failure-cases.yaml, exemptions.yaml}；render/doctor/trace **未实现**（诚实标注）
 - 20:15 路线图 §7 记录 dsh 预检结论 + 三个待定问题（Q1 persona 落点 / Q2 customSkillDirs 路径 / Q3 bundles 组合）
 - 20:15 conformance 现状：C1 与 C10 对 dsh 通过；C2–C5/C7/C8 报 dsh 未实现（runner 的预期行为，非回归）；C6/C9 待 S3
+- 20:40 实测 pi 的 loop 回调点（用户提示）：before_provider_request（拿到 event.payload = 发往 provider 的请求体，可替换）
+- 20:40 实测 after_provider_response（status/headers）；tool_call 可返回 {block,reason} → **G3 在 pi 侧可解**（记真实 allow/deny）
+- 20:40 回调可叠加：pi.on 按注册顺序执行、tool_result 链式 compose；但事件分通知/变换/替换/取消四类（有 last-wins 与整体替换的雷区）
+- 20:40 🔴 危险：文档明确「tool_call handler 失败会阻断该工具」→ 轨迹回调必须绝不抛异常，否则写日志会反向搞挂业务工具调用
+- 20:40 修正 G1 口径：分两半 ——「harness 没带 tools」回调可验；「网关吞 tools」仍需链路观测或响应侧不一致检测（原写"只能靠代理"不准确）
+- 20:40 实测 .ts 与 .mjs 扩展都能通过 --extension 加载并触发回调（早前探针 0 事件是探针自身问题，非加载失败）
+- 20:40 轨迹架构定为双来源同一 schema：回调式（主，实时、能拿请求体与判定）+ 事后映射 trace.mjs（兜底，离线可复盘）
 
