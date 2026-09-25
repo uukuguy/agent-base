@@ -92,7 +92,8 @@ for (const [gateId, tool, label] of [
   ["smoke", "tools/smoke.mjs", "闸门 4：端到端冒烟"],
 ]) {
   log(`── ${label} ──`);
-  const res = runTool([path.join(REPO, tool), renderDir, "--json", ...(tool.includes("probe") || tool.includes("smoke") ? endpointArg : [])]);
+  // harness 必须一路传下去：否则 probe/smoke 会用自己的默认运行时去跑另一个运行时的产物
+  const res = runTool([path.join(REPO, tool), renderDir, "--json", "--harness", harness, ...(tool.includes("probe") || tool.includes("smoke") ? endpointArg : [])]);
   addGate(gatesOf(res.parsed), gateId);
   const okNow = collected.every((g) => (g.checks ?? []).every((c) => c.status === "pass"));
   if (!okNow) break; // 首个失败即停：闸门 1 都不过时，闸门 3 的结论毫无意义

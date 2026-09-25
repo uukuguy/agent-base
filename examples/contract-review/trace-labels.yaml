@@ -1,0 +1,18 @@
+apiVersion: agent-base/v1
+
+# 业务给"机械轨迹"起的说法。基座**不解释**这些词，只按定位符机械查找后原样呈现。
+# 换一个业务、换一套词，基座与查看器一行都不用改。
+#
+# 定位符语法（基座定义）：agent | model:<route> | skill:<name> | connector:<name>
+#                        | tool:<原始工具名> | log:<日志命名空间> | gate:<闸门名>
+labels:
+  "agent":                          合同条款审阅助手
+  "skill:clause-extraction":        逐条抽出条款并回指原文
+  "skill:risk-grading":             按条款内容分级并写依据
+  "skill:citation-anchoring":       回指自检：每条结论都要能在原文里找到
+  "connector:filesystem":           合同文档库（挂载目录）
+  "model:corp-gateway":             合同审阅专用模型端点
+  "gate:probes":                    连通性检查
+  "gate:smoke":                     端到端冒烟（真跑一次审阅）
+  "gate:doctor":                    运行时自证：实际加载了哪些技能与连接器
+  "log:review":                     审阅过程记录

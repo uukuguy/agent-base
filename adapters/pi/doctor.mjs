@@ -266,8 +266,27 @@ async function main() {
 
         // ---- 字段 4：连接器（实际启用的）----
         // 该 harness 的原生 MCP 客户端能力见 adapter.yaml 的 capabilities.mcpClient。
+        //
+        // **口径（诚实标注）**：pi 原生没有 MCP 客户端，连接器经**基座种子扩展**生效
+        // （渲染成 agent-dir 的 `mcp.json`）。该扩展的服务列表**不在 pi 的原生自证里**
+        // （`get_state`/`get_commands` 只报技能与命令），所以这里的"已启用"取自**产物**：
+        // mcp.json 里声明了哪几台服务器 + 产物是否声明了客户端扩展。
+        // 这是"**已配置且就位**"口径，不是"运行时自报已连接"口径 —— 差异写进 exemptions.yaml。
+        // 而"连接器真的生效了"由闸门 3 从**端点侧**取证（接上 MCP 后实测工具数 4 → 7）。
         ctx.mcpClient = adapter.capabilities?.mcpClient ?? "unknown";
-        ctx.observedConnectors = [];
+        const mcpFile = path.join(staging, "mcp.json");
+        const settingsFile = path.join(staging, "settings.json");
+        const pkgList = fs.existsSync(settingsFile)
+          ? (JSON.parse(fs.readFileSync(settingsFile, "utf8")).packages ?? [])
+          : [];
+        const hasClient = pkgList.some((x) => String(x).includes("pi-mcp-adapter"));
+        const mcpServers = fs.existsSync(mcpFile)
+          ? Object.keys(JSON.parse(fs.readFileSync(mcpFile, "utf8")).mcpServers ?? {})
+          : [];
+        ctx.connectorsObservationScope = hasClient
+          ? "configured-and-in-place（产物 mcp.json + 已声明客户端扩展）"
+          : "no-client-extension";
+        ctx.observedConnectors = hasClient ? mcpServers.sort() : [];
 
         // ---- 字段 5：扩展（已加载的业务级增强 id）----
         // 声明来自渲染产物的 enhancements.yaml；"已加载"目前只能观测到会注册命令/工具的那类扩展，
@@ -392,7 +411,9 @@ async function main() {
 
   // 断言上下文：把 manifest 的声明与"基座不变量技能"合并成期望集合
   ctx.declaredSkills = [...(manifest.declaredSkills ?? [])].sort();
-  ctx.enabledConnectors = (manifest.connectors ?? []).map((c) => c.name).sort();
+  // 清单里的字段是 serverName（渲染器与两个 harness 统一用这个名）；早期这里写 c.name，
+  // 于是"声明集合"变成了 [undefined] —— 集合断言必错，而且错得看不懂。
+  ctx.enabledConnectors = (manifest.connectors ?? []).map((c) => c.serverName ?? c.name).filter(Boolean).sort();
   ctx.expectedRoutes = [...(manifest.modelRoutes ?? [])].sort();
 
   // 基座不变量技能（清单里声明为 shipped 且默认启用）也要进期望集合

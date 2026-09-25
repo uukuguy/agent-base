@@ -106,6 +106,10 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 ### 示例
 
 - `examples/idea-to-proof`：纯技能型，四道闸门 → 可用；技能里带一个可自检的脚本
+- `examples/contract-review`：**带 MCP 连接器**（`ref: filesystem`，零凭据、可离线）；两个运行时四道闸门均 → 可用
+- **每个示例都在每个运行时上验「可用」**（`make examples-check`）—— "可移植"这句承诺的可执行形态
+- **跨运行时等价性比对**（`make compare`）：技能/连接器/模型路由三组集合两侧一致、路由协议形状一致，
+  且**任何差异都必须有声明**（读各运行时的 `exemptions.yaml`）—— 可以不一样，但不许悄悄不一样
 
 ### 文档
 
@@ -117,7 +121,6 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 |---|---|
 | 生产化能力 | 鉴权、审批流、多租户、高可用、SBOM 签名、常驻服务编排 —— **不在基座范围**。基座里的安全基线存在的理由是让验证环境足够接近生产，结论才可信 |
 | ~~pi 侧的 MCP 客户端~~ | **已接入**：选定并 pin 第三方扩展 `pi-mcp-adapter@2.37.0` 作为基座种子依赖（构建期装进镜像、运行期不下载）；连接器渲染成 `agent-dir/mcp.json`，实测工具数 4 → 7 |
-| `examples/contract-review` | 带 MCP 的双运行时示例（后置：暂无成熟业务场景） |
 | 镜像推送链路 | 多架构 manifest 已能产出；推送到 registry 需要可用的内部仓库 |
 | dsh 的 `model.reasoningEffort` 映射 | provider 条目的取值形状未实测 ⇒ 声明为豁免，不猜形状 |
 | pi 侧增强"已加载"的观测 | 目前验到「已进入产物」，离「已被运行时成功加载」还差扩展自报一步（`adapters/pi/failures.md` F6） |

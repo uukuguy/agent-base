@@ -336,6 +336,8 @@ function main() {
     declaredSkills,
     declaredEnhancements: enhancements.map((e) => e.id).sort(),
     connectors: enabled.map((c) => ({ serverName: c.name, transport: c.transport })),
+    // 连接器的包坐标：闸门 3 据此断言"运行期能离线启动它"
+    connectorPackages: enabled.filter((c) => c.pin).map((c) => `${c.pin.package}@${c.pin.version}`),
     connectorsNote: "该 harness 原生支持 MCP（mcpClient: supported）；每服务器一条 insert row",
     denyTools: agent.tools?.deny ?? [],
     denyRows,

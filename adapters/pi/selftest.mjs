@@ -104,13 +104,35 @@ console.log("\n── ③ 静默失败必须被抓到（C5 的检测力）──
   check("失败信息点明「声明了 vs 实际生效」", /声明了 high/.test(r.stderr ?? "") && /实际生效 off/.test(r.stderr ?? ""), (r.stderr ?? "").slice(-300));
 }
 {
+  // 连接器：此前的预期是"渲染响亮失败"（那时 pi 没有 MCP 客户端）。
+  // 现在客户端由**基座种子扩展**补上（pi-mcp-adapter，构建期装好），所以预期变成两条新不变量：
+  //   ① 渲染成功，且产物里**真的**有 mcp.json + 客户端扩展声明（不是静默跳过）
+  //   ② 产物声明了连接器却没有客户端扩展 → doctor 必须报错（对治"连接器被静默忽略"）
   const agent3 = path.join(tmp, "agent-conn");
   makeAgent(agent3);
   fs.writeFileSync(path.join(agent3, "connectors.yaml"),
     "apiVersion: agent-base/v1\nmcpServers:\n  - ref: filesystem\n    enabled: true\n");
-  const r = run(["adapters/pi/render.mjs", agent3, "--out", path.join(tmp, "out-conn")]);
-  check("声明了连接器 → render 响亮失败（不产出假的成功）", r.status === EXIT_CODES.static, `退出码 ${r.status}`);
-  check("失败信息说明原因并给出后续动作", /MCP/.test(r.stderr ?? "") && /preinstall|research/.test(r.stderr ?? ""), (r.stderr ?? "").slice(-400));
+  const outConn = path.join(tmp, "out-conn");
+  const r = run(["adapters/pi/render.mjs", agent3, "--out", outConn]);
+  check("声明了连接器 → 渲染成功（客户端由基座种子扩展提供）", r.status === EXIT_CODES.ok, `退出码 ${r.status} ${(r.stderr ?? "").slice(-200)}`);
+
+  const mcpFile = path.join(outConn, "agent-dir/mcp.json");
+  const settingsFile = path.join(outConn, "agent-dir/settings.json");
+  let mcpOk = false;
+  let pkgOk = false;
+  try {
+    mcpOk = Object.hasOwn(JSON.parse(fs.readFileSync(mcpFile, "utf8")).mcpServers ?? {}, "filesystem");
+    pkgOk = (JSON.parse(fs.readFileSync(settingsFile, "utf8")).packages ?? []).some((x) => String(x).includes("pi-mcp-adapter"));
+  } catch { /* 下面按 false 报出 */ }
+  check("产物里连接器**真的**被渲染（agent-dir/mcp.json 有该服务器）", mcpOk, mcpFile);
+  check("产物声明了 MCP 客户端扩展（settings.packages）", pkgOk, settingsFile);
+
+  // 防线：把客户端声明摘掉，doctor 必须报错 —— 这是"连接器被静默忽略"的新形态
+  fs.writeFileSync(settingsFile, JSON.stringify({ ...JSON.parse(fs.readFileSync(settingsFile, "utf8")), packages: [] }, null, 2));
+  const d = run(["adapters/pi/doctor.mjs", outConn]);
+  check("声明了连接器但缺客户端扩展 → doctor 报错（不静默忽略）",
+    d.status === EXIT_CODES.resolution && /connectors-client/.test(d.stderr ?? ""),
+    `退出码 ${d.status} ${(d.stderr ?? "").slice(-200)}`);
 }
 
 console.log(`\n${failures === 0 ? "pi 适配器自检：全绿" : `pi 适配器自检：失败 ${failures} 项`}`);

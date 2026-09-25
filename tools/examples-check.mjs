@@ -25,6 +25,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const EXAMPLES = path.join(REPO, "examples");
 
+/** 仓库里当前接入的运行时（按目录发现，不写死）。 */
+function harnessesPresent() {
+  return fs.readdirSync(path.join(REPO, "adapters"), { withFileTypes: true })
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(REPO, "adapters", e.name, "adapter.yaml")))
+    .map((e) => e.name).sort();
+}
+
 const run = (args, opts = {}) => spawnSync(process.execPath, args, { encoding: "utf8", cwd: REPO, timeout: 900000, ...opts });
 
 /** 递归找出技能目录下的脚本（技能脚本落点：skills/<name>/scripts/）。 */
@@ -76,11 +83,24 @@ const main = () => {
     }
 
     if (!fast) {
-      const out = path.join(REPO, "dist/pi", name);
-      const vf = run([path.join(HERE, "verify.mjs"), dir, "--harness", "pi", "--out", out]);
-      const usable = /可用：四道闸门全过/.test(`${vf.stdout}${vf.stderr}`);
-      line(vf.status === 0 && usable, `四道闸门 → ${usable ? "可用" : "**不可用**"}（退出码 ${vf.status}）`);
-      if (!usable) process.stderr.write((vf.stderr ?? "").split("\n").slice(-12).join("\n") + "\n");
+      // **每个示例都要在每个运行时上给出「可用」** —— 这正是"可移植"这句承诺的可执行形态。
+      // 只验一个运行时，等于把"可移植"留成口号。
+      for (const h of harnessesPresent()) {
+        const out = path.join(REPO, "dist", h, name);
+        const vf = run([path.join(HERE, "verify.mjs"), dir, "--harness", h, "--out", out]);
+        const usable = /可用：四道闸门全过/.test(`${vf.stdout}${vf.stderr}`);
+        line(vf.status === 0 && usable, `${h}：四道闸门 → ${usable ? "可用" : "**不可用**"}（退出码 ${vf.status}）`);
+        if (!usable) process.stderr.write((vf.stderr ?? "").split("\n").slice(-12).join("\n") + "\n");
+      }
+
+      // 多运行时下再比一次等价性：三组集合一致、差异都有声明（不许沉默不等价）
+      const hs = harnessesPresent();
+      if (hs.length > 1) {
+        const cmp = run([path.join(HERE, "compare.mjs"), dir]);
+        const equivalent = /等价性通过/.test(`${cmp.stdout}${cmp.stderr}`);
+        line(cmp.status === 0 && equivalent, `跨运行时等价性 → ${equivalent ? "通过" : "**未通过**"}（${hs.join(" / ")}）`);
+        if (!equivalent) process.stderr.write((cmp.stderr ?? cmp.stdout ?? "").split("\n").slice(-12).join("\n") + "\n");
+      }
     }
   }
 

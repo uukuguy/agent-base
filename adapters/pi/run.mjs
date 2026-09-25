@@ -62,7 +62,10 @@ export function stageRenderDir(renderDir, endpoint) {
     if (inImage && fs.existsSync(settingsFile)) {
       const text = fs.readFileSync(settingsFile, "utf8");
       if (text.includes(inImage)) {
-        const local = process.env.AGENT_MCP_ADAPTER_PATH;
+        // 默认值：开发机上 `make dev-env` 会把预装清单里的包装进 <repo>/.local-packages，
+        // 于是本地跑带连接器的智能体**不需要手设任何环境变量**（"快"= 心智负担低）。
+        const localDefault = path.join(HERE, "../../.local-packages/node_modules/pi-mcp-adapter");
+        const local = process.env.AGENT_MCP_ADAPTER_PATH ?? (fs.existsSync(localDefault) ? localDefault : null);
         if (!local) {
           throw new Error(
             `产物声明了 MCP 客户端扩展（${inImage}），但本地运行未提供 AGENT_MCP_ADAPTER_PATH —— ` +
@@ -116,6 +119,7 @@ export async function runAgent({
   const manifest = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
   const env = {
     ...process.env,
+    ...localBinPathEnv(),
     HOME: home,
     PI_CODING_AGENT_DIR: staging,
     PI_OFFLINE: "1",
@@ -212,12 +216,24 @@ export function probeVersion(bin = "pi") {
   });
 }
 
+/**
+ * 本地已装的预装包（`make dev-env` 装到 `<repo>/.local-packages`）的 `.bin` 进 PATH。
+ *
+ * 为什么需要：连接器的 stdio 服务器以 `npx -y <包>@<版本>` 启动。本地装过之后 npx 才能解析到它，
+ * 于是本地验证也不需要出网 —— 与镜像内"构建期装齐、运行期断网"是同一个道理。
+ */
+function localBinPathEnv() {
+  const bin = path.join(HERE, "../../.local-packages/node_modules/.bin");
+  if (!fs.existsSync(bin)) return {};
+  return { PATH: [bin, process.env.PATH].filter(Boolean).join(":") };
+}
+
 /** 观测"实际加载了什么"：返回 doctor 与 probe 共用的那组事实。 */
 export async function observeLoaded(renderDir, { timeoutMs = 20000 } = {}) {
   const { staging } = stageRenderDir(renderDir, "http://127.0.0.1:9/v1"); // 端点无关紧要：RPC 不发模型请求
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "agent-obshome-"));
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agent-obscwd-"));
-  const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: staging, PI_OFFLINE: "1" };
+  const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: staging, PI_OFFLINE: "1", ...localBinPathEnv() };
   const rpc = await piRpc({ env, cwd, staging, requests: [{ id: "o1", type: "get_state" }, { id: "o2", type: "get_commands" }], timeoutMs });
   const commands = rpc.responses.get("get_commands")?.data?.commands ?? [];
   return {

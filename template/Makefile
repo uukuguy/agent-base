@@ -40,6 +40,9 @@ probe: check-base ## 闸门 3：集成探针（零凭据假网关）
 smoke: check-base ## 闸门 4：端到端冒烟
 	@node $(AGENT_BASE_DIR)/tools/smoke.mjs $(RENDER_DIR) $(if $(JSON),--json,)
 
+compare: check-base ## 跨运行时等价性比对（同一份定义在两个运行时里是否等价）
+	@node $(AGENT_BASE_DIR)/tools/compare.mjs . $(if $(HARNESSES),--harnesses $(HARNESSES),) $(if $(JSON),--json,)
+
 verify: check-base ## 四道闸门全跑 → 给出「可用 / 不可用」（ENDPOINT=URL 可针对真实端点跑闸门 3/4）
 	@node $(AGENT_BASE_DIR)/tools/verify.mjs . --harness $(HARNESS) --out $(RENDER_DIR) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(JSON),--json,)
 

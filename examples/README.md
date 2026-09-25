@@ -6,7 +6,7 @@
 | 示例 | 形态 | 用来演示什么 |
 |---|---|---|
 | [`idea-to-proof/`](idea-to-proof/) | **纯技能型** | 最快路径：一句话定义 + 几个技能，就能把想法变成可验证的东西 |
-| `contract-review/` | 带外部系统连接（MCP） | 双 harness 交付与等价性比对（**待做**，见路线图 S5） |
+| [`contract-review/`](contract-review/) | **带外部系统连接（MCP）** | 双运行时交付与**等价性比对**：同一份定义在 pi 与 dsh 上都跑通并真的用上连接器 |
 
 ## 怎么跑
 
@@ -16,6 +16,9 @@ make verify AGENT_DIR=examples/idea-to-proof
 
 # 本地交互跑一次
 make run-local AGENT_DIR=examples/idea-to-proof
+
+# 跨运行时等价性比对（两个运行时是否等价、差异是否都有声明）
+make compare AGENT_DIR=examples/contract-review
 
 # 逐个示例校验（结构 + 四道闸门 + 技能脚本自检）
 make examples-check

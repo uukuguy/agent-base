@@ -34,6 +34,8 @@ const HARNESS = "pi";
  * 用的是 node 基础镜像里 `npm install -g` 的落地位置 —— 于是**复用既有的预装清单机制**，
  * 不需要为扩展包新造一条安装通道。本地运行时由运行器把该路径改写成本地安装路径。
  */
+/** 基座声明的模型路由目录（`model.route` 的合法取值 + 协议形状）。 */
+const ROUTES_PATH = path.join(HERE, "../../core/catalog/routes.yaml");
 const MCP_ADAPTER_IN_IMAGE = "/usr/local/lib/node_modules/pi-mcp-adapter";
 
 // ---------------------------------------------------------------------------
@@ -171,11 +173,20 @@ function main() {
     process.exit(EXIT_CODES.static);
   }
   const prefix = envPrefixFor(agent.model.route);
+  // 路由必须由基座声明（闸门 1 已校验）；渲染器据此取协议形状并记录到清单
+  const routesDoc = fs.existsSync(ROUTES_PATH) ? readYaml(ROUTES_PATH) : { routes: [] };
+  const activeRoute = (routesDoc.routes ?? []).find((r) => r.id === agent.model?.route);
+  if (!activeRoute) {
+    log(`❌ model.route「${agent.model?.route}」不在基座路由目录里（core/catalog/routes.yaml）—— 先跑 make validate 看可用取值`);
+    process.exit(EXIT_CODES.static);
+  }
+  const routeApi = activeRoute.api;
+
   const modelsTmpl = {
     providers: {
       [agent.model.route]: {
         baseUrl: `\${${prefix}_BASE_URL}`,
-        api: "openai-completions",
+        api: routeApi,   // 协议形状取自路由真源（core/catalog/routes.yaml），不硬编码
         apiKey: `$${prefix}_API_KEY`,
         models: [{ id: agent.model.name }],
       },
@@ -292,11 +303,14 @@ function main() {
     declaredSkills,
     declaredEnhancements,
     connectors: enabledConnectors.map((c) => ({ serverName: c.name, transport: c.transport })),
+    // 连接器的包坐标：闸门 3 据此断言"运行期能离线启动它"（不是"我们写了配置"）
+    connectorPackages: enabledConnectors.filter((c) => c.pin).map((c) => `${c.pin.package}@${c.pin.version}`),
     connectorsNote: "pi 原生无 MCP 客户端；连接器经基座种子扩展（pi-mcp-adapter，构建期装好）渲染成 agent-dir/mcp.json",
     mcpAdapterInImage: MCP_ADAPTER_IN_IMAGE,
     paramNames: connParamNames,
     runArgs,
     modelRoutes: [agent.model.route],
+    modelRouteApi: routeApi,   // 两个运行时都记录：比对时要求协议形状一致
     // 技能在**产物内**的相对位置：让上层工具（probe / C3）不必知道某 harness 的目录形状
     skillsInProduct: "agent-dir/skills",
     // **定义字段 → 产物位置的声明**（conformance C3 只验证这份声明，不再认死文件名）。

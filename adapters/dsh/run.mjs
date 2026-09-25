@@ -41,6 +41,16 @@ const routeParams = (manifest) => {
   return p;
 };
 
+/**
+ * 本地已装的预装包（`make dev-env` 装到 `<repo>/.local-packages`）的 `.bin` 进 PATH。
+ * 连接器的 stdio 服务器以 `npx -y <包>@<版本>` 启动；本地装过之后才能离线解析到它。
+ */
+function localBinPathEnv() {
+  const bin = path.join(HERE, "../../.local-packages/node_modules/.bin");
+  if (!fs.existsSync(bin)) return {};
+  return { PATH: [bin, process.env.PATH].filter(Boolean).join(":") };
+}
+
 /** 从渲染清单算出 §6.7 的 effectiveConfigDigest。 */
 export function digestOfRender(renderDir) {
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
@@ -96,6 +106,7 @@ export function stageRenderDir(renderDir) {
 export function envFor({ manifest, dshHome, endpoint, home, traceDest }) {
   const env = {
     ...process.env,
+    ...localBinPathEnv(),
     HOME: home,
     DSH_HOME: dshHome,
     AGENT_RUN_MODE: process.env.AGENT_RUN_MODE ?? "oneshot",

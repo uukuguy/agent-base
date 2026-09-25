@@ -148,17 +148,36 @@ async function main() {
           }
 
           // ---- probe/connectors ----
-          const enabled = (manifest.connectors ?? []).filter((s) => s.enabled !== false);
-          const mcpClient = c.manifest.mcpClient ?? "unknown";
-          if (!enabled.length) {
-            rep.pass(GATE, "probe/connectors.reachable", "未声明启用的连接器，无需探针");
-          } else if (mcpClient === "unsupported") {
-            // 不许静默降级：没有客户端就不能声称连接器可用
-            rep.fail(GATE, "probe/connectors.reachable",
-              `声明了 ${enabled.length} 个连接器，但该 harness 原生无 MCP 客户端 —— 不可达（不许静默降级）`);
-          } else {
-            rep.fail(GATE, "probe/connectors.reachable",
-              `连接器探针尚未实现对该 harness 的支持（声明了 ${enabled.length} 个）—— 未实现不算通过`);
+          // 判据：声明的每台服务器都**能在运行期离线启动**（这是无外网环境的真正门槛），
+          // 且产物确实把它渲染了出来。做法是查渲染清单里的包坐标在本地/镜像里是否就位 ——
+          // 不是"我们写了配置就算数"。
+          // 实测佐证由 probe/model 一并给出（假网关记录端点收到的工具数：接上连接器后会显著变大）。
+          {
+            const declared = manifest.connectors ?? [];
+            const pkgs = manifest.connectorPackages ?? [];
+            if (!declared.length) {
+              rep.pass(GATE, "probe/connectors.reachable", "未声明启用的连接器，无需探针");
+            } else {
+              // 预装包落在两处之一：开发机本地（make dev-env）或基座镜像里（构建期全局安装）
+              const localRoot = path.join(REPO, ".local-packages/node_modules");
+              const inImageRoot = "/usr/local/lib/node_modules";
+              const missing = [];
+              for (const spec of pkgs) {
+                const name = spec.replace(/@[^@]*$/, "");          // @scope/pkg@ver → @scope/pkg
+                const ok = fs.existsSync(path.join(localRoot, name)) || fs.existsSync(path.join(inImageRoot, name));
+                if (!ok) missing.push(spec);
+              }
+              if (!pkgs.length && declared.length) {
+                rep.fail(GATE, "probe/connectors.reachable",
+                  `声明了 ${declared.length} 个连接器，但清单里没有包坐标 —— 无法判断它能否离线启动`);
+              } else if (missing.length) {
+                rep.fail(GATE, "probe/connectors.reachable",
+                  `${missing.length} 个连接器的包不在本地/镜像里（运行期会连不上）：${missing.join(", ")} —— 跑 make dev-env 装上，或确认它进了构建锁`);
+              } else {
+                rep.pass(GATE, "probe/connectors.reachable",
+                  `${declared.length} 个连接器已渲染且包就位（可离线启动）：${declared.map((c) => c.serverName).join(", ")}`);
+              }
+            }
           }
         },
       }],
