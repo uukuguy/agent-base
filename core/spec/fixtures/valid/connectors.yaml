@@ -12,3 +12,9 @@ mcpServers:
     args: ["-y", "@corp/gitlab-mcp@1.2.3"]
     credentialRef: GITLAB_TOKEN
     description: 代码托管
+  # ref 形态：开发者只写一个名字，实现细节由 core/image/preinstall.yaml 解析
+  - ref: filesystem
+    enabled: true
+    description: 工作区文件
+  - ref: thinking
+    name: reasoning

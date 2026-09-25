@@ -1,0 +1,2 @@
+expectFailure: schema/connectors
+why: ref 形态不允许覆写 args/transport/command/版本——允许的话每个智能体又会各自 pin 版本，「升级局部化」失效。

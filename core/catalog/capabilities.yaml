@@ -211,6 +211,24 @@ groups:
     label: 「它能连哪些系统」
     businessConcept: true
     fields:
+      - path: mcpServers[].ref
+        source: connectors.yaml
+        type: string
+        required: "ref 形态必填（与完整形态互斥）"
+        values: { pattern: "^[a-z][a-z0-9-]{1,30}$" }
+        layer: artifact
+        harnesses:
+          pi: { support: partial, verified: false, note: "解析由基座 render 完成；pi 侧的 MCP 客户端本身不自带（S2 预检结论），需基座提供客户端能力" }
+          dsh: { support: supported, verified: true, note: "解析后落为 dsh-mcp-client row（§11.2）" }
+        doc: >
+          按名引用基座预装条目（§4.3 设计点 4）。解析来源 core/image/preinstall.yaml 的 namedReferences。
+          这是「开发智能体便捷」的关键形态：开发者只写一个名字，不需要知道包名、版本、启动参数。
+        degradation: 未知 ref 必须显式失败（不是警告）——否则开发者会以为连接器生效了。
+        rules:
+          - 不允许覆写 transport / command / args / urlRef / credentialRef（否则每个智能体又各自 pin 版本，「升级局部化」失效）
+          - 需要定制时改用完整形态；两种形态在 schema 里互斥
+          - 服务器名默认 = ref 名，可用 name 覆盖
+
       - path: mcpServers[].name
         source: connectors.yaml
         type: string

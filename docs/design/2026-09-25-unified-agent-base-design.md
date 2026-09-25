@@ -466,11 +466,33 @@ mcpServers:
     credentialRef: GITLAB_TOKEN
 ```
 
-**两个设计点**：
+**四个设计点**：
 
 1. **`urlRef` / `credentialRef` 只写引用名**（N18）。取值来自参数层（§2.3）。适配器负责把它解析成 harness 原生字段——dsh 用 `!!js process.env.X`（原生支持），pi 需要在启动期渲染（§10.2 约束 1）。这个差异由适配器的"参数化能力"声明吸收，业务定义不变。
 2. **`stdio` 的 `command`/`args` 属于制品**：它决定"能连什么"，且是可执行内容，必须可评审、可 pin 版本。
 3. **自研连接器**：当内部系统没有现成 MCP server 时，业务把 server 代码放进 `mcp-servers/<name>/`，`stdio.command` 用相对路径引用它（如 `command: node`、`args: ["mcp-servers/corp-internal/index.js"]`）。渲染器把相对引用解析成镜像内固定路径（§8.1）；这套代码是**业务代码**，随制品一起烤、一起 digest（N19），不是外部依赖。
+
+4. **按名引用基座预装条目（`ref` 形态）**——**这是「开发智能体便捷」的关键一条**。上例是完整形态，要求业务方写全 `transport` + `command`/`args` + 包名版本；对非专家这等于要求先懂 MCP。因此定义单元支持第二种形态：
+
+```yaml
+apiVersion: agent-base/v1
+mcpServers:
+  - ref: filesystem        # 基座预装条目名（core/image/preinstall.yaml 的 namedReferences）
+    enabled: true          # 可省略，默认 true
+    description: 工作区文件  # 可选，覆盖预装条目的说明
+  - ref: playwright
+    name: web-tasks        # 可选：服务器名（默认 = ref 名）；同一 ref 用多次时必须给
+```
+
+| 规则 | 说明 |
+|---|---|
+| 解析来源 | `core/image/preinstall.yaml`（**独立可升级产物**）：`ref` → 条目的 `install`（包 + 精确 pin + transport + args）与 `credentialRef` |
+| **不提供实现细节覆写** | `ref` 形态**不允许**覆写 `transport` / `command` / `args` / 包名版本。这不是限制而是纪律：一旦允许，每个智能体又会各自 pin 版本，「升级局部化」失效（P-a：能力=基座持有的包与版本，选择=智能体写不写这个 ref） |
+| 需要定制时 | 用上面的完整形态写全；两者在 schema 里互斥（`oneOf`） |
+| 未知 `ref` | **显式失败**（不是警告）——否则开发者会以为连接器生效了 |
+| 服务器名 | 默认 = `ref` 名；`name` 可覆盖 |
+
+**为什么这不算"多一个真源"**：`ref` 只表达**选择**（用不用它），不表达实现；实现只存在于基座清单一处。完整形态与 `ref` 形态表达的是同一件事的不同详细程度——若允许 `ref` 覆写实现细节，才会变成两个真源。
 
 ### 4.4 `skills/`
 
@@ -559,10 +581,12 @@ groups:                       # 即业务概念的四个分组（N2）
   - id: skills                # 「它会哪些技能」
     fields: [skillsDir, skills[].name, skills[].description, skills[].whenToUse]
   - id: connectors            # 「它能连哪些系统」
-    fields: [mcpServers[].name, mcpServers[].transport, mcpServers[].urlRef, …]
+    fields: [mcpServers[].ref, mcpServers[].name, mcpServers[].transport, mcpServers[].urlRef, …]
 ```
 
 每个字段记录：类型、默认值、取值范围、所属层（制品/参数）、支持该字段的 harness 及降级行为。**"所属层"字段是 §2.3 纪律的第二个执法点**：目录说某字段属参数层，但它在 `agent.yaml` 里，`validate` 就报错。
+
+**连接器字段的两套形态**（§4.3）：`mcpServers[].ref` 是「按名引用基座预装条目」形态；其余字段是完整形态。两者互斥，`validate` 与能力目录都要覆盖：`ref` 必须能在 `core/image/preinstall.yaml` 的 `namedReferences` 里查到，否则**显式失败**。
 
 ### 4.7 定义版本与兼容
 
@@ -1461,6 +1485,8 @@ rm ~/.dsh/sessions/--Users-sujiangwen-sandbox-agentic-2026-dsh-agent-base--
 | `core/` 的 harness 名禁令范围 | 只覆盖**代码与 schema**；`catalog/*.yaml`（§4.6 要求记录各 harness 支持度）与 Markdown 文档（纪律原话）豁免 | §12.1 |
 | 连接器凭据的命名约定 | `<NAME>_(TOKEN\|SECRET\|KEY\|PASSWORD)`，由 §4.3 的示例归纳而来；使闸门 1 能判定 `credentialRef` 是否合法 | §2.3 / §4.3 |
 | 校验器依赖策略 | 基座工具链用精确 pin 的 `ajv` + `yaml`（npm 依赖，不进任何智能体制品）；若 I2 判定内网禁 npm，只需替换 `tools/validate.mjs` 一个文件 | §8.4 / §12.3 |
+| 连接器支持按名引用预装条目（`ref` 形态） | `connectors.yaml` 可用 `ref: <name>` 引用 `core/image/preinstall.yaml` 的预装条目；**不允许**覆写 transport/command/args/版本，需要定制时写完整形态。目的是让开发智能体便捷（心智负担低、非专家可上手），并保住「升级局部化」 | §4.3 / §4.6 |
+| 预装清单独立于核心契约 | 预装内容的升级节奏与核心契约不同，故单列 `core/image/preinstall.yaml` 为**独立可升级产物**；目标镜像是**验证基座镜像**（§8.1 验证快照语义），不做生产式能力裁剪（§7.2/§8.5 留待生产阶段回看） | §1.1 / §8.1 |
 
 ### 15.2 需要外部输入（评审无法代决）
 

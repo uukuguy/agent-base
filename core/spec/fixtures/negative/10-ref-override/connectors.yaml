@@ -1,0 +1,5 @@
+apiVersion: agent-base/v1
+mcpServers:
+  - ref: filesystem
+    args: ["/custom/dir"]
+    enabled: true

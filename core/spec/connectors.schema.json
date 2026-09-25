@@ -23,11 +23,41 @@
       "description": "参数层引用名（环境变量名形态）。取值来自 core/catalog/params.yaml 允许清单里的条目。"
     },
     "server": {
-      "description": "按 transport 分型：streamable-http 必须给 urlRef，stdio 必须给 command。两个分型各自 additionalProperties:false，因此跨型字段（如 http 里写 command）会被直接拒绝。",
+      "description": "三种形态互斥：① ref 按名引用基座预装条目（§4.3 设计点 4，开发者只写一个名字）；② streamable-http 完整形态；③ stdio 完整形态。形态之间字段不通用，因此各自 additionalProperties:false——跨形态字段会被直接拒绝。",
       "oneOf": [
+        { "$ref": "#/$defs/refServer" },
         { "$ref": "#/$defs/httpServer" },
         { "$ref": "#/$defs/stdioServer" }
       ]
+    },
+    "refServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref"],
+      "description": "按名引用基座预装条目。解析来源：core/image/preinstall.yaml 的 namedReferences（→ 条目的 install 与 credentialRef）。这是「开发智能体便捷」的关键形态：开发者不需要知道包名、版本、启动参数。",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,30}$",
+          "description": "预装条目名。未知 ref 必须显式失败（不是警告）——否则开发者会以为连接器生效了。"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,32}$",
+          "description": "可选：服务器名。默认 = ref 名；同一个 ref 用多次时必须给。"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "可选，默认 true。闸门 2 断言 enabled:true 的集合 == 声明集合（§6.3）。"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "可选：覆盖预装条目的说明。"
+        }
+      }
     },
     "httpServer": {
       "type": "object",

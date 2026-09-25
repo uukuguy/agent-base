@@ -1,0 +1,2 @@
+expectFailure: ref/unknown-ref
+why: 未知 ref 必须显式失败，不能静默忽略——否则开发者会以为连接器生效了，正是最费心智负担的一类假成功。

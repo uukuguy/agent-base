@@ -242,7 +242,13 @@ function checkBase(report) {
   // A6 预装清单
   checkPreinstall(report);
 
-  return { ajv, agentSchema, connectorsSchema, caps, params };
+  let preinstall = null;
+  const preinstallFile = path.join(CORE, "image", "preinstall.yaml");
+  if (fs.existsSync(preinstallFile)) {
+    try { preinstall = loadYaml(preinstallFile); } catch { preinstall = null; }
+  }
+
+  return { ajv, agentSchema, connectorsSchema, caps, params, preinstall };
 }
 
 // ---------------------------------------------------------------------------
@@ -452,6 +458,33 @@ function checkAgent(report, ctx, agentDir) {
     }
     if (agent.model?.route) report.paramNames.push(agent.model.route);
     report.paramNames = [...new Set(report.paramNames)].sort();
+  }
+
+  // B3' ref 解析：按名引用必须能查到，且凭证引用名要进报告的 paramNames
+  //     未知 ref 必须**显式失败** —— 否则开发者会以为连接器生效了（§4.3 设计点 4）
+  if (connectors) {
+    const named = ctx.preinstall?.namedReferences ?? {};
+    const entriesById = new Map((ctx.preinstall?.entries ?? []).map((e) => [e.id, e]));
+    const unknownRefs = [];
+    for (const s of connectors.mcpServers ?? []) {
+      if (!s.ref) continue;
+      const entryId = named[s.ref];
+      if (!entryId) {
+        unknownRefs.push(`${s.ref}（可用：${Object.keys(named).join(", ") || "无"}）`);
+        continue;
+      }
+      const entry = entriesById.get(entryId);
+      if (entry?.credentialRef) report.paramNames.push(entry.credentialRef);
+    }
+    report.paramNames = [...new Set(report.paramNames)].sort();
+    if (unknownRefs.length) {
+      report.fail(GATE, "ref/unknown-ref",
+        `引用了基座预装清单里不存在的名字（core/image/preinstall.yaml 的 namedReferences）：${unknownRefs.join("；")}`);
+    } else {
+      const refCount = (connectors.mcpServers ?? []).filter((s) => s.ref).length;
+      if (refCount) report.pass(GATE, "ref/unknown-ref", `${refCount} 个 ref 都能在预装清单里解析到`);
+      else report.pass(GATE, "ref/unknown-ref", "没有使用 ref 形态（全部为完整形态）");
+    }
   }
 
   // B4 技能 frontmatter

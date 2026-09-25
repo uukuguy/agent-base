@@ -51,3 +51,8 @@
 - 16:50 validate 新增 preinstall/* 组 10 项：精确 pin / devUse / 引用名双向一致 / 凭据引用名合法 / planned-skill 自洽
 - 16:50 待确认公开契约变更：connectors.yaml 支持 ref 按名引用基座预装条目（省掉开发者写包名版本参数）
 - 16:50 设计语言待对齐：§8.1 说镜像是「验证快照」，§8.5 说的是「生产基座镜像」；本清单只服务前者
+- 17:05 用户同意 ref 形态与「用 conformance 选型」；公开契约变更先回写设计 §4.3/§4.6 + §15.1 记账
+- 17:10 connectors.schema.json 新增 refServer 形态（ref 必填；与完整形态 oneOf 互斥；不许覆写实现细节）
+- 17:10 capabilities.yaml 增 mcpServers[].ref（能力目录现覆盖 schema 全部 20 个字段路径）
+- 17:10 validate 新增 ref/unknown-ref 检查：未知 ref 显式失败；ref 命中的预装条目凭据进 paramNames
+- 17:10 新负向样本 09-unknown-ref / 10-ref-override；闸门 1 现 27 项检查 + 11 个自检样本全绿
