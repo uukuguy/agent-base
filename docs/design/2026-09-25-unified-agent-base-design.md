@@ -101,9 +101,9 @@
 
 ### 1.1 目标
 
-> **一个新的企业智能体可以从基座便捷地启动；同一份智能体定义可以被任意一个受支持的 harness 运行。**
+> **帮助某一个业务智能体把想法"验证走通"——E2E = 四道闸门全过 = 可用；同一份智能体定义可以被任意一个受支持的 harness 验证。**
 
-基座本身不承载业务价值。它由两件事证明：**从它派生一个智能体有多省事**（上位文档的共同目标），以及**换一个 harness 的代价有多小**（本文新增的第二目标）。
+**核心目标是"验证走通"，不是"生产上线"**（用户已明确）。基座的价值由两件事证明：**从它派生并验证一个智能体有多省事**，以及**换一个 harness 验证的代价有多小**。走通之后是一个**决策点**（继续投入 / 放弃 / 进入真正的生产化），生产化是另一个阶段、可能另一个团队，不回头改基座。
 
 ### 1.2 三层边界：基座 / 应用 / 平台
 
@@ -151,7 +151,7 @@
 
 ### 1.5 明确不做（本阶段）
 
-沿用并合并两份上位文档的"不做"清单：
+**生产上线本身不在基座范围**（§1.1）：基座交付的是"验证走通的证据与可复现制品"，不是可长期运行、高可用、需鉴权审计的生产服务。下列各项皆由此导出，沿用并合并两份上位文档的"不做"清单：
 
 - 平台能力：权限体系、审批流、多租户、调度与编排、计费（pi D1；基座只提供被调用的接口）
 - 私有 npm registry、bundle 版本矩阵治理、SBOM/镜像签名（dsh §1.5 + pi D5；列为 §14 风险而非本期交付）
@@ -202,6 +202,7 @@
 |---|---|---|---|
 | 人设、边界（工具白/黑名单） | 改变行为 | **制品（构建期）** | 行为必须可评审、可回滚、可签名 |
 | 技能集合（清单与实现） | 改变行为 | **制品** | 同上；技能是可执行内容 |
+| 业务代码（技能脚本、自研连接器） | 改变行为 | **制品** | 可执行内容，必须可评审、可签名、可复现（§4.1 的 `scripts/`、`mcp-servers/`） |
 | 连接器集合（有哪些服务器、传输方式） | 改变行为 | **制品** | "它能连哪些系统"是能力声明 |
 | 连接器指向哪个环境的同名系统（URL） | **不**改变行为 | **参数层** | 同名系统的不同环境实例；换环境不该重建 |
 | 模型路由名 + 模型名 | 改变行为 | **制品** | "它用哪个模型"是行为选择；会话级 `/model` 属调试，不属制品 |
@@ -390,7 +391,11 @@ my-agent/                        # 派生到基座之外，独立仓库或独立
 ├── agent.yaml                   # 必填：身份、人设、边界、模型选择
 ├── connectors.yaml              # 可选：连接器（不写 = 无连接器）
 ├── skills/                      # 可选：技能
-│   └── <skill-name>/SKILL.md
+│   └── <skill-name>/
+│       ├── SKILL.md             #   指令（必填）
+│       └── scripts/             #   业务代码（可选）：SKILL.md 里调用的脚本/工具
+├── mcp-servers/                 # 可选：自研连接器代码（内部系统无现成 MCP server 时）
+│   └── <server-name>/
 ├── harness/                     # 可选：逃生舱
 │   ├── pi/                      #   pi 独有内容
 │   └── dsh/                     #   dsh 独有内容
@@ -446,10 +451,11 @@ mcpServers:
 
 1. **`urlRef` / `credentialRef` 只写引用名**（N18）。取值来自参数层（§2.3）。适配器负责把它解析成 harness 原生字段——dsh 用 `!!js process.env.X`（原生支持），pi 需要在启动期渲染（§10.2 约束 1）。这个差异由适配器的"参数化能力"声明吸收，业务定义不变。
 2. **`stdio` 的 `command`/`args` 属于制品**：它决定"能连什么"，且是可执行内容，必须可评审、可 pin 版本。
+3. **自研连接器**：当内部系统没有现成 MCP server 时，业务把 server 代码放进 `mcp-servers/<name>/`，`stdio.command` 用相对路径引用它（如 `command: node`、`args: ["mcp-servers/corp-internal/index.js"]`）。渲染器把相对引用解析成镜像内固定路径（§8.1）；这套代码是**业务代码**，随制品一起烤、一起 digest（N19），不是外部依赖。
 
 ### 4.4 `skills/`
 
-形式对齐两个 harness 的交集：**目录 bundle `<name>/SKILL.md`**。
+形式对齐两个 harness 的交集：**目录 bundle `<name>/SKILL.md`**。技能可以携带**业务代码**——`scripts/` 子目录放 SKILL.md 里调用的脚本/工具，SKILL.md 用相对路径引用（如「运行 `scripts/parse.py 输入文件`」）；脚本随技能一起进渲染产物、烤进镜像，同样受"同一 digest = 同一行为"约束（N19）。
 
 ```markdown
 ---
@@ -770,6 +776,8 @@ HARNESS=dsh render → doctor → smoke ┘
 
 **并且验证能力必须在基座里，不能在应用里。** 应用作者既没有能力、也不该自己判断"配置是否真的生效"——§5.5 的静默失败清单正是这类问题的来源。
 
+**"可用"是决策点，不是上线点**（§1.1）：四闸门全绿意味着"这个想法被证明走通了"，产出的是验证证据与可复现制品（§8.1）；之后是否进入生产化是另一个决策，不回头改基座。
+
 ---
 
 ## 7. 【不变量】安全与凭据
@@ -787,6 +795,8 @@ HARNESS=dsh render → doctor → smoke ┘
 **硬下限清单在 `conformance/C9` 里逐条断言**：任何 harness 都必须在下限内可运行。
 
 ### 7.2 基线下限清单（容器层，两个 harness 一致）
+
+> **本清单的存在理由是"让验证环境足够接近生产、结论才可信"，不是"为生产部署加固"**（§1.1：核心目标是验证走通，不是生产上线）。安全断言只在容器内算数（§9.2）——验证环境若比生产松太多，走通就不可信；但基座不承接生产上线本身的加固责任。
 
 | 项 | 取值 |
 |---|---|
@@ -840,6 +850,31 @@ registry/<agent-name>:<ver>@sha256:<digest>             ← 智能体镜像：�
 - **换基座版本 = 改 `FROM` 的 digest**（pi §3.4 的做法，通用化）。
 - 容器交付镜像**不接受 `--patch` 等运行期行为覆盖参数**（§2.2 副作用一）；入口脚本遇到这类参数必须失败。
 
+**镜像文件系统结构（业务代码落在哪）**——业务代码是"行为"，只进**智能体镜像的薄层**，绝不进基座镜像（§1.2 基座不含业务）：
+
+```
+my-agent:<ver> 镜像文件系统
+├── （基座层 · 来自 base:<ver> · 只读）
+│   ├── harness 运行时 + 不变量     pi: /opt/pi/agent        dsh: $DSH_HOME
+│   └── 基座工具                    entrypoint / doctor / probe / verify
+│
+├── （智能体层 · COPY 渲染产物 · 行为在此冻结）
+│   ├── 声明渲染产物                pi: agent-dir/            dsh: $DSH_HOME/profiles/<name>/
+│   ├── 业务技能 + 脚本             skills/<name>/{SKILL.md, scripts/}
+│   └── 自研连接器代码              mcp-servers/<name>/
+│
+└── /data（可写卷 · 挂载 · 不烤入）  会话/状态、轨迹导出、工作区
+```
+
+| 业务代码落点 | 内容 | 谁引用 |
+|---|---|---|
+| `skills/<name>/scripts/` | 技能的可执行部分（脚本/工具） | SKILL.md 相对路径引用 |
+| `mcp-servers/<name>/` | 内部系统无现成 MCP server 时自写的 server | `connectors.yaml` 的 `stdio.command` 相对路径引用 |
+
+**渲染器职责新增**：把业务代码（`scripts/`、`mcp-servers/`）连同声明一起确定性打包进渲染产物，并把相对引用解析成镜像内固定路径。
+
+**镜像语义**：本文的智能体镜像是**验证快照**（同一 digest 可重跑、可交接），**不是生产镜像**（为部署服务）——§1.1 核心目标是验证走通；生产化是走通之后的另一个阶段。
+
 ### 8.2 进程契约
 
 | | 约定 |
@@ -850,6 +885,8 @@ registry/<agent-name>:<ver>@sha256:<digest>             ← 智能体镜像：�
 | **`AGENT_RUN_MODE`** | `interactive`（默认，人用）/ `oneshot`（`-p` 语义，CI 用）/ `rpc`（常驻，平台接入）/ `debug`（交互式调试运行时，**仅 debug 变体镜像**，§8.5） |
 | **参数分派** | 无参数 = `interactive`；`-` 开头 = 透传 harness 原生参数；其它 = 命令（pi entrypoint 已实测的做法，通用化） |
 | **EPIPE** | 客户端提前关闭 stdout 会让子进程崩溃（pi 实测）→ RPC 客户端必须持续读取；基座侧捕获 EPIPE 并给出明确错误而非崩溃 |
+
+> `rpc` / `oneshot` 在此阶段是**验证入口**（被验证脚本/测试框架调用），不是生产常驻服务；生产化的鉴权、会话归属、并发不在基座范围（§1.5）。
 
 ### 8.3 统一轨迹与审计事件（N24，G3）
 
@@ -999,6 +1036,8 @@ registry/agent-base:<h>-debug                           ← 只加调试层：sh
 | `agent.yaml` → `tools.deny` | `settings.json` 的工具配置 | |
 | `connectors.yaml` | `agent-dir/mcp.json`（`mcpServers` + `allowInstall:false` + `hostConfigDiscovery:"off"`） | `urlRef` → 启动期渲染；`command/args` 直出 |
 | `skills/` | `agent-dir/skills/`（软链或拷贝） | |
+| `skills/<name>/scripts/` | `agent-dir/skills/<name>/scripts/`（原样打包） | 业务代码随技能 |
+| `mcp-servers/<name>/` | `agent-dir/mcp-servers/<name>/`（原样打包） | 自研连接器代码；`command` 相对引用解析为镜像内路径 |
 | （基座不变量） | `agent-dir/extensions/{protected-paths,audit-log}.ts`、`settings.json` 的安全键 | 来自 `adapters/pi/seed/` |
 | `harness/pi/` | 原样合并进 `agent-dir/` | 逃生舱 |
 
@@ -1063,6 +1102,8 @@ registry/agent-base:<h>-debug                           ← 只加调试层：sh
 | `agent.yaml` → `tools.deny` | profile 内的工具 row（`disabled` / `config`） | |
 | `connectors.yaml` | 每服务器一条 `dsh-mcp-client` row | `urlRef`/`credentialRef` 用 `!!js process.env.X`（原生支持） |
 | `skills/` | profile 的 `customSkillDirs`（rank 300） | **智能体技能必须进 rank 300**：`$DSH_HOME/skills`（rank 400）是基座不变量技能的位置，放进那里会让所有智能体都带上它，闸门 2 的集合断言会失败（除非该技能确实属于基座不变量） |
+| `skills/<name>/scripts/` | profile 的 `customSkillDirs` 下同目录（随技能） | 业务代码随技能 |
+| `mcp-servers/<name>/` | 镜像内固定路径（如 `/opt/agent/mcp-servers/<name>/`），`command` 指向它 | 自研连接器代码；相对引用解析为镜像内路径 |
 | （基座不变量） | 基座镜像的 `$DSH_HOME/cordis.patch.yml` + `$DSH_HOME/node_modules` | 安全姿态、审计插件、强制校验插件 |
 | `harness/dsh/` | 原样合并进 profile 的 `cordis.patch.yml` | 逃生舱 |
 
@@ -1215,6 +1256,8 @@ make verify HARNESS=pi,dsh     # 同一份定义，两个 harness，四闸门 + 
 
 **验收标准**：① 只需要业务知识；② 不出现 harness 术语；③ 给出明确的"可用/不可用"+ JSON 报告；④ 换 harness 不需要改定义（逃生舱除外），且等价性差异全部显式（豁免或失败）。
 
+**走通后的交付（§8.1）**：流程甲的最后一步产出的是**验证证据包**——`verify --json` 结论 + 可复现的 `my-agent:<ver>@sha256` 快照 + 交接文档，支撑"继续投入 / 放弃 / 进入生产化"的决策，**不是生产上线**（§1.1）。
+
 ### 12.5 迭代循环
 
 ```
@@ -1304,6 +1347,8 @@ git -C ~/sandbox/agentic-2026/agent-base remote set-url origin <new-url>
 | 第三个 harness（P4） | **不预留、不造桩**；通过 `conformance` 即可接入 | §5.7 |
 | 调试手段 | 四道调试面：①②③ 验证（自证 / 轨迹 / 探针）+ ④ 交互式调试运行时（agent 会话 + 人在环 + 诊断 shell）；④ 走 `agent-base:<h>-debug` 变体，不进生产镜像 | §8.5 / §7.2 |
 | 本地开发环境 | `make dev-env` 按 pin 装 harness 到一致版本；`run-local` 用临时 HOME/DSH_HOME 挂 render 产物 | §9.3 |
+| 核心目标 | **验证走通**（不是生产上线）；走通后交付**验证证据包**（结论 + 可复现快照 + 交接文档） | §1.1 / §8.1 |
+| 业务代码落点 | 技能脚本 `skills/<name>/scripts/` + 自研连接器 `mcp-servers/<name>/`，随制品烤入智能体镜像薄层 | §4.1 / §8.1 |
 
 ### 15.2 需要外部输入（评审无法代决）
 
@@ -1448,6 +1493,6 @@ git -C ~/sandbox/agentic-2026/agent-base remote set-url origin <new-url>
 
 | | |
 |---|---|
-| 本文版本 | v2.1（2026-09-25，整合两份候选稿后增补 §8.5 调试手段、§9.3 本地开发环境） |
+| 本文版本 | v2.2（2026-09-25，核心目标收敛为"验证走通"；交付形式定为验证证据包；补业务代码落点与镜像文件系统结构） |
 | 依赖的上位实测 | dsh `0.1.7-rc.1` 实验 A–E；pi `0.87.1` 四层闸门与 smoke |
 | 待实测项 | §7.5（dsh 写保护扩展）、§8.3（dsh 轨迹映射——P1 定为强制统一 schema 后成为 dsh 适配器的必做项）、§10.3（pi RPC 完整会话、真实委派）、§11.5 |
