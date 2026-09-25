@@ -239,11 +239,16 @@
 | 允许（参数层） | 禁止（参数层，必须进制品） |
 |---|---|
 | `AGENT_<NAME>_ENDPOINT_*`（连接器端点覆盖） | 任何 `*_INSTRUCTIONS` / 人设文本 |
-| `<ROUTE>_API_KEY` / `<ROUTE>_BASE_URL`（模型路由） | 技能清单或技能内容 |
-| `AGENT_PROBE_*`（探针参数：超时、目标） | 连接器的启用/停用（"有哪些连接器"） |
-| `AGENT_LOG_LEVEL` / `AGENT_TRACE_DEST` | 模型名与路由名的选择 |
-| `AGENT_RUN_MODE`（`interactive` / `oneshot` / `rpc`） | 工具白/黑名单 |
-| `AGENT_SECRETS_DIR` | 业务级增强内容（§4.5） |
+| `<NAME>_(TOKEN\|SECRET\|KEY\|PASSWORD)`（连接器凭据，见下） | 技能清单或技能内容 |
+| `<ROUTE>_API_KEY` / `<ROUTE>_BASE_URL`（模型路由） | 连接器的启用/停用（"有哪些连接器"） |
+| `AGENT_PROBE_*`（探针参数：超时、目标） | 模型名与路由名的选择 |
+| `AGENT_LOG_LEVEL` / `AGENT_TRACE_DEST` | 工具白/黑名单 |
+| `AGENT_RUN_MODE`（`interactive` / `oneshot` / `rpc` / `debug`） | 业务级增强内容（§4.5） |
+| `AGENT_SECRETS_DIR` | |
+
+**连接器凭据的命名约定（实现期补记，2026-09-25）**：本表原先没有逐项列出连接器凭据（`connectors.yaml` 的 `credentialRef`），但 §4.3 的示例用了 `JIRA_TOKEN` / `GITLAB_TOKEN`，且闸门 1 必须能判定"某个 `credentialRef` 是否落在允许清单内"。因此把它显式列为上表第 2 行，约定为后缀式命名：`<NAME>_(TOKEN|SECRET|KEY|PASSWORD)`。
+
+> 这是本清单里**唯一由 §4.3 示例归纳、而非本表原文列出**的条目。若企业既有凭据命名习惯与此不符（如统一前缀式），改 `core/catalog/params.yaml` 的一条 `pattern` 即可，不影响其他任何设计。
 
 **执法方式**：`conformance` 会用一个"把禁止项当参数注入"的负向测试用例验证——注入了必须**无效或直接报错**，不允许静默生效。这是把 §2.2 的纪律从文档变成测试。
 
@@ -1271,6 +1276,15 @@ registry/contract-review:<ver>           ← 智能体镜像：$DSH_HOME/profile
 | `template/` | 放：开箱可跑的最小定义。**不放**：TODO、占位符、多个示例的杂糅。 |
 | `examples/` | 放：完整示例智能体。**不是基座的一部分，可整个删除**；删除后基座仍须能 `validate` + `conformance`。 |
 
+**`core/` 的 harness 名禁令范围（实现期澄清，2026-09-25）**：上表 `core/` 那行的"不放任何 harness 名字"**只覆盖 `core/` 的代码与 schema**（`.mjs` / `.json`）——那里出现 harness 名，意味着把某个 harness 的约束当成了中性契约的一部分，那属于 `adapters/` 或本文。两处**明确豁免**，理由都是本文自身要求它们必须点名 harness：
+
+| 豁免对象 | 依据 |
+|---|---|
+| `core/catalog/*.yaml` | §4.6 要求能力目录记录"支持该字段的 harness 及降级行为"——不点名就写不出来 |
+| Markdown 文档（如 `core/README.md` 的纪律原话） | §12.1 的纪律本身必须点名，否则说不清"不放什么" |
+
+执法方式：`tools/validate.mjs` 的 `core/harness-name` 检查（S0 已交付）。
+
 ### 12.2 派生模板（开箱可跑）
 
 `tools/new-agent.mjs NAME=my-agent` 生成：
@@ -1444,6 +1458,9 @@ rm ~/.dsh/sessions/--Users-sujiangwen-sandbox-agentic-2026-dsh-agent-base--
 | 双 harness 的目的 | 可移植 **+ 比较选型**；最终可能收敛到其中一个（判据是 `verify` 数据与 H 轴自评，不是偏好） | §1.4 |
 | 主力与候选 | **主力 = pi**（稳定，压关键路径：首个走通 / 示例 / 模板默认）；**候选 = dsh**（国内生态偏向，但 RC 太新）；可依比较数据翻转，且翻转不改设计 | §1.6 |
 | 业务级增强的结构 | `harness/shared/`（只放纯业务算法，两边共享）+ `harness/<h>/`（薄外壳，harness 原生）；公共语义**后验**摘取，不做先验抽象 | §4.5 / §2.6 P-c |
+| `core/` 的 harness 名禁令范围 | 只覆盖**代码与 schema**；`catalog/*.yaml`（§4.6 要求记录各 harness 支持度）与 Markdown 文档（纪律原话）豁免 | §12.1 |
+| 连接器凭据的命名约定 | `<NAME>_(TOKEN\|SECRET\|KEY\|PASSWORD)`，由 §4.3 的示例归纳而来；使闸门 1 能判定 `credentialRef` 是否合法 | §2.3 / §4.3 |
+| 校验器依赖策略 | 基座工具链用精确 pin 的 `ajv` + `yaml`（npm 依赖，不进任何智能体制品）；若 I2 判定内网禁 npm，只需替换 `tools/validate.mjs` 一个文件 | §8.4 / §12.3 |
 
 ### 15.2 需要外部输入（评审无法代决）
 
