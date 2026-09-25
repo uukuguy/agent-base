@@ -23,7 +23,7 @@ When adding a new file to `docs/status/`, **also add its row here** — otherwis
 
 | File | Status | What it recorded | Outcome / supersession |
 |---|---|---|---|
-| (empty initially) | | | |
+| `DECISIONS.md` | 🟢 active | 架构决策与理由（镜像构建与分层、双架构、生成物不落 core/ 等） | 持续追加；每条都带代价与边界 |
 
 ## Archived
 

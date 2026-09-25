@@ -1,13 +1,13 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-25 23:50. **Session remains active — not a final handoff.**
+> Updated: 2026-09-26 02:20. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-1. **里程碑已达成**：四道闸门全部落地，`make verify` 实测跑出 **`usable: true`** —— 「可用 = 四道闸门全过」从设计承诺变成可执行判定（全程零凭据）。
-2. **pi 侧 conformance 9/10 全绿**（C1–C8、C10）；仅 C9（容器内安全实测）待基座镜像。
+1. **两个里程碑都达成了**：① 四道闸门落地，`make verify` 实测 `usable: true`；② **pi 侧 conformance 全绿 10/10**（C9 容器内安全下限实测通过）。
+2. **双架构基座镜像已交付**：arm64 原生 + amd64（QEMU），另有 `-debug` 变体；多架构 manifest 以 OCI 归档落盘。
 3. **开箱可跑已成立**：`make new-agent NAME=x` 派生的智能体（落在基座之外）立刻 `make verify` 给出「可用」—— 判据由 `make new-agent-selftest` 逐条实测（跑的是生成出来的 Makefile）。
-4. 剩下三条线：**基座镜像**（同时解锁 C9）→ **dsh 适配器** → `examples/`。
+4. 剩下：**`dev-env` + `run-local`**（本地开发环境，上手路径最后两个缺口）→ **dsh 适配器** → `examples/`。
 
 ## Where things stand
 
@@ -28,14 +28,15 @@ make verify AGENT_DIR=<智能体目录> OUT=<渲染输出目录>
 
 ## Next steps (immediate, action-level)
 
-1. **`core/image/`**（基座镜像 + debug 变体）—— 它同时解锁 **conformance C9**（容器内只读根 / 非 root / cap-drop / 默认离线），也是「验证环境足够接近生产」那句承诺的兑现点。
-2. `dev-env` / `run-local` / `image` / `debug` 四个 Makefile 目标（目前显式失败）。
-3. **dsh 适配器**：`render` / `doctor`（必须补 patch target id 校验，那是 D1 唯一防线）/ `trace` + `conformance/fixtures/dsh-native-events.jsonl`。实现前先看路线图 §7（预检结论 + 已定的 Q1–Q3）。
-4. `examples/`（S4/S5）与 pi 侧 MCP 客户端选型（用 conformance C1–C10 实测选，不凭版本号挑）。
+1. **`make dev-env` + `make run-local`** —— 上手路径最后两个缺口：本地按 pin 装/校验两个 harness；用临时 HOME/DSH_HOME 挂渲染产物跑本地交互（P-b 文件系统隔离）。
+2. **dsh 适配器**：`render` / `doctor`（必须补 patch target id 校验，那是 D1 唯一防线）/ `trace` + `conformance/fixtures/dsh-native-events.jsonl`。实现前先看路线图 §7（预检结论 + 已定的 Q1–Q3）。
+3. `examples/`（S4/S5）与 pi 侧 MCP 客户端选型（用 conformance C1–C10 实测选，不凭版本号挑）。
+4. 推送路径：镜像目前只落本地；待 I2（内网能否直连镜像仓库）确认后接 `--push`。
 
 ### 已完成（无需再做）
 
 - `template/` + `tools/new-agent.mjs`：判据四条全过，派生即 `usable`。
+- `core/image/` + 六个 Makefile 目标：双架构镜像、调试变体、容器下限实测（C9）。
 
 ## Don't go down these paths again (ruled out)
 
@@ -60,6 +61,10 @@ make verify AGENT_DIR=<智能体目录> OUT=<渲染输出目录>
 3. **参数解析别手写索引过滤**：`--out` 缺失时 `indexOf()+1 === 0` 会吞掉第一个位置参数（同类 bug 出现过两次）。已统一到 `core/gates/cli.mjs` 并加自检。
 4. **算相对路径前要 `realpath`**：macOS 上 `/tmp`→`/private/tmp`、`/var`→`/private/var` 都是符号链接，不解析会得到"算式正确、实际指错"的路径（实测算成 `/private/Users/...`），因为 `make` 会规范化 CWD。
 5. **构建产物必须排除出定义摘要**：渲染输出若落在定义目录内（`.render/`），把它算进摘要会让摘要**自漂移** —— 渲染一次摘要就变。已在 `DEFAULT_EXCLUDES` 里排除 `.render`/`dist`/`.agent-base-build`。
+6. **不要让检查写在错误的方向上**：C9 曾测 `npx --offline`（系统从不使用的命令）⇒ 必然 ENOTCACHED ⇒ 报**假缺陷**。判据必须打在**系统真正执行的命令**上。错方向的检查比漏检更糟：它会让人去修本来正确的东西。
+7. **多架构打包要换 builder 驱动**：本机默认 `docker` 驱动不支持 OCI 导出；用 `docker-container` 驱动（`buildx create --driver docker-container`）。
+8. **"预热 npx 缓存"是伪需求**：`npm cache add` 后仍 ENOTCACHED；真正让连接器离线可用的是**按精确 pin 全局安装**。
+9. **生成的构建输入不是源码**：它可能带 harness 名（包名里就有），放 `core/` 会踩分层规则 —— 落 `dist/`。
 
 ## Ready-to-paste commands
 
