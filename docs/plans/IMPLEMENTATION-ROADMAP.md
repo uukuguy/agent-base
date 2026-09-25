@@ -290,6 +290,7 @@ mcpServers:
 | 事实 | 后果 |
 |---|---|
 | context 只有 `docker` 驱动（`default` 与 `orbstack` 两个 builder 都是） | **该驱动连多平台构建都不支持**。实测两条报错：<br>· `docker buildx build --platform linux/amd64,linux/arm64` ⇒ `Multi-platform build is not supported for the docker driver`<br>· 加 `--load` ⇒ `docker exporter does not currently support exporting manifest lists`<br>**同一条命令加 `--builder ab-multi`（docker-container 驱动）即退出码 0。** 所以多架构**只能**用自建的 container builder —— 这不是多此一举，是本环境下的唯一路径（另一条路是打开 containerd 镜像存储，但 OrbStack 未暴露该开关：`orb config get` 查无此键） |
+| **手敲的朴素命令能不能用，取决于"当前 builder"** | `docker buildx build` 不指定 builder 时用当前选中的那个。本机默认是 OrbStack 的 docker 驱动 ⇒ 多平台直接失败。`make image-builder` 会把 container builder 建好**并设为当前**，之后最朴素的这条即可工作：<br>`docker buildx build -f Dockerfile --platform linux/arm64,linux/amd64 -t my-image .`（实测 EXIT=0）<br>**但它会给出 WARNING：不加 `--load`/`--push`/`--output` 时结果只留在 build cache，`docker images` 里看不到** —— "构建成功"与"拿到镜像"是两件事 |
 | 三个终点各有前提 | `--load` 单架构可用 / `--push` 需配好的 registry（本地 HTTP registry 还要 insecure 配置）/ `--output type=oci` 无需 registry。**"构建成功"与"落到哪里"是两件事**，别混 |
 | x86_64 走 Rosetta 模拟（比 QEMU 快） | amd64 镜像构建/实测代价可接受（实测 base+debug 约 2.5 分钟） |
 | builder 是容器形态，OrbStack 重启后可能未就绪 | `--manifest` 复用 builder 前先 `inspect --bootstrap` 确保就绪，否则会拿到含糊的 "no builder" 失败 |
@@ -305,7 +306,11 @@ mcpServers:
 
 > 第 4 条值得单独记住：**检查写错方向比漏检更糟** —— 它会让人去修一个本来正确的东西。
 
-### 10.4 分层纪律的一次自纠
+### 10.4 一次自纠：Dockerfile 不该要求构建参数
+
+最初 Dockerfile 硬性要求 `HARNESS_SPECS` 构建参数，于是**最普通的一条 buildx 命令跑不起来**（少一个 `--build-arg` 就报错）。这是纯粹的摩擦：坐标表本来就已经生成进构建上下文（`harnesses.lock.json`），Dockerfile 直接读它即可。已去掉该参数。顺带修掉一个自己写出的 shell bug —— **`while read` 循环里跑 `npm`，npm 会吃掉 stdin**，读循环被 `set -e` 打断；改回 `for` 形式。
+
+### 10.5 分层纪律的一次自纠
 
 坐标表最初用 harness 名做键，被 `core/harness-name` 判红；去掉名字改用包坐标后**仍**判红 —— 因为**包名本身就含 harness 名**（scope 与包名里都有）。最终处置不是放宽规则，而是纠正分层：**生成的构建输入不是源码**，落到 `dist/image/context/`（已 gitignore），`core/` 只留人工维护的源文件；harness 的可执行名归 `adapters/<h>/adapter.yaml` 的 `bin:`。
 

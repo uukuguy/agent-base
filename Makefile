@@ -79,6 +79,9 @@ smoke: ## 闸门 4：端到端冒烟（需 RENDER_DIR）
 verify: ## 四道闸门编排 → §6.7 报告 + usable（需 AGENT_DIR）
 	@node tools/verify.mjs $(AGENT_DIR) --harness $(HARNESS) $(if $(OUT),--out $(OUT),) $(if $(JSON),--json,)
 
+image-builder: ## 确保多架构 builder 就绪**并设为当前**（这样手敲 buildx 多平台命令才可用）
+	@node core/image/build.mjs --ensure-builder
+
 image-lock: ## 从 preinstall.yaml 刷新镜像预装锁（改了清单就跑这个）
 	@node core/image/gen-preinstall-lock.mjs
 

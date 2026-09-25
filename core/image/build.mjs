@@ -122,7 +122,6 @@ function buildArch({ arch, tag, baseTag, debug, specs, ctx, noCache }) {
   const platform = `linux/${arch}`;
   const args = [
     "buildx", "build", `--platform`, platform, "--load",
-    "--build-arg", `HARNESS_SPECS=${specsArg(specs)}`,
     "-t", tag,
   ];
   if (noCache) args.push("--no-cache");
@@ -160,6 +159,7 @@ function main() {
       "  --push <ref>         构建两个架构并推送到 registry —— **本机多架构的标准路径**",
       "  --tag-suffix S       镜像 tag 后缀",
       "  --no-cache           禁用构建缓存",
+      "  --ensure-builder     建好多架构 builder 并设为当前（让手敲 buildx 多平台命令可用）",
       "",
       "为什么 --push 是标准路径：本机存储驱动是 overlay2（经典存储），",
       "`--load` 明确不支持 manifest list（实测报错）。所以「一个 tag 两个架构」要么推 registry，",
@@ -178,6 +178,21 @@ function main() {
   const version = YAML.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8")).version ?? "0.1.0";
   const suffix = values["--tag-suffix"] ?? "";
   const tagFor = (arch, debug) => `agent-base:${version}${suffix}${debug ? "-debug" : ""}-${arch}`;
+
+  if (flags.has("--ensure-builder")) {
+    // 只为"手敲 buildx 多平台命令"准备环境：建好并**切为当前** builder。
+    // 为什么需要它：`docker buildx build` 不指定 builder 时用当前选中的那个，而本机当前
+    // 默认是 OrbStack 的 docker 驱动 —— 该驱动连多平台构建都不支持。切过来之后，
+    // 最朴素的这条命令即可工作：
+    //   docker buildx build -f Dockerfile --platform linux/arm64,linux/amd64 -t my-image .
+    ensureMultiBuilder();
+    const u = docker(["buildx", "use", MULTI_BUILDER], { capture: true });
+    if (u.status !== 0) { log(u.stdout + u.stderr); log("\n❌ 无法切换当前 builder"); process.exit(EXIT_CODES.crash); }
+    log(`✅ 当前 builder 已设为 ${MULTI_BUILDER}（docker-container 驱动）。`);
+    log("   注意：不加 --load/--push/--output 时，构建结果只留在 build cache 里（buildx 会给出 WARNING），");
+    log("   `docker images` 里看不到 —— 需要落本地就加 --load（单架构），要一个 tag 两个架构就 --push 或 --output。");
+    process.exit(EXIT_CODES.ok);
+  }
 
   const all = flags.has("--all");
   const arches = all ? ["arm64", "amd64"] : [values["--arch"] ?? hostArch()];
@@ -206,7 +221,6 @@ function main() {
     const r = docker([
       "buildx", "build", "--builder", MULTI_BUILDER,
       "--platform", "linux/arm64,linux/amd64",
-      "--build-arg", `HARNESS_SPECS=${specsArg(specs)}`,
       "-f", path.join(ctx, "Dockerfile"),
       "--push", "-t", ref,
       ctx,
@@ -235,7 +249,6 @@ function main() {
       "buildx", "build",
       "--builder", MULTI_BUILDER,
       "--platform", "linux/arm64,linux/amd64",
-      "--build-arg", `HARNESS_SPECS=${specsArg(specs)}`,
       "-f", path.join(ctx, "Dockerfile"),
       "--output", `type=oci,dest=${dest}`,
       ctx,

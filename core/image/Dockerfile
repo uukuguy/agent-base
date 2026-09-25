@@ -25,31 +25,33 @@
 ARG NODE_IMAGE=node:24-bookworm-slim
 FROM ${NODE_IMAGE}
 
-# 版本 pin：由 make image 从 adapters/*/adapter.yaml 读出后注入（见 harnesses.lock.json）。
+# 版本 pin 来自**构建上下文里的坐标表** harnesses.lock.json
+# （由 core/image/build.mjs 从 adapters/*/adapter.yaml 生成 —— 单一真源仍在那里）。
+#
+# 为什么不用必需的构建参数：那会让最普通的一条命令跑不起来
+#   docker buildx build -f Dockerfile --platform linux/arm64,linux/amd64 -t my-image .
+# 少一个 --build-arg 就报错，对使用者是纯粹的摩擦。坐标表本来就在上下文里，直接用。
 # **本文件不出现任何 harness 名** —— 装什么由坐标表决定，加一个 harness 不需要改这个文件。
-ARG HARNESS_SPECS
-
-RUN test -n "${HARNESS_SPECS}" || { \
-      echo "❌ 缺 HARNESS_SPECS 构建参数（空格分隔的 pkg@ver）。" >&2; \
-      echo "   应由 core/image/build.mjs 从 adapters/*/adapter.yaml 注入（版本 pin 的单一真源）。" >&2; \
-      exit 2; }
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV NODE_ENV=production
 
 # ---- 系统工具链（从预装锁读，不手抄）----
 COPY preinstall.lock.txt /tmp/preinstall.lock.txt
+COPY harnesses.lock.json /opt/agent-base/harnesses.json
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends $(grep '^apt ' /tmp/preinstall.lock.txt | cut -d' ' -f2-); \
     rm -rf /var/lib/apt/lists/*
 
-# ---- 并列安装全部 harness（基座支持并列可选，精确 pin；装什么由坐标表决定）----
+# ---- 并列安装全部 harness（基座支持并列可选，精确 pin）----
 # 坐标表同时留在镜像里：entrypoint 靠它给出"镜像里到底装了什么"的准确提示，而不是写死名字。
 COPY harnesses.lock.json /opt/agent-base/harnesses.json
 RUN set -eux; \
-    for spec in ${HARNESS_SPECS}; do npm install -g --no-audit --no-fund "$spec"; done; \
-    node -e 'const s=require("/opt/agent-base/harnesses.json").harnesses; for (const [n,v] of Object.entries(s)) console.log(n, v.package+"@"+v.version);'
+    for spec in $(node -e 'for (const h of require("/opt/agent-base/harnesses.json").harnesses) console.log(h.package+"@"+h.version)'); do \
+      npm install -g --no-audit --no-fund "$spec"; \
+    done; \
+    node -e 'for (const h of require("/opt/agent-base/harnesses.json").harnesses) console.log("已装:", h.package+"@"+h.version)'
 
 # ---- 预装 MCP 服务器 + 灌热 npm 缓存（离线可用）----
 # 连接器以 `npx -y <pkg>@<ver>` 启动；只做全局安装**不够** —— npx 带版本号时仍会去 registry 解析。

@@ -150,4 +150,7 @@
 - 18:45 加固：--manifest 复用 builder 前先 inspect --bootstrap（OrbStack 重启后 builder 可能未就绪）；并真正走 make image-manifest 验证通过（1.68 GB 归档）
 - 18:55 澄清"docker buildx 行不行"：**buildx 本身能用，本机当前 builder 不行**。实测同一条多平台命令：orbstack context ⇒ `Multi-platform build is not supported for the docker driver`；加 `--builder ab-multi` ⇒ 退出码 0。已把这两个报错与三个终点的前提写进路线图 §10.2
 - 18:55 诚实标注：本地 HTTP registry 推送未验证成功（buildkit 对 host.docker.internal:5000 走 HTTPS ⇒ TLS 报错），需要 insecure 配置；推送路径本身只是 buildx `--push` 的薄封装
+- 19:20 用户给出其惯用命令 `docker buildx build -f Dockerfile --platform linux/arm64,linux/amd64 -t my-image .`。实测：**make image-builder 把 container builder 设为当前后，该命令 EXIT=0**
+- 19:20 🔴 我自己造的两个摩擦：① Dockerfile 硬性要求 HARNESS_SPECS 参数 ⇒ 朴素命令跑不起来（坐标表本就在上下文里，已去掉该参数）；② `while read` 循环里跑 npm，npm 吃掉 stdin 导致读循环被 set -e 打断（改回 for）。**这两条都不是 buildx 的问题**
+- 19:20 记下关键语义：不加 --load/--push/--output 时 buildx 只把结果留在 build cache（有 WARNING，docker images 看不到）——"构建成功"≠"拿到镜像"
 
