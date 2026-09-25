@@ -153,4 +153,9 @@
 - 19:20 用户给出其惯用命令 `docker buildx build -f Dockerfile --platform linux/arm64,linux/amd64 -t my-image .`。实测：**make image-builder 把 container builder 设为当前后，该命令 EXIT=0**
 - 19:20 🔴 我自己造的两个摩擦：① Dockerfile 硬性要求 HARNESS_SPECS 参数 ⇒ 朴素命令跑不起来（坐标表本就在上下文里，已去掉该参数）；② `while read` 循环里跑 npm，npm 吃掉 stdin 导致读循环被 set -e 打断（改回 for）。**这两条都不是 buildx 的问题**
 - 19:20 记下关键语义：不加 --load/--push/--output 时 buildx 只把结果留在 build cache（有 WARNING，docker images 看不到）——"构建成功"≠"拿到镜像"
+- 20:18 交付 tools/dev-env.mjs（按 adapters/*/adapter.yaml 的 pin 校验/安装 harness；--check 只读）与 tools/run-local.mjs（先渲染→临时 HOME 暂存副本→跑制品）
+- 20:18 ✅ make local-selftest 全绿：版本与 pin 一致 / 临时 HOME 隔离生效 / 真跑到模型 / **未污染本机 ~/.pi** / 未实现的 harness 响亮失败
+- 20:18 ✅ **Makefile 30 个目标全部实现，不再有 NOT_YET 桩**；12 个自检目标全绿；conformance --harness pi 仍 10/10
+- 20:18 S3 闭环：上手路径三段（派生→本地→容器边界）各有可重复判据
+- 20:18 修 builder 选择：单架构/调试必须用 docker 驱动 builder（调试变体 FROM 本地基础镜像，container builder 看不到本地镜像库）；多平台才用 container builder —— 每类构建显式指定，不再依赖"当前 builder"
 

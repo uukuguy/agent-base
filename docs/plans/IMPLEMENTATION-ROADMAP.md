@@ -29,7 +29,7 @@
 | **S0** | A | 中性定义契约：schema + 能力目录 + 参数层清单 | — | **done** |
 | **S1** | A | 四闸门框架 + 假网关 + 统一轨迹 schema | S0 | **done** |
 | **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | **active** |
-| **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` + 基座镜像 | S2 | **active**（闸门 3/4、template/new-agent、基座镜像已交付；余 dev-env/run-local 与 examples） |
+| **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` + 基座镜像 + 本地开发环境 | S2 | **闭环**（全部交付；Makefile 30 个目标、0 个未实现） |
 | **S4** | A + B + C | `examples/idea-to-proof` 全绿（含 C5/C8） | S3 | pending |
 | **S5** | A + B + C | `examples/contract-review`（带 MCP，双 harness 等价性） | S4 | pending |
 | **S6** | A | `docs/` 全 12 篇 | S4 | pending |
@@ -315,3 +315,25 @@ mcpServers:
 坐标表最初用 harness 名做键，被 `core/harness-name` 判红；去掉名字改用包坐标后**仍**判红 —— 因为**包名本身就含 harness 名**（scope 与包名里都有）。最终处置不是放宽规则，而是纠正分层：**生成的构建输入不是源码**，落到 `dist/image/context/`（已 gitignore），`core/` 只留人工维护的源文件；harness 的可执行名归 `adapters/<h>/adapter.yaml` 的 `bin:`。
 
 **S3 余项**：`make dev-env`（按 pin 装/校验两个 harness）、`make run-local`（临时 HOME 挂渲染产物）、`examples/`（S4/S5）、dsh 适配器。
+
+---
+
+## 11. S3 收口：本地开发环境（2026-09-25）
+
+**已交付**：`tools/dev-env.mjs`（`make dev-env`）· `tools/run-local.mjs`（`make run-local`）· `tools/local-selftest.mjs`（`make local-selftest`）。
+
+至此**上手路径三段全通**，且每一段都有可重复的判据：
+
+| 段 | 命令 | 判据 |
+|---|---|---|
+| 派生 | `make new-agent NAME=x` | `new-agent-selftest`：§12.2 四条全过，派生即 `usable` |
+| 本地开发 | `make dev-env` + `make run-local` | `local-selftest`：版本与 pin 一致 + 临时 HOME 隔离生效 + 真跑到模型 + 未污染本机 `~/.pi` |
+| 边界（容器） | `make image` + `make debug` | `conformance C9`：容器下限十项实测 |
+
+**设计要点**：`run-local` 跑的是**渲染产物**而不是源码目录，并且沿用**临时 HOME + 中立 cwd**（P-b：隔离靠文件系统）——因为该 harness 有两个隐式技能源（其中一个沿 cwd 祖先发现），不隔离干净就会"技能多出来一个"，而那种失败在本地与容器里表现不一致，正是最难查的一类。
+
+**纪律**：未实现的 harness 必须**响亮失败**（`adapters/<h>/run.mjs` 不存在即拒绝），不许静默改用另一个 harness —— 那会让跨 harness 的结论失真。
+
+**Makefile 状态**：30 个目标，**0 个未实现**（不再有 `NOT_YET` 桩）。
+
+**S3 之后**：`examples/`（S4/S5，首批走通示例）· dsh 适配器（比较轨）· 镜像推送路径（待 I2）。

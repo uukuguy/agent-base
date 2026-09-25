@@ -4,10 +4,10 @@
 
 - Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，当前主力 pi）
 - Current branch: `main`
-- Theme-level focus: **四道闸门落地 + pi 侧 conformance 10/10 全绿 + 双架构基座镜像**；关键路径转向本地运行入口与示例
+- Theme-level focus: **S3 闭环（四闸门 / 模板派生 / 本地开发 / 双架构镜像）+ pi 侧 conformance 10/10**；下一步是首批走通示例与 dsh 比较轨
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi。§7 记 dsh 实现待定项，§8 记 S3 进展）
-- Active work package: `S3`（闸门 3/4、`template/`+`new-agent`、基座镜像均已交付；余 `dev-env` / `run-local` 与示例）
+- Active work package: `S3` **已闭环**（下一包：S4/S5 `examples/`，或 dsh 比较轨）
 
 ## Current Architecture
 
@@ -49,7 +49,7 @@
 
 `core/`（73 文件）· `adapters/{pi,dsh}/`（20）· `tools/`（13）· `conformance/`（6）· `template/`（6，派生源）· `docs/{design,plans,research,status}/`；`dist/` 是构建产物（已 gitignore）。
 
-Makefile 共 30 个目标，已实现 28 个；**未实现 2 个**：`dev-env` / `run-local`（未实现的会**显式失败并指向所属包**，不静默通过）。
+Makefile 共 30 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 
 **开箱可跑已成立**：`make new-agent NAME=x` 派生的智能体（落在基座之外的同级目录）立刻 `make verify` 即给出「可用」——判据由 `make new-agent-selftest` 逐条实测（跑的是**生成出来的 Makefile**，而非直接调基座工具）。
 
@@ -59,9 +59,9 @@ Makefile 共 30 个目标，已实现 28 个；**未实现 2 个**：`dev-env` /
 - **G1 只剩一半**：回调能看到「harness 发了几个工具」，看不到「网关收到后有没有吞」。三条互补路径已定（链路观测 / 响应侧不一致检测 / 响应头回显对照，后者已实现但仅在网关回显时生效）
 - **G3 的真值需要「做决策的扩展」自己上报**：轨迹扩展观测不到别的 handler 是否阻断，因此 `tool.call.decision` 目前恒为 `unobserved`（诚实近似，不是等价）
 - **闸门 2 硬断言 3 的口径是「已进入产物」而非「已加载」**：纯钩子型扩展目前观测不到（`failures.md` F6 已记，补法是让增强自证 id）
-- **业务开发者上手路径已打通但只有 pi 一侧**：派生的智能体开箱 `usable`，`HARNESS=dsh` 仍会因 dsh 适配器未实现而失败
+- **业务开发者上手路径三段全通**：派生 → 本地开发 → 容器边界，各有可重复判据（`new-agent-selftest` / `local-selftest` / `conformance C9`）
+- **上手路径仍只有 pi 一侧**：派生的智能体开箱 `usable`，`HARNESS=dsh` 仍会因 dsh 适配器未实现而失败
 - **镜像只在本地产出、尚未推任何 registry**：多架构 manifest 已能落盘（OCI 归档），推送路径待 I2（内网能否直连镜像仓库）确认
-- **`dev-env` / `run-local` 未实现**：本地开发环境还需手工装 harness；这是上手路径上最后两个缺口
 - **企业级 MCP 的每用户鉴权**与参数层模型（单一服务凭据 `credentialRef`）不匹配 —— 设计缺口，排在首个走通之后
 - **pi 侧 MCP 客户端需外部补齐**（pi 0.87.1 原生无 MCP；第三方扩展生态已成熟，见调研）→ 选定并 pin 一个扩展之前，声明了连接器的智能体在 pi 上渲染即失败（响亮，不静默）
 - **预装清单的服务器选择**仍未定稿：`core/image/preinstall.yaml` 已列出候选与 npm 实测存活表，但「预装哪些进镜像」是待定项；企业 SaaS 集与 per-user OAuth 的冲突同上
@@ -92,6 +92,7 @@ Makefile 共 30 个目标，已实现 28 个；**未实现 2 个**：`dev-env` /
 ### Implementation entry points
 - `Makefile` —— 全部命令的唯一边界（22 个目标，实现 17 / 未实现 5）
 - `tools/{validate,probe,smoke,verify}.mjs` —— 闸门 1/3/4 与四道闸门编排
+- `tools/{dev-env,run-local}.mjs` —— 本地开发环境（按 pin 对齐版本；临时 HOME 跑制品）
 - `tools/new-agent.mjs` + `template/` —— 派生入口与派生源（`new-agent-selftest` 验证「开箱可跑」）
 - `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用的运行器）
 - `adapters/pi/seed/` —— 基座不变量：`settings.json` 安全姿态 + `enhancements.yaml` 声明 + `extensions/trace.ts` 轨迹扩展

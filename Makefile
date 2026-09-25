@@ -109,14 +109,18 @@ debug: ## 进诊断 shell（先构建调试变体；需 RENDER_DIR 指向渲染�
 conformance: ## 对适配器跑合规套 C1–C10（阻断性门槛；C9 待 S3 容器内安全实测）
 	@node conformance/run.mjs $(if $(JSON),--json,) $(if $(HARNESS_ONLY),--harness $(HARNESS_ONLY),)
 
-dev-env: ## 按 pin 安装/校验两个 harness 到一致版本（§9.3）（S3）
-	$(call NOT_YET,S3)
+dev-env: ## 按 pin 校验/安装 harness 到一致版本（CHECK=1 只校验不改动本机）
+	@node tools/dev-env.mjs $(if $(CHECK),--check,)
 
-run-local: ## 本地交互入口（临时 HOME/DSH_HOME 挂 render 产物）（S3）
-	$(call NOT_YET,S3)
+run-local: ## 本地交互入口（先渲染，再用临时 HOME 跑制品；PROMPT=... 走一次性）
+	@test -n "$(AGENT_DIR)" || { echo "需要 AGENT_DIR（智能体定义目录）"; exit 2; }
+	@node tools/run-local.mjs $(AGENT_DIR) --harness $(HARNESS) $(if $(PROMPT),--prompt "$(PROMPT)",) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(OUT),--render-dir $(OUT),)
 
 new-agent: ## 从 template/ 派生一个智能体（需 NAME=x；默认派生到基座之外的同级目录）
 	@NAME=$(NAME) node tools/new-agent.mjs $(if $(DESCRIPTION),--description "$(DESCRIPTION)",) $(if $(OUT),--out $(OUT),)
+
+local-selftest: ## 本地开发环境自检：dev-env 版本一致 + run-local 隔离与跑通
+	@node tools/local-selftest.mjs
 
 new-agent-selftest: ## 模板「开箱可跑」自检：派生 → 跑生成出来的 Makefile → 四道闸门全绿
 	@node tools/new-agent-selftest.mjs

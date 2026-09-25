@@ -206,4 +206,16 @@ export async function observeLoaded(renderDir, { timeoutMs = 20000 } = {}) {
   };
 }
 
+/**
+ * 本地交互/一次性调用的启动方式（harness 专有 —— 参数形态归这里，不归基座工具）。
+ * 与 probe/smoke 用的 runAgent 共用同一套运行期契约（暂存可写副本 + 中立 HOME/cwd + 关 stdin）。
+ */
+export function localInvocation({ staging, prompt }) {
+  const args = ["--no-skills"];
+  const skills = path.join(staging, "skills");
+  if (fs.existsSync(skills)) args.push("--skill", skills);
+  if (prompt) args.push("-p", prompt);
+  return { bin: "pi", args };
+}
+
 export const HARNESS_ID = HARNESS;
