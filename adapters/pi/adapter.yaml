@@ -49,9 +49,9 @@ capabilities:
   permissionModel: extension
   permissionModelNote: 靠 protected-paths 扩展。
 
-  traceEmit: native
+  traceEmit: supported
   traceEmitNote: >
-    **原生支持，不需要自建审计扩展**（实测修正：原文曾标为 extension）。
+    **原生支持，不需要自建审计扩展**（实测修正：原文曾标为 extension；也不要自创 "native" 这种取值——它就是 supported）。
     两条原生轨迹通道：
       ① `--mode json` 的结构化 JSONL 事件流（stdout 专供 JSONL，诊断走 stderr，与 §8.2 天然一致）；
          RPC 模式复用同一套事件形状。
@@ -60,11 +60,11 @@ capabilities:
     三处缺口必须显式处理：G1 事件流无 wire 级 tools 计数与 stream 标志（门 3 需链路观测）；
     G2 tool_execution_end 无耗时字段（ms 只能推算）；G3 tool.call.decision 无原生字段（暂记 allow）。
 
-  mcpClient: absent
+  mcpClient: unsupported
   mcpClientNote: >
     **pi 原生没有 MCP 客户端**【实测】：docs/README/CHANGELOG 零提及，包内无 mcp.json / allowInstall /
     hostConfigDiscovery，bundle 里的 mcpServers 全是 Gemini SDK 内部字段。
-    处置：基座提供客户端能力（npm 上已有成熟第三方 pi MCP 扩展，见
+    处置属 §5.4 的「等效替代」：基座提供客户端能力（npm 上已有成熟第三方 pi MCP 扩展，见
     docs/research/2026-09-25-mcp-ecosystem-survey.md），用 conformance C1–C10 选型后进 seed。
     **在选定之前，声明了 connectors 的智能体在 pi 上必须渲染失败（响亮），不许静默忽略。**
 

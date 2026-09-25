@@ -1,0 +1,41 @@
+apiVersion: agent-base/v1
+# §5.5 要求：每条已知静默失败都必须配一个**可执行**的检测用例。
+# conformance/C5 会逐条跑这些注入，任何一条**静默通过**即判 C5 失败。
+# kind 由 conformance 的 runner 解释（见 conformance/cases/index.mjs）。
+cases:
+  - id: F1
+    kind: leak-undeclared-skill
+    failure: "$HOME/.agents/skills 等隐式源混入未声明的技能"
+    detectBy: doctor 硬断言 1（技能集合 == 声明集合，多一个也不行）
+    expectExitCode: 20
+
+  - id: F2
+    kind: leak-undeclared-skill
+    failure: "cwd 祖先的 .agents/skills 混入未声明的技能（第二个隐式源）"
+    detectBy: 同上（用例在 cwd 被中立化后仍能抓到产物内泄漏）
+    expectExitCode: 20
+
+  - id: F3
+    kind: remove-model-config
+    failure: "模型配置缺失/未渲染，harness 仍继续运行"
+    detectBy: doctor 的启动期渲染检查（models.json.tmpl 必须在启动期被渲染）
+    expectExitCode: 20
+
+  - id: F5
+    kind: thinking-clamp
+    failure: "声明了推理强度却被静默钳位"
+    agentOptions: { reasoningEffort: "high" }
+    detectBy: doctor 断言「声明的档位 == 生效的档位」
+    expectExitCode: 20
+
+  - id: F6
+    kind: declare-missing-enhancement-entry
+    failure: "业务级增强声明了却没打包（注定不会加载）"
+    detectBy: doctor 的 enhancement-entries（声明的每个 entry 必须在产物里存在）
+    expectExitCode: 20
+
+  - id: F10
+    kind: render-declares-connectors
+    failure: "连接器被静默忽略（渲染出一个没有连接器的智能体而无人察觉）"
+    detectBy: render 响亮失败（capabilities.mcpClient=absent）
+    expectExitCode: 10

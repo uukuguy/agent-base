@@ -7,7 +7,7 @@
 - Theme-level focus: pi 适配器（render + doctor + 轨迹映射）已落地并自检全绿 —— 剩 conformance C1–C10 与 dsh 适配器
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi）
-- Active work package: `S2`（pi 轨道已交付；余下：`conformance` C1–C10、dsh 适配器）
+- Active work package: `S2`（pi 轨道 + conformance 已交付；余下：`adapters/dsh/`；C6/C9 待 S3）
 
 ## Current Architecture
 
@@ -74,7 +74,7 @@
 - `package.json` / `package-lock.json` —— 基座工具链依赖（`ajv`、`yaml`，精确 pin；`node_modules/` 已 gitignore）
 - `adapters/pi/` —— ✅ `adapter.yaml`·`render.mjs`·`doctor.mjs`·`trace.mjs`·`seed/`·`failures.md`·`exemptions.yaml`·`trace-mapping.md`·`selftest.mjs`（探针/smoke 待 S3）
 - `adapters/dsh/` —— 同构（**待做**）
-- `conformance/` —— C1–C10 用例与 runner（**C5 静默失败检测力、C8 参数层隔离是灵魂**）（**待做**）
+- `conformance/` —— ✅ C1–C5、C7、C8、C10 全绿；C6（零凭据闸门 3/4）与 C9（安全下限一致）待 S3。**未实现记 pending 并非零退出**，不做「跳过即通过」
 - `core/image/` —— 基座镜像与 debug 变体（待 S3+）
 
 ## Resume Instructions

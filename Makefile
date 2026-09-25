@@ -20,7 +20,7 @@ JSON ?=
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 NOT_YET = @echo "❌ $@ 尚未实现（包 $(1)）——见 docs/plans/IMPLEMENTATION-ROADMAP.md"; exit 1
 
-.PHONY: help validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -82,8 +82,8 @@ image: ## 产出智能体镜像（S3）
 debug: ## 构建 debug 变体并进诊断 shell（§8.5 第 ④ 道）（S3）
 	$(call NOT_YET,S3)
 
-conformance: ## 对适配器跑合规套 C1–C10（S2）
-	$(call NOT_YET,S2)
+conformance: ## 对适配器跑合规套 C1–C10（阻断性门槛；C6/C9 待 S3 才可能全绿）
+	@node conformance/run.mjs $(if $(JSON),--json,)
 
 dev-env: ## 按 pin 安装/校验两个 harness 到一致版本（§9.3）（S3）
 	$(call NOT_YET,S3)

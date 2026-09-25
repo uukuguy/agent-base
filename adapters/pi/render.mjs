@@ -81,7 +81,8 @@ function main() {
   const json = args.includes("--json");
   const outIdx = args.indexOf("--out");
   const outArg = outIdx >= 0 ? args[outIdx + 1] : null;
-  const positional = args.filter((a, i) => !a.startsWith("--") && i !== outIdx + 1);
+  // 注意：outIdx 为 -1 时 outIdx + 1 === 0，会把第一个位置参数误当成 "--out 的值"而丢掉。
+  const positional = args.filter((a, i) => !a.startsWith("--") && (outIdx < 0 || i !== outIdx + 1));
 
   if (!positional.length || args.includes("--help") || args.includes("-h")) {
     log("用法: node adapters/pi/render.mjs <AGENT_DIR> [--out <DIR>] [--json]");

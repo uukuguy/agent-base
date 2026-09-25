@@ -202,13 +202,18 @@ async function main() {
         // 启动期参数下放：模板 → 实际配置（缺失的参数用占位值，并如实记录）
         const template = renderModelsTemplate(staging, env);
         ctx.templatePlaceholders = template.placeholders;
-        if (template.resolved && template.placeholders.length) {
+        if (!template.resolved) {
+          // 关键：这是**能判定的失败**，不是"没拿到可判定结果"。
+          // 若在这里继续往下跑，RPC 会启动失败并被当成崩溃（50），
+          // 把闸门 2 的失败误报成"harness 崩溃"——那是误导。
+          report.fail(GATE, "resolution/param-render", template.reason ?? "无法渲染模型配置模板");
+          return;
+        }
+        if (template.placeholders.length) {
           report.pass(GATE, "resolution/param-render",
             `models.json.tmpl 已在启动期渲染；${template.placeholders.length} 个参数用占位值（doctor 零凭据，不发模型请求）：${template.placeholders.join(", ")}`);
-        } else if (template.resolved) {
-          report.pass(GATE, "resolution/param-render", "models.json.tmpl 已在启动期渲染（参数全部来自环境）");
         } else {
-          report.fail(GATE, "resolution/param-render", template.reason ?? "无法渲染模型配置模板");
+          report.pass(GATE, "resolution/param-render", "models.json.tmpl 已在启动期渲染（参数全部来自环境）");
         }
 
         const version = await probeVersion("pi");

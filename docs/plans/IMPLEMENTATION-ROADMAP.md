@@ -76,7 +76,8 @@
 | **B 轨（关键路径）** | `adapters/pi/`：`render.mjs` + `doctor.mjs`（§10.2） |
 | **C 轨（比较轨）** | `adapters/dsh/`：`render.mjs` + `doctor.mjs`（§11.2） |
 | **依赖** | S1 |
-| **包级验收** | ① `make conformance HARNESS=pi` 全绿，**含 C5（静默失败检测力）与 C8（参数层隔离）**；② `doctor` 输出 §6.3 的**七个字段**（含 `enhancements[]`、`effectiveConfigDigest`）并满足三条硬断言（技能集合、连接器集合、已加载扩展 id 集合 == 声明集合）；③ 渲染确定性：同输入两次渲染 digest 相同（C2）；④ `core/` 无 harness 名 |
+| **包级验收** | ① `make conformance` 全绿，**含 C5（静默失败检测力）与 C8（参数层隔离）**；② `doctor` 输出 §6.3 的**七个字段**（含 `enhancements[]`、`effectiveConfigDigest`）并满足三条硬断言（技能集合、连接器集合、已加载扩展 id 集合 == 声明集合）；③ 渲染确定性：同输入两次渲染 digest 相同（C2）；④ `core/` 无 harness 名 |
+| **验收项拆分（实现期发现，2026-09-25）** | `conformance` 的 **C6（零凭据闸门 3/4）依赖 probe / smoke**，**C9（安全下限声明一致）依赖容器内加固参数** —— 两者按附录 B 都属 **S3**。因此 S2 能绿的只有 C1–C5、C7、C8、C10；**C6/C9 未实现时 runner 记 pending 并非零退出**（不做"跳过即通过"这种事）。这两项在 S3 补齐。 |
 | **设计依据** | §5.6、§6.3、§10.2、§11.2、N11、N13 |
 
 ### S3 — 业务面命令与模板

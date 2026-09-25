@@ -90,4 +90,12 @@
 - 19:05 自检抓到 3 个真问题：schema 描述里写了 harness 名（core/harness-name 拦下）、native.raw 的 reason 用「同上」不自解释、doctor 起初拿未渲染的 .tmpl 导致模型 unknown
 - 19:10 9 个自检目标全绿（新增 pi-selftest / pi-trace-selftest / emit-selftest / trace-view-selftest）
 - 19:10 诚实标注未完成项：enhancements[] 目前口径是「已进入产物」，离「已加载」还差一步（failures.md F6）
+- 19:40 S2 交付：conformance/（run.mjs + cases C1–C10 + README + fixtures + adapters/pi/failure-cases.yaml）
+- 19:40 conformance 首跑抓到 3 个真问题（正是它存在的理由）：
+- 19:40   🔴 潜伏 bug：render 不给 --out 时 outIdx+1===0 会把第一个位置参数当"--out 的值"丢掉 → render <AGENT_DIR> 永远报用法错误（此前测试都带 --out，故没暴露）
+- 19:40   🔴 我自创了能力取值（traceEmit=native / mcpClient=absent），不在 §5.2 枚举内 → 回到 supported / unsupported，并从 conformance 枚举里删掉自创值
+- 19:40   🔴 doctor 把「模型配置缺失」报成退出码 50（崩溃）而非 20（闸门失败）→ 改为提前判定为闸门失败，避免把闸门失败误报成 harness 崩溃
+- 19:45 conformance 现状：C1–C5、C7、C8、C10 全绿（8 项）；C6/C9 记 pending 并非零退出（未实现不算通过，P3）
+- 19:45 路线图记录跨包依赖：C6 依赖 probe/smoke、C9 依赖容器内加固，两者按附录 B 都属 S3
+- 19:45 C8 实证：把 §2.3 禁止项带标记值注入后，产物摘要不变且标记值不出现在任何产物文件里
 
