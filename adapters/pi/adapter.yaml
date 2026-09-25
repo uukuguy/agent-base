@@ -1,6 +1,8 @@
 harness: pi
 version: "0.87.1"          # 精确 pin（本机实测版本）
 adapterVersion: "0.1.0"
+bin: pi                        # 可执行名（镜像内直接调用；harness 专有事实归本文件）
+package: "@earendil-works/pi-coding-agent"   # npm 安装坐标（镜像构建用；harness 专有事实归本文件）
 
 renders:
   output: agent-dir        # 渲染产物形态

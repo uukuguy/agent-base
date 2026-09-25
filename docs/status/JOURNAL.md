@@ -140,4 +140,10 @@
 - 23:40 🔴 真 bug：构建产物未排除出定义摘要 —— 模板把渲染输出放 .render/，渲染一次摘要就变（自漂移）。已把 .render/dist/.agent-base-build 加入 DEFAULT_EXCLUDES
 - 23:40 🔴 真 bug：macOS 符号链接（/tmp→/private/tmp）导致相对路径错位，基座路径算成 /private/Users/...；已改为 realpath 后再算，并给生成的 Makefile 加 check-base 人话报错
 - 23:40 全量回归：11 个自检目标全绿；conformance --harness pi 仍 9/10（仅 C9 待容器）
+- 18:25 交付基座镜像：core/image/{Dockerfile,Dockerfile.debug,entrypoint.sh,gen-preinstall-lock.mjs,build.mjs} + 六个 Makefile 目标
+- 18:25 双架构（用户要求）：arm64 原生 ~90 秒，amd64 走 QEMU；多架构 manifest 用 docker-container 驱动 builder 导出 OCI 归档（默认 docker 驱动不支持，实测报错）
+- 18:25 ✅ **conformance 全绿 10/10** —— C9 首次真实通过：非 root / 只读根 / cap-drop 全 0 / 断网下两个 harness 与 **11 个预装连接器全部可解析** / 生产变体拒绝 debug（退出码 2）/ 调试变体给诊断 shell / 双架构实测 / OCI 归档含两个平台 / 声明 vs 实测一致
+- 18:25 🔴 抓到"检查写错方向"：C9 曾测 npx --offline（系统从不使用的命令）⇒ 必然 ENOTCACHED ⇒ 报假缺陷。改为测连接器真实命令 npx -y <pkg>@<ver> 后全绿。**错方向的检查比漏检更糟**
+- 18:25 🔴 分层自纠：坐标表用 harness 名做键被判红；去掉名字后仍红（包名本身含 harness 名）。最终纠正分层 —— 生成的构建输入不是源码，落 dist/image/context/；可执行名归 adapter.yaml 的 bin:
+- 18:25 删掉"预热 npx 缓存"这一伪步骤（npm cache add 无效；真正生效的是按精确 pin 全局安装）
 

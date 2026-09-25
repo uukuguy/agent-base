@@ -79,11 +79,25 @@ smoke: ## 闸门 4：端到端冒烟（需 RENDER_DIR）
 verify: ## 四道闸门编排 → §6.7 报告 + usable（需 AGENT_DIR）
 	@node tools/verify.mjs $(AGENT_DIR) --harness $(HARNESS) $(if $(OUT),--out $(OUT),) $(if $(JSON),--json,)
 
-image: ## 产出智能体镜像（S3）
-	$(call NOT_YET,S3)
+image-lock: ## 从 preinstall.yaml 刷新镜像预装锁（改了清单就跑这个）
+	@node core/image/gen-preinstall-lock.mjs
 
-debug: ## 构建 debug 变体并进诊断 shell（§8.5 第 ④ 道）（S3）
-	$(call NOT_YET,S3)
+image: ## 构建基座镜像（当前架构原生；ARCH=arm64|amd64 指定，DEBUG=1 连调试变体）
+	@node core/image/build.mjs $(if $(ARCH),--arch $(ARCH),) $(if $(DEBUG),--debug,)
+
+image-all: ## 每架构分别构建（原生优先，失败隔离），再合并成多架构 manifest
+	@node core/image/build.mjs --all $(if $(DEBUG),--debug,)
+	@node core/image/build.mjs --manifest
+
+image-manifest: ## 只产出多架构 manifest list（OCI 归档落盘，不推 registry）
+	@node core/image/build.mjs --manifest
+
+image-debug: ## 构建调试变体（FROM 基座同 digest，只加调试工具）
+	@node core/image/build.mjs $(if $(ARCH),--arch $(ARCH),) --debug
+
+debug: ## 进诊断 shell（先构建调试变体；需 RENDER_DIR 指向渲染产物）
+	@node core/image/build.mjs $(if $(ARCH),--arch $(ARCH),) --debug >/dev/null
+	@docker run --rm -it 	  -e AGENT_RUN_MODE=debug -e HARNESS=$(HARNESS) 	  -e PI_CODING_AGENT_DIR=/opt/agent-base/agent-dir 	  -v "$(abspath $(RENDER_DIR))/agent-dir:/opt/agent-base/agent-dir:ro" 	  agent-base:$(shell node -p "require('./package.json').version")-debug-$(shell uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/')
 
 conformance: ## 对适配器跑合规套 C1–C10（阻断性门槛；C9 待 S3 容器内安全实测）
 	@node conformance/run.mjs $(if $(JSON),--json,) $(if $(HARNESS_ONLY),--harness $(HARNESS_ONLY),)

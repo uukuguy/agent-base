@@ -13,6 +13,7 @@ import path from "node:path";
 import YAML from "yaml";
 import Ajv2020 from "ajv/dist/2020.js";
 import { REPO, adaptersPresent, copyDir, doctor, jsonOf, makeFullAgent, render, run, tmpdir, validate } from "../helpers.mjs";
+import { runImageChecks } from "../image-checks.mjs";
 
 const ok = (detail, evidence) => ({ ok: true, detail, evidence });
 const bad = (detail, evidence) => ({ ok: false, detail, evidence });
@@ -342,7 +343,15 @@ const cases = [
   {
     id: "C9",
     title: "安全下限声明一致：声明的安全能力与容器内实测一致（不许夸大）",
-    run: () => pending("依赖容器内安全断言（只读根 / 非 root / cap-drop / 默认离线）—— 属 S3 镜像与加固参数，本机 macOS 无法实测（§9.2 差异表）"),
+    run: () => {
+      // 容器内实测（§9.2）。镜像不在时记 pending 而非通过 —— **未实现不算通过**。
+      const version = JSON.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8")).version;
+      const res = runImageChecks({ version });
+      if (res.pending) return pending(res.pending);
+      const failed = res.checks.filter((c) => !c.ok);
+      if (failed.length) return bad(failed.map((c) => `${c.id}: ${c.detail}`).join("；"));
+      return ok(`容器下限实测成立（${res.checks.length} 项）：${res.checks.map((c) => c.id).join("、")}`, res.images);
+    },
   },
 
   // -------------------------------------------------------------------------

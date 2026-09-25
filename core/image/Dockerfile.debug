@@ -1,0 +1,37 @@
+# ============================================================================
+# 调试变体（统一设计 §10.1 第 ④ 道调试手段 / §11.6）
+#
+# ## 纪律（写在最前面，因为它最容易被违反）
+#
+#   调试工具**绝不进生产镜像**。本文件是唯一的加装点，且它 `FROM base` 同一 digest，
+#   只多一层调试工具 —— 这样"调试环境能复现的问题"与"生产里发生的问题"是同一份基座。
+#
+#   生产 entrypoint 遇到 `AGENT_RUN_MODE=debug` 会**明确拒绝**（退出码 2），
+#   所以即使有人把调试环境变量带到生产镜像上，也拿不到诊断 shell。
+#
+# ## 为什么工具是这些
+#
+#   目标是**解释智能体的行为**，不是通用渗透工具箱：
+#     strace        —— 系统调用层面：它到底碰了哪些文件、卡在哪个 syscall
+#     tcpdump       —— 链路层面：网关那一段究竟发了什么（缺口 G1 的后半只能在这层看）
+#     netcat-openbsd—— 手动打一个端点，确认可达性
+#     procps / less —— 看进程与翻日志
+#   全部在 Debian 双架构可得（基座承诺 linux/arm64 + linux/amd64）。
+# ============================================================================
+
+ARG BASE_IMAGE=agent-base:0.1.0
+FROM ${BASE_IMAGE}
+
+USER root
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      strace tcpdump netcat-openbsd procps less vim-tiny; \
+    rm -rf /var/lib/apt/lists/*
+
+# 变体标记：entrypoint 据此决定是否给出诊断 shell
+RUN printf 'debug\n' > /etc/agent-base-variant
+
+USER agent

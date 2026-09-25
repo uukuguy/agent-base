@@ -4,10 +4,10 @@
 
 - Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，当前主力 pi）
 - Current branch: `main`
-- Theme-level focus: **四道闸门已全部落地，「可用」不再只是设计承诺而是可执行判定**；关键路径转向「让业务开发者从零走通」（模板 + 派生）
+- Theme-level focus: **四道闸门落地 + pi 侧 conformance 10/10 全绿 + 双架构基座镜像**；关键路径转向本地运行入口与示例
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi。§7 记 dsh 实现待定项，§8 记 S3 进展）
-- Active work package: `S3`（闸门 3/4 + `verify` + `template/` + `new-agent` 已交付；余基座镜像与本地运行入口）
+- Active work package: `S3`（闸门 3/4、`template/`+`new-agent`、基座镜像均已交付；余 `dev-env` / `run-local` 与示例）
 
 ## Current Architecture
 
@@ -47,9 +47,9 @@
 
 ### 仓库拓扑（现状）
 
-`core/`（66 文件）· `adapters/{pi,dsh}/`（20）· `tools/`（13）· `conformance/`（5）· `template/`（6，派生源）· `docs/{design,plans,research,status}/`；`dist/` 是构建产物（已 gitignore）。
+`core/`（73 文件）· `adapters/{pi,dsh}/`（20）· `tools/`（13）· `conformance/`（6）· `template/`（6，派生源）· `docs/{design,plans,research,status}/`；`dist/` 是构建产物（已 gitignore）。
 
-Makefile 共 24 个目标，已实现 20 个；**未实现 4 个**：`image` / `debug` / `dev-env` / `run-local`（未实现的会**显式失败并指向所属包**，不静默通过）。
+Makefile 共 30 个目标，已实现 28 个；**未实现 2 个**：`dev-env` / `run-local`（未实现的会**显式失败并指向所属包**，不静默通过）。
 
 **开箱可跑已成立**：`make new-agent NAME=x` 派生的智能体（落在基座之外的同级目录）立刻 `make verify` 即给出「可用」——判据由 `make new-agent-selftest` 逐条实测（跑的是**生成出来的 Makefile**，而非直接调基座工具）。
 
@@ -60,7 +60,8 @@ Makefile 共 24 个目标，已实现 20 个；**未实现 4 个**：`image` / `
 - **G3 的真值需要「做决策的扩展」自己上报**：轨迹扩展观测不到别的 handler 是否阻断，因此 `tool.call.decision` 目前恒为 `unobserved`（诚实近似，不是等价）
 - **闸门 2 硬断言 3 的口径是「已进入产物」而非「已加载」**：纯钩子型扩展目前观测不到（`failures.md` F6 已记，补法是让增强自证 id）
 - **业务开发者上手路径已打通但只有 pi 一侧**：派生的智能体开箱 `usable`，`HARNESS=dsh` 仍会因 dsh 适配器未实现而失败
-- **C9（安全下限声明一致）需要容器内实测**：只读根 / 非 root / cap-drop / 默认离线在 macOS 上无法验证 → 阻塞在基座镜像
+- **镜像只在本地产出、尚未推任何 registry**：多架构 manifest 已能落盘（OCI 归档），推送路径待 I2（内网能否直连镜像仓库）确认
+- **`dev-env` / `run-local` 未实现**：本地开发环境还需手工装 harness；这是上手路径上最后两个缺口
 - **企业级 MCP 的每用户鉴权**与参数层模型（单一服务凭据 `credentialRef`）不匹配 —— 设计缺口，排在首个走通之后
 - **pi 侧 MCP 客户端需外部补齐**（pi 0.87.1 原生无 MCP；第三方扩展生态已成熟，见调研）→ 选定并 pin 一个扩展之前，声明了连接器的智能体在 pi 上渲染即失败（响亮，不静默）
 - **预装清单的服务器选择**仍未定稿：`core/image/preinstall.yaml` 已列出候选与 npm 实测存活表，但「预装哪些进镜像」是待定项；企业 SaaS 集与 per-user OAuth 的冲突同上
@@ -100,7 +101,8 @@ Makefile 共 24 个目标，已实现 20 个；**未实现 4 个**：`image` / `
 - `core/spec/` —— 中性定义 schema（**public contract**，`additionalProperties: false`）+ fixtures（1 合法 + 10 注入式非法）
 - `core/catalog/{capabilities,params}.yaml` —— 两个执法点：字段所属层 + 参数层允许/禁止清单
 - `core/image/preinstall.yaml` —— 独立可升级的预装清单（开发者面向引用名 + 精确 pin + 存活实测 + 排除项理由）
-- `conformance/` —— 准入门槛 C1–C10（全阻断；未实现记 pending 并非零退出）· `--harness` 可单独断言某适配器
+- `conformance/` —— **pi 侧 C1–C10 全绿（10/10）**；准入门槛全阻断，未实现记 pending 并非零退出；`--harness` 可单独断言某适配器
+- `core/image/` —— 基座镜像与调试变体：`Dockerfile`/`Dockerfile.debug`/`entrypoint.sh`/`gen-preinstall-lock.mjs`/`build.mjs`；按架构分开构建 + 一步合并多架构 manifest；`conformance/image-checks.mjs` 做容器内实测
 - `tools/fake-gateway/` —— 零凭据假网关（协议无关核心 + 协议适配；已含会话终止语义）
 - `tools/trace-view/` —— 轨迹查看器参考实现（业务附加协议 + 机械回退；源码不含业务词汇）
 - `package.json` / `package-lock.json` —— 基座工具链依赖（`ajv`、`yaml`，精确 pin；`node_modules/` 已 gitignore）

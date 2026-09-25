@@ -1,6 +1,8 @@
 harness: dsh
 version: "0.1.7-rc.1"      # 精确 pin（基线是 RC，接口可能变 —— 升级时只复核本文件与 render/doctor）
 adapterVersion: "0.1.0"
+bin: dsh                        # 可执行名（镜像内直接调用；harness 专有事实归本文件）
+package: "@deepseek-ai/dsh"   # npm 安装坐标（镜像构建用；harness 专有事实归本文件）
 
 renders:
   output: dsh-home/profiles/<name>   # 渲染产物形态

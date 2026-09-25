@@ -29,7 +29,7 @@
 | **S0** | A | 中性定义契约：schema + 能力目录 + 参数层清单 | — | **done** |
 | **S1** | A | 四闸门框架 + 假网关 + 统一轨迹 schema | S0 | **done** |
 | **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | **active** |
-| **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` | S2 | **active**（probe/smoke/verify + template/new-agent 已交付；余镜像与本地运行入口） |
+| **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` + 基座镜像 | S2 | **active**（闸门 3/4、template/new-agent、基座镜像已交付；余 dev-env/run-local 与 examples） |
 | **S4** | A + B + C | `examples/idea-to-proof` 全绿（含 C5/C8） | S3 | pending |
 | **S5** | A + B + C | `examples/contract-review`（带 MCP，双 harness 等价性） | S4 | pending |
 | **S6** | A | `docs/` 全 12 篇 | S4 | pending |
@@ -268,3 +268,34 @@ mcpServers:
 2. **符号链接导致相对路径错位**：macOS 上 `/tmp`→`/private/tmp`、`/var`→`/private/var`。用未解析的路径算相对路径会得到"算式正确、实际指错"的结果（实测算成了 `/private/Users/...`）——因为 `make` 会规范化 CWD。已改为双方都 `realpath` 后再算；生成的 Makefile 也加了 `check-base`，路径不对时给人话而不是 `MODULE_NOT_FOUND`。
 
 **S3 余项**：`core/image/`（基座镜像 + debug 变体）、`make dev-env` / `run-local` / `image` / `debug`；C9 依赖容器内加固。之后才是 `examples/`（S4/S5）。
+
+---
+
+## 10. S3 续：基座镜像（2026-09-25）
+
+**已交付**：`core/image/` 的 `Dockerfile` · `Dockerfile.debug` · `entrypoint.sh` · `gen-preinstall-lock.mjs` · `build.mjs`；`make image` / `image-all` / `image-manifest` / `image-debug` / `debug` / `image-lock`。
+
+### 10.1 为什么**按架构分开构建**，而不是一次 `--platform a,b`
+
+用户明确要求同时支持 **arm64 与 amd64**（开发机是 M3 Max/arm64）。做法：
+
+- **主路径**：`--arch <a>` 单架构构建 + `--load` —— 本机架构原生（arm64 实测 ~90 秒），另一架构走 QEMU 模拟（隔离，且一架构失败不会毁掉整个构建，排查时能分清"代码问题"还是"模拟问题"）
+- **打包路径**：`--manifest` 用 `docker-container` 驱动的 builder 产出**真正的多架构 manifest list**（OCI 归档落盘）
+- 日常开发不为模拟付代价，消费者最终仍拿到"一个 tag 两个架构"
+
+### 10.2 实测踩到的四个坑（都已固化进代码或检查里）
+
+| 坑 | 现象 | 处置 |
+|---|---|---|
+| 默认 `docker` 驱动不支持 OCI 导出 | `--manifest` 报 "OCI exporter is not supported for the docker driver" | 自动创建 `docker-container` 驱动的 builder（官方建议路径） |
+| 调试变体的基础镜像 tag 猜错 | `tag.replace(/-debug$/,"")` 不匹配 `...-debug-arm64` ⇒ 指回自己 ⇒ 拉取失败 | 显式传基础镜像 tag，不做字符串猜 |
+| 「预热 npx 缓存」是伪需求 | `npm cache add` 后仍 ENOTCACHED；真正生效的是**按精确 pin 全局安装**（npx 直接用它，不碰 `_npx`） | 删掉预热步骤，只做全局安装 |
+| **检查写错方向** | C9 一度测 `npx --offline`（系统从不使用的命令）⇒ 必然 ENOTCACHED ⇒ 报出**假缺陷** | 改为测**连接器真正跑的命令** `npx -y <pkg>@<ver>`，断网下逐条验 |
+
+> 第 4 条值得单独记住：**检查写错方向比漏检更糟** —— 它会让人去修一个本来正确的东西。
+
+### 10.3 分层纪律的一次自纠
+
+坐标表最初用 harness 名做键，被 `core/harness-name` 判红；去掉名字改用包坐标后**仍**判红 —— 因为**包名本身就含 harness 名**（scope 与包名里都有）。最终处置不是放宽规则，而是纠正分层：**生成的构建输入不是源码**，落到 `dist/image/context/`（已 gitignore），`core/` 只留人工维护的源文件；harness 的可执行名归 `adapters/<h>/adapter.yaml` 的 `bin:`。
+
+**S3 余项**：`make dev-env`（按 pin 装/校验两个 harness）、`make run-local`（临时 HOME 挂渲染产物）、`examples/`（S4/S5）、dsh 适配器。

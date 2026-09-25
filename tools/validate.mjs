@@ -38,6 +38,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import Ajv2020 from "ajv/dist/2020.js";
+import { buildLock } from "../core/image/gen-preinstall-lock.mjs";
 import { EXIT_CODES, GateReport, digestDirectory } from "../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../core/image/resolve-preinstall.mjs";
 
@@ -367,7 +368,24 @@ function checkPreinstall(report) {
   if (refProblems.length) {
     report.fail(GATE, "preinstall/ref-name", `引用名契约不自洽：${refProblems.join("；")}`);
   } else {
-    report.pass(GATE, "preinstall/ref-name", `引用名契约双向一致（${Object.keys(named).length} 个开发者可见名字）`);
+      // 镜像构建锁必须与清单同步：不同步意味着「镜像里装的包」与「清单里写的」不是一回事，
+  // 而两边都不会报错 —— 这类失效只有到某个智能体在运行时连不上才发现。
+  {
+    const lockFile = path.join(CORE, "image", "preinstall.lock.txt");
+    if (!fs.existsSync(lockFile)) {
+      report.fail(GATE, "preinstall/lock-sync", "缺 preinstall.lock.txt —— 跑 `make image-lock` 生成");
+    } else {
+      const expected = buildLock({ list, named: list.namedReferences ?? {}, byId, byRefName: new Map() });
+      const actual = fs.readFileSync(lockFile, "utf8");
+      if (actual !== expected.lines) {
+        report.fail(GATE, "preinstall/lock-sync", "preinstall.lock.txt 与清单不同步 —— 跑 `make image-lock` 刷新");
+      } else {
+        report.pass(GATE, "preinstall/lock-sync", `镜像构建锁与清单同步（npm ${expected.counts.npm} · apt ${expected.counts.apt} · 技能 ${expected.counts.skill}）`);
+      }
+    }
+  }
+
+report.pass(GATE, "preinstall/ref-name", `引用名契约双向一致（${Object.keys(named).length} 个开发者可见名字）`);
   }
 
   // needsExternalCredential 的条目必须能对上参数层允许清单的命名约定
