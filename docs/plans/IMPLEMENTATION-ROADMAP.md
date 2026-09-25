@@ -31,10 +31,10 @@
 | **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | **两侧全绿 10/10**（dsh 准入完成，见 §16） |
 | **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` + 基座镜像 + 本地开发环境 | S2 | **闭环**（全部交付；Makefile 30 个目标、0 个未实现） |
 | **S4** | A + B + C | `examples/idea-to-proof` 全绿（含 C5/C8） | S3 | **闭环**（`make examples-check` 全绿：四道闸门 → 可用） |
-| **S5** | A + B + C | `examples/contract-review`（带 MCP，双 harness 等价性） | S4 | pending |
+| **S5** | A + B + C | `examples/contract-review`（带 MCP，双 harness 等价性） | S4 | **闭环**（M4，见 §20） |
 | **S6** | A | `docs/` 全 12 篇 | S4 | **闭环**（12 篇全部完成 + 索引；03 由真源生成并有同步检查） |
 | **S7** | A | `CHANGELOG` + 版本策略 | S6 | **闭环**（`CHANGELOG.md` 含版本策略 + 闸门 1 有版本纪律检查） |
-| **S8** | A | **运行期无外网**（构建期可联网）：构建期装齐 + 运行期断网验证 + 关掉静默联网 | S3 | pending（规模已按澄清缩小） |
+| **S8** | A | **运行期无外网**（构建期可联网）：构建期装齐 + 运行期断网验证 + 关掉静默联网 | S3 | **闭环**（见 §20.4；端到端证据由 M4 与 §21 的容器内验证给出） |
 
 **最小可评审单元 = S0 + S1**（设计附录 B 原文）。它们是「适配契约」（§5）的具体化；S0–S1 交付后即可用真实适配器（先 pi）检验契约是否够用。
 
