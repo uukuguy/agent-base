@@ -4,10 +4,10 @@
 
 - Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，当前主力 pi）
 - Current branch: `main`
-- Theme-level focus: 统一设计已定稿 v2.4，实现尚未开始 —— 把「适配契约」具体化为可执行形态（S0–S1）
+- Theme-level focus: 实现已启动 —— 契约基线（S0）已交付并验证，下一个包是闸门框架与假网关（S1）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi）
-- Active work package: `S0` 中性定义契约（schema + 能力目录 + 参数层清单）
+- Active work package: `S1` 四闸门框架 + 假网关 + 统一轨迹 schema（S0 中性定义契约已交付，见 JOURNAL）
 
 ## Current Architecture
 
@@ -27,9 +27,10 @@
 
 ## Open Problems (theme-level)
 
-- 适配契约（§5 六个面）目前只有文档形态，尚无 `core/gates`、`conformance/C1–C10`、假网关等可执行载体
+- 中性定义契约（S0）已落地；仍缺可执行载体的部分：`core/gates` 框架、`core/trace/schema.json`、`tools/fake-gateway/`、`conformance/C1–C10`
+- 闸门 2 的三个硬断言（技能集合 / 连接器集合 / 已加载扩展 id 集合）尚无真实 harness 可断言 —— 要等 S2 的 `doctor`
 - 上游版本漂移：dsh `0.1.7-rc.1` 是预发布，pi 迭代快 —— pin 之外的回归保障（conformance）未建立
-- 业务级 harness 增强（§4.5：`harness/shared/` 纯算法 + `harness/<h>/` 薄外壳 + `enhancements.yaml`）尚无最小示例验证其可写性
+- 业务级 harness 增强（§4.5：`harness/shared/` 纯算法 + `harness/<h>/` 薄外壳 + `enhancements.yaml`）尚无最小示例验证其可写性；`capabilities.yaml` 里该组字段的 `verified: false` 即此缺口
 - 两份 harness 的实测约束散落在两份上位文档 §10/§11，未沉淀为可执行的断言
 - 等待外部输入（不阻塞实现）：企业 LLM 网关地址协议与 tools/流式保真度、内网能否直连 npm 与公共基础镜像、首批业务智能体场景
 - 仓库交付物标准（企业可接手）：模板必须开箱可跑、无 TODO；`examples/` 可整删后基座仍须 `validate` + `conformance` 全绿
@@ -52,14 +53,19 @@
 - `docs/design/2026-09-25-dsh-harness-design.md` —— dsh 专有实测约束的唯一事实来源（上位依据）
 - `README.md` —— 对外定位、基座/应用边界、四类标记的阅读方式
 
-### Implementation entry points (待创建，见统一设计 §2.4 / §12.3)
-- `Makefile` —— 全部命令的唯一边界（`validate` / `render` / `doctor` / `probe` / `smoke` / `verify` / `image` / `conformance`）
-- `core/gates/` —— 四道闸门框架：编排、断言语言、报告格式
-- `core/catalog/{capabilities,params}.yaml` —— 能力目录与参数层清单的机器可读真源
-- `core/spec/{agent,connectors}.schema.json` —— 中性定义唯一真源
-- `adapters/pi/`、`adapters/dsh/` —— adapter.yaml / render / doctor / probes / trace / exemptions / failures
-- `conformance/` —— C1–C10 用例与 runner（**C5 静默失败检测力、C8 参数层隔离是灵魂**）
-- `tools/fake-gateway/` —— 零凭据假网关（协议无关核心 + 协议适配）
+### Implementation entry points
+- `Makefile` —— 全部命令的唯一边界；已实现 `validate` / `validate-selftest`，其余目标**显式失败并指向所属包**（不静默通过）
+- `tools/validate.mjs` —— 闸门 1 唯一入口：基座自洽（schema ↔ 能力目录 ↔ 参数层清单对账）+ 定义校验 + `--selftest` 注入式负向用例
+- `core/spec/{agent,connectors}.schema.json` —— 中性定义唯一真源（**public contract**；`additionalProperties: false` 让未知字段成为硬错误）
+- `core/catalog/params.yaml` —— 参数层允许/禁止清单（J2 第一个执法点）；`conformance/C8` 的输入
+- `core/catalog/capabilities.yaml` —— 每个字段的类型/默认值/所属层/各 harness 支持度与降级行为（J2 第二个执法点）
+- `core/spec/fixtures/` —— 1 个合法样本 + 8 个注入式非法样本（每个 `expect.yaml` 声明它必须撞上的失败项）
+- `package.json` / `package-lock.json` —— 基座工具链依赖（`ajv`、`yaml`，精确 pin；`node_modules/` 已 gitignore）
+- `core/gates/` —— 四道闸门框架：编排、断言语言、报告格式（**待 S1**）
+- `core/trace/schema.json` —— 统一轨迹事件 schema（**待 S1**）
+- `adapters/pi/`、`adapters/dsh/` —— adapter.yaml / render / doctor / probes / trace / exemptions / failures（待 S2）
+- `conformance/` —— C1–C10 用例与 runner（**C5 静默失败检测力、C8 参数层隔离是灵魂**）（待 S2）
+- `tools/fake-gateway/` —— 零凭据假网关（协议无关核心 + 协议适配）（**待 S1**）
 
 ## Resume Instructions
 

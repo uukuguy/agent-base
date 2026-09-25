@@ -26,8 +26,8 @@
 
 | 包 | 轨道 | 目标 | 依赖 | 状态 |
 |---|---|---|---|---|
-| **S0** | A | 中性定义契约：schema + 能力目录 + 参数层清单 | — | **active** |
-| **S1** | A | 四闸门框架 + 假网关 + 统一轨迹 schema | S0 | pending |
+| **S0** | A | 中性定义契约：schema + 能力目录 + 参数层清单 | — | **done** |
+| **S1** | A | 四闸门框架 + 假网关 + 统一轨迹 schema | S0 | **active** |
 | **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | pending |
 | **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` | S2 | pending |
 | **S4** | A + B + C | `examples/idea-to-proof` 全绿（含 C5/C8） | S3 | pending |
