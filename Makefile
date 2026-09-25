@@ -86,7 +86,7 @@ debug: ## 构建 debug 变体并进诊断 shell（§8.5 第 ④ 道）（S3）
 	$(call NOT_YET,S3)
 
 conformance: ## 对适配器跑合规套 C1–C10（阻断性门槛；C6/C9 待 S3 才可能全绿）
-	@node conformance/run.mjs $(if $(JSON),--json,)
+	@node conformance/run.mjs $(if $(JSON),--json,) $(if $(HARNESS_ONLY),--harness $(HARNESS_ONLY),)
 
 dev-env: ## 按 pin 安装/校验两个 harness 到一致版本（§9.3）（S3）
 	$(call NOT_YET,S3)

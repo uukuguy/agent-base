@@ -24,11 +24,18 @@ export function jsonOf(out) {
   try { return JSON.parse(out); } catch { return null; }
 }
 
-export const adaptersPresent = () =>
-  fs.readdirSync(path.join(REPO, "adapters"), { withFileTypes: true })
+/**
+ * 被测适配器清单。可用 `--harness pi` 收窄（runner 通过环境变量传入）——
+ * 这样"某个适配器是否合规"可以独立断言，不受另一个适配器尚未实现的影响。
+ */
+export const adaptersPresent = () => {
+  const all = fs.readdirSync(path.join(REPO, "adapters"), { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort();
+  const filter = (process.env.AGENT_BASE_CONFORMANCE_HARNESS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return filter.length ? all.filter((h) => filter.includes(h)) : all;
+};
 
 export function tmpdir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), `conformance-${prefix}-`));
@@ -39,7 +46,7 @@ export function tmpdir(prefix) {
  * 刻意不声明连接器：该 harness 原生无 MCP 客户端时，声明连接器会让 render 响亮失败——
  * 那是 C5 的注入场景，不是 C3 的输入。
  */
-export function makeFullAgent(dir, { name = "conformance-agent", reasoningEffort = null, enhancements = false } = {}) {
+export function makeFullAgent(dir, { name = "conformance-agent", reasoningEffort = null, enhancements = false, harness = null } = {}) {
   fs.mkdirSync(path.join(dir, "skills", "alpha"), { recursive: true });
   fs.mkdirSync(path.join(dir, "prompts"), { recursive: true });
   fs.writeFileSync(path.join(dir, "prompts", "system.md"), "你是合规审阅助手，只给可验证的结论。\n");
@@ -65,10 +72,13 @@ export function makeFullAgent(dir, { name = "conformance-agent", reasoningEffort
   fs.mkdirSync(path.join(dir, "skills", "alpha", "scripts"), { recursive: true });
   fs.writeFileSync(path.join(dir, "skills", "alpha", "scripts", "scan.sh"), "#!/bin/sh\necho scan\n");
   if (enhancements) {
-    fs.mkdirSync(path.join(dir, "harness", adaptersPresent()[0], "extensions"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "harness", adaptersPresent()[0], "enhancements.yaml"),
-      "apiVersion: agent-base/v1\nharness: " + adaptersPresent()[0] + "\nenhancements:\n  - kind: tool\n    id: risk-score\n    entry: extensions/risk-score.ts\n");
-    fs.writeFileSync(path.join(dir, "harness", adaptersPresent()[0], "extensions", "risk-score.ts"), "export default function () {}\n");
+    // **必须显式传被测 harness**：早期这里用 adaptersPresent()[0]，加入第二个适配器后
+    // 就悄悄指向了另一个 harness，导致"增强没进产物"的假失败（真因是用例自己写错了目录）。
+    const h = harness ?? adaptersPresent()[0];
+    fs.mkdirSync(path.join(dir, "harness", h, "extensions"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "harness", h, "enhancements.yaml"),
+      "apiVersion: agent-base/v1\nharness: " + h + "\nenhancements:\n  - kind: tool\n    id: risk-score\n    entry: extensions/risk-score.ts\n");
+    fs.writeFileSync(path.join(dir, "harness", h, "extensions", "risk-score.ts"), "export default function () {}\n");
   }
   return dir;
 }

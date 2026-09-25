@@ -125,4 +125,7 @@
 - 21:40 假网关加会话终止语义（收到工具结果后改回文本）；网关自检 31 项仍全绿，且探针不再无限循环
 - 21:40 schema 两处调整：decision 增 unobserved（观测不到不写 allow）；model.request 必填收敛为 [type, tools, stream]，route/model 按可得性填
 - 21:40 validate 又抓到我在 core/trace/emit.mjs 注释里写了 harness 名（core/ 纪律生效）
+- 21:55 🔴 conformance 自身抓到我的用例 bug：helpers 的 makeFullAgent 用 adaptersPresent()[0] 决定增强放哪个 harness 目录 —— 加入第二个适配器后它悄悄指向 dsh，造成「增强没进产物」的假失败。已改为显式传被测 harness
+- 21:55 conformance 增 --harness 过滤：使「某适配器是否合规」可独立断言，不被另一个未实现拖累
+- 21:55 ✅ pi 侧 conformance 全绿（C1–C5、C7、C8、C10）；dsh 侧 C2–C5/C7/C8 未通过（render/doctor/trace 未实现，预期）；C6/C9 全局待 S3
 

@@ -18,10 +18,12 @@ import cases from "./cases/index.mjs";
 
 const args = process.argv.slice(2);
 if (args.includes("--help") || args.includes("-h")) {
-  process.stderr.write("用法: node conformance/run.mjs [--json] [--only C5,C7]\n");
+  process.stderr.write("用法: node conformance/run.mjs [--json] [--only C5,C7] [--harness pi]\n");
   process.exit(0);
 }
 const json = args.includes("--json");
+const harnessIdx = args.indexOf("--harness");
+if (harnessIdx >= 0) process.env.AGENT_BASE_CONFORMANCE_HARNESS = String(args[harnessIdx + 1] ?? "");
 const onlyIdx = args.indexOf("--only");
 const only = onlyIdx >= 0 ? new Set(String(args[onlyIdx + 1] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) : null;
 

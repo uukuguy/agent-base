@@ -78,7 +78,7 @@ const cases = [
       const problems = [];
       const seen = [];
       for (const h of adaptersPresent()) {
-        const agent = makeFullAgent(path.join(tmpdir("c2"), "agent"));
+        const agent = makeFullAgent(path.join(tmpdir("c2"), "agent"), { harness: h });
         const a = path.join(tmpdir("c2"), "out-a");
         const b = path.join(tmpdir("c2"), "out-b");
         const ra = render(h, agent, a);
@@ -116,7 +116,7 @@ const cases = [
     run: () => {
       const problems = [];
       for (const h of adaptersPresent()) {
-        const agent = makeFullAgent(path.join(tmpdir("c3"), "agent"), { reasoningEffort: "medium", enhancements: true });
+        const agent = makeFullAgent(path.join(tmpdir("c3"), "agent"), { reasoningEffort: "medium", enhancements: true, harness: h });
         const out = path.join(tmpdir("c3"), "out");
         const r = render(h, agent, out);
         if (r.status !== 0) { problems.push(`${h}: render 失败 ${r.stderr.slice(-200)}`); continue; }
@@ -161,7 +161,7 @@ const cases = [
     run: () => {
       const problems = [];
       for (const h of adaptersPresent()) {
-        const agent = makeFullAgent(path.join(tmpdir("c4"), "agent"), { enhancements: true });
+        const agent = makeFullAgent(path.join(tmpdir("c4"), "agent"), { enhancements: true, harness: h });
         const out = path.join(tmpdir("c4"), "out");
         if (render(h, agent, out).status !== 0) { problems.push(`${h}: render 失败`); continue; }
         const d = doctor(h, out);
@@ -194,7 +194,7 @@ const cases = [
         const { cases: injections } = YAML.parse(fs.readFileSync(caseFile, "utf8"));
         for (const c of injections ?? []) {
           const base = tmpdir(`c5-${c.id}`);
-          const agent = makeFullAgent(path.join(base, "agent"), c.agentOptions ?? {});
+          const agent = makeFullAgent(path.join(base, "agent"), { ...(c.agentOptions ?? {}), harness: h });
           const out = path.join(base, "out");
           let result;
           if (c.kind === "render-declares-connectors") {
@@ -293,7 +293,7 @@ const cases = [
         AGENT_SKILLS: "evil-skills-marker",
       };
       for (const h of adaptersPresent()) {
-        const agent = makeFullAgent(path.join(tmpdir("c8"), "agent"));
+        const agent = makeFullAgent(path.join(tmpdir("c8"), "agent"), { harness: h });
         const clean = path.join(tmpdir("c8"), "clean");
         const dirty = path.join(tmpdir("c8"), "dirty");
         const rc = render(h, agent, clean);
@@ -334,7 +334,7 @@ const cases = [
     title: "退出码契约：§6.7 的语义逐条成立",
     run: () => {
       const problems = [];
-      const good = makeFullAgent(path.join(tmpdir("c10"), "agent"));
+      const good = makeFullAgent(path.join(tmpdir("c10"), "agent"), { harness: "pi" });
       const goodOut = path.join(tmpdir("c10"), "out");
       const checks = [
         ["闸门 1 通过 = 0", () => validate(good).status === 0],
