@@ -18,7 +18,7 @@ HARNESS ?= pi
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 NOT_YET = @echo "❌ $@ 尚未实现（包 $(1)）——见 docs/plans/IMPLEMENTATION-ROADMAP.md"; exit 1
 
-.PHONY: help validate validate-selftest render doctor probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help validate validate-selftest gates-selftest trace-selftest gateway-selftest render doctor probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -34,6 +34,16 @@ validate: ## 闸门 1：schema + 引用 + 凭据引用 + 命名 + 层纪律
 
 validate-selftest: ## 闸门 1 的注入式负向自检（非法样本必须全部变红）
 	@node tools/validate.mjs core/spec/fixtures/valid --selftest
+
+# --- 基座自检（S1 已交付）---------------------------------------------------
+gates-selftest: ## 四闸门框架自检：断言语言、短路、退出码、usable、摘要确定性
+	@node core/gates/selftest.mjs
+
+trace-selftest: ## 统一轨迹 schema 自检：七类事件通过、未映射只能走 native.raw
+	@node core/trace/selftest.mjs
+
+gateway-selftest: ## 零凭据假网关自检：无 Authorization 可用、流式、tools 计数、轨迹合规
+	@node tools/fake-gateway/selftest.mjs
 
 # --- 后续包的目标（显式失败，避免静默通过）----------------------------------
 render: ## 确定性渲染 + 输出 digest（S2）

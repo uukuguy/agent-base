@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-base/trace/schema.json",
+  "title": "统一轨迹事件（JSONL，一行一个事件）",
+  "description": "统一设计 §8.3 的唯一真源。企业要回答「这个智能体为什么这么决策」，而各 harness 的原生轨迹形状不同：审计工具绝不能按 harness 分叉。因此轨迹事件强制统一 schema；无法映射的原生事件必须输出 type=native.raw（带 reason），不许丢弃 —— 丢掉的往往正是排障最需要的那条（P1 决策）。",
+  "type": "object",
+  "allOf": [
+    { "$ref": "#/$defs/common" },
+    { "$ref": "#/$defs/typed" }
+  ],
+  "unevaluatedProperties": false,
+  "$defs": {
+    "common": {
+      "type": "object",
+      "description": "每条事件都必须带的字段。",
+      "required": ["ts", "seq", "run", "type", "effectiveConfigDigest"],
+      "properties": {
+        "ts": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,9})?Z$",
+          "description": "UTC 时间戳，必须以 Z 结尾。跨 harness 合并轨迹时不能有本地时区歧义。"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "同一 run 内单调递增的序号。用于检测丢行与排序。"
+        },
+        "run": {
+          "type": "string",
+          "minLength": 1,
+          "description": "一次运行（run）的 id。所有事件按 run 分组。"
+        },
+        "type": { "type": "string" },
+        "effectiveConfigDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "§6.7 的生效配置摘要。**每条事件都带**：事后归因不必再追问「当时生效的是什么」。"
+        },
+        "agent": { "type": "string", "minLength": 1 },
+        "harness": { "type": "string", "minLength": 1 },
+        "harnessVersion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "typed": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/runMeta"
+        },
+        {
+          "$ref": "#/$defs/modelRequest"
+        },
+        {
+          "$ref": "#/$defs/modelError"
+        },
+        {
+          "$ref": "#/$defs/toolCall"
+        },
+        {
+          "$ref": "#/$defs/toolResult"
+        },
+        {
+          "$ref": "#/$defs/gate"
+        },
+        {
+          "$ref": "#/$defs/nativeRaw"
+        }
+      ]
+    },
+    "runMeta": {
+      "type": "object",
+      "description": "运行元信息，通常是首行。debug 态在此显式标记，与交付态可区分（§8.5）。",
+      "required": ["type", "mode"],
+      "properties": {
+        "type": { "const": "run.meta" },
+        "mode": {
+          "type": "string",
+          "enum": ["interactive", "oneshot", "rpc", "debug"],
+          "description": "对应 AGENT_RUN_MODE。debug 只在 debug 变体镜像里出现。"
+        }
+      }
+    },
+    "modelRequest": {
+      "type": "object",
+      "description": "一次模型调用请求。tools 计数是闸门 3 的核心断言对象。",
+      "required": ["type", "route", "model", "tools", "stream"],
+      "properties": {
+        "type": { "const": "model.request" },
+        "route": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "tools": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "本次请求携带的工具数量。**闸门 3 必须断言 tools=N>0**：企业网关最常见的故障是吞掉 tools 字段或降级流式，把网络层问题伪装成配置层问题（§6.4）。"
+        },
+        "stream": {
+          "type": "boolean",
+          "description": "是否为流式请求。网关静默降级流式同样要被看见。"
+        }
+      }
+    },
+    "modelError": {
+      "type": "object",
+      "description": "模型调用失败。路由名写错、凭据缺失等必须留痕，不能只在请求期冒泡一次。",
+      "required": ["type", "code", "route"],
+      "properties": {
+        "type": { "const": "model.error" },
+        "code": { "type": "string", "minLength": 1 },
+        "route": { "type": "string", "minLength": 1 },
+        "message": { "type": "string" }
+      }
+    },
+    "toolCall": {
+      "type": "object",
+      "description": "一次工具调用及其判定。入参只存 digest，不存明文——防泄漏。",
+      "required": ["type", "tool", "inputDigest", "decision"],
+      "properties": {
+        "type": { "const": "tool.call" },
+        "tool": { "type": "string", "minLength": 1 },
+        "inputDigest": {
+          "$ref": "#/$defs/digest",
+          "description": "工具入参的 digest。需要明文时按 digest 去会话目录取（§8.3）。"
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["allow", "deny", "ask"],
+          "description": "边界判定结果。人在环审批走 ask（§8.5 第 ④ 道）。"
+        }
+      }
+    },
+    "toolResult": {
+      "type": "object",
+      "description": "工具调用结果。",
+      "required": ["type", "ok", "ms"],
+      "properties": {
+        "type": { "const": "tool.result" },
+        "tool": { "type": "string", "minLength": 1 },
+        "ok": { "type": "boolean" },
+        "ms": { "type": "number", "minimum": 0 },
+        "outputDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "description": "一次闸门探针结果。让「过没过」这件事本身也进轨迹。",
+      "required": ["type", "name", "target", "ok"],
+      "properties": {
+        "type": { "const": "gate" },
+        "name": {
+          "type": "string",
+          "enum": ["static", "resolution", "probes", "smoke"],
+          "description": "四道闸门的 id（§6.1）。"
+        },
+        "target": { "type": "string", "minLength": 1 },
+        "ok": { "type": "boolean" },
+        "detail": { "type": "string" }
+      }
+    },
+    "nativeRaw": {
+      "type": "object",
+      "description": "无法映射到统一 schema 的原生事件。**必须原样带上，不许丢弃**——映射失败往往是「这个 harness 出了新事件」的第一信号（§8.3，conformance/C7 检查无静默丢弃）。reason 必填：raw 事件必须自解释为什么没被映射。",
+      "required": ["type", "nativeType", "reason", "raw"],
+      "properties": {
+        "type": { "const": "native.raw" },
+        "nativeType": {
+          "type": "string",
+          "minLength": 1,
+          "description": "harness 原生事件名，原样保留。"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "未能映射的原因。必填——否则 raw 事件就成了垃圾桶，看不出该不该补映射。"
+        },
+        "raw": {
+          "type": "object",
+          "description": "原生事件载荷，原样保留。"
+        }
+      }
+    }
+  }
+}

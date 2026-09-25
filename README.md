@@ -16,14 +16,21 @@
 | 包 | 内容 | 状态 |
 |---|---|---|
 | **S0** | 中性定义契约：`core/spec/*.schema.json` + `core/catalog/{capabilities,params}.yaml` + 闸门 1（`tools/validate.mjs`） | ✅ 已交付 |
-| S1 | 四闸门框架 + 假网关 + 统一轨迹 schema | ⏳ 下一个 |
-| S2–S7 | 适配器与 `conformance` C1–C10 → 模板/探针/smoke → 示例 → 文档 → 版本策略 | ⏳ |
+| **S1** | `core/gates/` 四闸门框架（编排 / 断言语言 / §6.7 报告与退出码 / 确定性摘要）+ `core/trace/schema.json` 统一轨迹 + `tools/fake-gateway/` 零凭据假网关 | ✅ 已交付 |
+| S2 | `adapters/{pi,dsh}/`（render + doctor）+ `conformance` C1–C10 | ⏳ 下一个 |
+| S3–S7 | 探针/smoke + 模板与 `new-agent` → 示例走通 → 双 harness 等价性 → 文档 → 版本策略 | ⏳ |
 
 ```bash
 make validate                        # 闸门 1：基座自洽（schema ↔ 能力目录 ↔ 参数层清单对账）
 make validate AGENT_DIR=<智能体目录>   # 闸门 1：校验一份中性定义
 make validate-selftest               # 注入式负向自检（非法样本必须全部变红）
+make gates-selftest                  # 四闸门框架自检
+make trace-selftest                  # 统一轨迹 schema 自检
+make gateway-selftest                # 零凭据假网关自检
 ```
+
+> **「可用」的定义**：四道闸门全过（§6.8），不是「能启动」。当前只实现了闸门 1，所以 `validate` 的报告
+> 只会说 `ok`，不会说 `usable` —— 这个区分是刻意的，不是遗漏。
 
 | 文档 | 状态 | 作用 |
 |---|---|---|
