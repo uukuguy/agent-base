@@ -20,7 +20,7 @@
 | 06 | [deploy](06-deploy.md) —— 镜像变体、固定路径、环境变量、入口与退出码、加固参数 | 平台/运维 | ✅ |
 | 07 | [troubleshooting](07-troubleshooting.md) —— **失败模式清单** | 全部 | ✅ |
 | 08 | [conventions](08-conventions.md) —— 分层纪律：哪层能放什么（每条都标了执法项） | 平台/业务负责人 | ✅ |
-| 09 | `09-harness-contract.md` —— 适配契约、新运行时怎么接 | 平台开发者 | ⏳ |
+| 09 | [harness-contract](09-harness-contract.md) —— 适配契约、新运行时怎么接（含四条"别另发明一套"） | 平台开发者 | ✅ |
 | 10 | `10-harness-selection.md` —— 两个运行时的差异与选型 | 架构/平台 | ⏳ |
 | 11 | `11-harness-enhancements.md` —— 业务级增强怎么写 | 业务开发者（要写增强时） | ⏳ |
 | — | 第 13 条说明 | —— | 上游运行时包内**没有 `docs/` 目录**，只有包级 README；两份上位设计文档里的实测结论已沉淀为 `docs/design/2026-09-25-{pi,dsh}-harness-design.md` |
