@@ -117,4 +117,12 @@
 - 21:00 ✅ after_provider_response 给 status + headers（实测含网关自定义头）→ 第三条检测路径：发出去的工具数与响应头回显对照
 - 21:00 🔴 实测纠正：tool_call 返回 {block:true} **不能**终止假网关的无限循环（阻断只变成错误结果，智能体照旧重试，实测 1184 次请求）→ 会话终止必须靠假网关自身
 - 21:00 探针教训记入：**同进程内起假网关 + 子进程 pi = 0 请求**（要用独立进程）；另注意网关轨迹勿写到 stderr 以免淹没输出
+- 21:40 ✅ 交付基座轨迹扩展 adapters/pi/seed/extensions/trace.ts（回调式主路径）+ seed/enhancements.yaml
+- 21:40 render 改为：拷 seed 扩展与 core/trace/emit.mjs（→ _trace-emit.mjs，发射契约单一定义）+ 合并基座/智能体增强声明 + 登记 settings.extensions
+- 21:40 ✅ make pi-trace-ext-selftest 全绿：死端点拿到真实 tools=4/stream=true/model/route；假网关拿到 tool.call↔tool.result 同 toolCallId 配对、msIsEstimated、decision=unobserved；两场景输出逐行过 schema
+- 21:40 ✅ 负向：缺 AGENT_EFFECTIVE_CONFIG_DIGEST 时**一个事件都不发**并响亮说明（宁可不写也不写假摘要）
+- 21:40 🔴 排除一个假故障：Node spawn 起的 pi 若**不关 stdin** 会零输出零事件（看起来像扩展没加载）——真因是它在等输入
+- 21:40 假网关加会话终止语义（收到工具结果后改回文本）；网关自检 31 项仍全绿，且探针不再无限循环
+- 21:40 schema 两处调整：decision 增 unobserved（观测不到不写 allow）；model.request 必填收敛为 [type, tools, stream]，route/model 按可得性填
+- 21:40 validate 又抓到我在 core/trace/emit.mjs 注释里写了 harness 名（core/ 纪律生效）
 

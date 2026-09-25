@@ -164,22 +164,35 @@ function main() {
   };
   if (agent.model.reasoningEffort) settings.defaultThinkingLevel = agent.model.reasoningEffort;
 
-  // 业务级增强（§4.5）：extensions/ 原样合并，id 集合进闸门 2 断言
-  const enhFile = path.join(agentDir, "harness", HARNESS, "enhancements.yaml");
-  const declaredEnhancements = [];
-  if (fs.existsSync(enhFile)) {
-    const enh = readYaml(enhFile);
-    for (const item of enh.enhancements ?? []) if (item.id) declaredEnhancements.push(item.id);
-    const copied = copyTree(path.join(agentDir, "harness", HARNESS), agentOut);
-    // enhancements.yaml 本身不是 pi 的输入，只作为声明账本留在 agent-dir 之外？——
-    // 不：它要留在产物里，doctor 才能拿「声明集合」与「实际加载」比对。
-    const extDir = path.join(agentDir, "harness", HARNESS, "extensions");
-    if (fs.existsSync(extDir)) {
-      const entries = fs.readdirSync(extDir).sort().map((f) => `extensions/${f}`);
-      settings.extensions = entries;
-    }
-    log(`  增强：${declaredEnhancements.length} 个声明，产物文件 ${copied.length} 个`);
-  }
+  // ---- 增强：基座不变量（seed）∪ 智能体声明（§4.5），合并后登记 ----
+  // 基座的轨迹扩展必须与业务扩展处在**同一个注册表**里（同一批回调、按注册顺序执行），
+  // 所以两边都进 settings.extensions；合并后的声明写进产物，供闸门 2 做集合断言。
+  const collectEnhancements = (file) => {
+    if (!fs.existsSync(file)) return [];
+    return (readYaml(file).enhancements ?? []).filter((e) => e.id);
+  };
+  const baseEnh = collectEnhancements(path.join(SEED, "enhancements.yaml"));
+  const agentEnh = collectEnhancements(path.join(agentDir, "harness", HARNESS, "enhancements.yaml"));
+
+  copyTree(path.join(SEED, "extensions"), path.join(agentOut, "extensions"));
+  copyTree(path.join(agentDir, "harness", HARNESS, "extensions"), path.join(agentOut, "extensions"));
+  // 发射契约只有一处定义：把 core 的发射器拷进产物，扩展用相对路径 import 它
+  writeFile(path.join(agentOut, "extensions", "_trace-emit.mjs"),
+    fs.readFileSync(path.join(REPO, "core/trace/emit.mjs"), "utf8"));
+
+  const declaredEnhancements = [...new Set([...baseEnh, ...agentEnh].map((e) => e.id))].sort();
+  writeFile(path.join(agentOut, "enhancements.yaml"), stableJson({
+    apiVersion: "agent-base/v1",
+    harness: HARNESS,
+    note: "由渲染器合并生成：基座不变量声明 ∪ 智能体声明。供闸门 2 的集合断言使用。",
+    enhancements: [...baseEnh, ...agentEnh],
+  }));
+
+  const extDir = path.join(agentOut, "extensions");
+  settings.extensions = fs.existsSync(extDir)
+    ? fs.readdirSync(extDir).filter((f) => f !== "_trace-emit.mjs").sort().map((f) => `extensions/${f}`)
+    : [];
+  log(`  增强：基座 ${baseEnh.length} + 智能体 ${agentEnh.length} → 产物登记 ${settings.extensions.length} 个`);
   writeFile(path.join(agentOut, "settings.json"), stableJson(settings));
 
   // ---- 6. 连接器（当前为显式缺口，必须响亮失败）----

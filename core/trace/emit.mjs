@@ -28,7 +28,10 @@
 // ============================================================================
 
 import fs from "node:fs";
-import { sha256 } from "../gates/index.mjs";
+import { createHash } from "node:crypto";
+
+/** 本地实现，避免 emit.mjs 依赖基座其它模块 —— 它会被**原样拷进智能体产物**（见各适配器的 seed 目录）。 */
+const sha256 = (text) => `sha256:${createHash("sha256").update(text, "utf8").digest("hex")}`;
 
 /** 日志级别（通用，与任何业务无关）。 */
 export const LEVELS = Object.freeze(["debug", "info", "warn", "error"]);

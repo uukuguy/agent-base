@@ -190,7 +190,14 @@ export function respond(normalized) {
   // 内容里带标记 + 计数，闸门 3 可以直接 grep「有返回」，也可以核对计数。
   const content = `${RESPONSE_MARKER} request=${digest} tools=${tools} stream=${stream}`;
 
-  const toolCalls = tools > 0
+  // 会话终止语义：真实模型在拿到工具结果后会继续说话，而不是无限再发工具调用。
+  // 少了这条，任何带工具的运行都会无限循环（实测：pi 连发 1184 次请求），
+  // 于是闸门 3/4 的探针永远不收敛 —— 一个不会结束的假端点没法用来验证。
+  const alreadyHasToolResult = (normalized.messages ?? []).some(
+    (m) => m && (m.role === "tool" || (Array.isArray(m.content) && m.content.some((c) => c && c.type === "tool_result"))),
+  );
+
+  const toolCalls = tools > 0 && !alreadyHasToolResult
     ? [{
         id: `call_${digest.slice("sha256:".length, "sha256:".length + 24)}`,
         name: normalized.tools[0].name,

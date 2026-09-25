@@ -209,11 +209,9 @@
     },
     "modelRequest": {
       "type": "object",
-      "description": "一次模型调用请求。tools 计数是闸门 3 的核心断言对象。",
+      "description": "一次模型调用请求。`tools` 与 `stream` 是**必填的断言对象**（§6.4：企业网关最常见的故障是吞 tools 或降级流式）；`model` / `route` 是识别信息，按可得性填写 —— 拿不到就省略，**不要填占位字符串**。",
       "required": [
         "type",
-        "route",
-        "model",
         "tools",
         "stream"
       ],
@@ -292,9 +290,10 @@
           "enum": [
             "allow",
             "deny",
-            "ask"
+            "ask",
+            "unobserved"
           ],
-          "description": "边界判定结果。人在环审批走 ask（§8.5 第 ④ 道）。"
+          "description": "边界判定结果。`unobserved` = 该路径上没有**可观测的**判定（例如没有审批扩展在场）。**不许猜**：观测不到就写 unobserved，不要写成 allow —— 那会让审计把「没记录」误读成「放行了」。做出决策的那个扩展应自己上报（它才知道自己决定了什么）。"
         },
         "callId": {
           "type": "string",
