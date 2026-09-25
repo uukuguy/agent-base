@@ -381,3 +381,40 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 
 `examples-check` 静态确认 `core/` `tools/` `adapters/` 中**没有任何对 `examples/` 的引用**，
 并单独跑一次基座自洽（不带任何智能体定义）—— 于是"整个 `examples/` 可删"不是一句口号。
+
+---
+
+## 13. dsh 适配器：渲染器已交付（2026-09-25）
+
+**已交付并验证**：`adapters/dsh/render.mjs`。验证方式是**让真实 harness 组合我们的 profile**：
+`DSH_HOME=<产物>/dsh-home dsh <name> --dump-config` → 退出码 0，且组合树逐项对上了
+（模型覆盖、人设发现启用、技能目录指向镜像内固定路径、安全姿态以 `!!js` 表达式保留、工具边界禁用生效）。
+
+**conformance 现状**：dsh 的 **C2（渲染确定性）已通过**；C3/C4 未过，原因见下。
+
+### 13.1 两处实测推翻/修正
+
+| 项 | 预检结论 | 实测结论 |
+|---|---|---|
+| bundles（原 Q3） | 照抄 shipped `web` | **改用 `base + dsh-headless`** —— `web` 把 `agent-instructions`/`skill-filesystem`/`tool-skill`/`tool-fs` **全部禁用**（它由 Web UI 驱动），`headless` 才启用 |
+| 连接器配置形状 | 未知（曾计划"未验证就响亮失败"） | 从插件 README 拿到**权威形状**：`serverName`/`transport`/`command`/`args`/`url`/`headers`，且官方就用 `!!js process.env.X` 做参数注入 → 与本基座的"参数下放"一致，可以正常渲染 |
+
+### 13.2 自己写 YAML 输出（两个实测教训）
+
+`!!js` 是这个 harness 的惯用表达方式，必须原样输出成表达式：
+
+1. **不能用库的自定义标签**：实测出来是 `!!js [object Object]`（库没走 `stringify`），
+   dsh 不会求值 ⇒ 配置静默变错。改为自写这套简单结构的 YAML 输出（可控、确定）。
+2. **表达式含 `: ` 必须加引号**：`… ? 'never' : 'ask'` 里的"冒号+空格"是 YAML plain scalar 的
+   禁区，会被当成嵌套映射 ⇒ 配置静默变成 `{'[object Object]': ask}`。
+   处置：`plainSafe()` 判定，必要时输出 `!!js "表达式"`（**标签在引号外面**）。
+
+> 两条都属于同一类：**格式层的细节错误不会报错，只会让配置静默变成别的意思**。所以 doctor 必须
+> 对着组合树断言姿态，而不是相信渲染器写对了。
+
+### 13.3 下一步（dsh 轨余项）
+
+1. `adapters/dsh/doctor.mjs`（闸门 2）—— 靠 `--dump-config` 自证；**必须补 patch target id 校验**（failures.md D1：目标不存在时 dsh 只打警告、退出码 0）
+2. `adapters/dsh/trace.mjs` + `conformance/fixtures/dsh-native-events.jsonl`（C7）—— 会话格式是 zstd 压缩 JSONL v4，`tool/result` **没有 callId**，需按 step 内顺序配对
+3. **C3/C4 需要泛化**：这两项当初是按 pi 的产物形状写的（找 `AGENTS.md` / `settings.json` / `extensions`），
+   对第二个 harness 会误判。要改成**以 manifest 为映射**的中性判定，而不是认死某几个文件名

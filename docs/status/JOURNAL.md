@@ -162,4 +162,9 @@
 - 20:56 ✅ make examples-check 全绿：闸门 1 + 标签表形状 + 技能脚本自检 + **四道闸门 → 可用** + 不变量 N5（core/tools/adapters 无 examples/ 引用）
 - 20:56 🔴 同一类参数 bug **第三次**出现（render/probe/labels）：`i !== args.indexOf("--x") + 1` 在旗标缺席时吞掉第一个位置参数。治本三连：统一 parseArgs + 改掉 render 的补丁写法 + **闸门 1 加静态检查 cli/no-naive-flag-skip**（它当场抓到了 render.mjs）
 - 20:56 加 tools/examples-check.mjs（make examples-check）：把"示例可删（N5）"从口号变成静态可验
+- 21:30 交付 adapters/dsh/render.mjs 并**用真实 harness 验证**：DSH_HOME=<产物>/dsh-home dsh <name> --dump-config → 退出码 0，组合树逐项对上（模型/人设发现/技能目录/安全姿态/工具边界）
+- 21:30 🔴 实测推翻 Q3：web 模板把 agent-instructions/skill-filesystem/tool-skill/tool-fs **全禁用**（Web UI 驱动），headless 才启用 → bundles 改为 base + dsh-headless
+- 21:30 ✅ 从插件 README 拿到 mcp-client 权威配置形状（serverName/transport/command/args/url/headers，官方用 !!js 注入参数）→ 连接器可正常渲染，不必再"响亮失败"
+- 21:30 🔴 两个格式层静默错误：① YAML 库自定义标签输出成 `!!js [object Object]`（改为自写 YAML 输出）② 表达式里的「冒号+空格」被当成嵌套映射 → `{'[object Object]': ask}`（改为必要时输出 `!!js "表达式"`，标签在引号外）
+- 21:30 dsh 的 conformance C2（渲染确定性）**已通过**；C3/C4 未过 —— C3/C4 当初按 pi 产物形状写，需泛化成"以 manifest 为映射"的中性判定；C4 还等 doctor
 
