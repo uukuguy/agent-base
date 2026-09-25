@@ -190,4 +190,8 @@
 - 22:12 ✅ **C6 两个 harness 都绿**：probe/smoke 改为按 harness 分派运行器；模型断言改为**端点侧取证**（读假网关记录"它收到了几个工具、是否流式"）——比原判据更强且天然跨 harness
 - 22:12 🔴 我自己造的回归：probe 的技能检查猜了 `renderDir/skills`，而 pi 的技能在 `agent-dir/skills` 下 → 改为由清单声明 `skillsInProduct`；另 smoke 里 `harness` 未绑定导致 crash
 - 22:12 dsh conformance **9/10**（仅剩 C3）；pi 仍 10/10
+- 22:21 ✅ **M1 达成**：conformance C1–C10 对 pi 与 dsh **都全绿** —— J1「同一份定义两个 harness 都能跑通」首次有双边证据
+- 22:21 C3 泛化完成：从"认死文件名"改为**按渲染器的 expresses 声明验证**（定义字段 → 产物位置）；检查只验位置存在 + contains + 定义字面值，豁免须写非平凡理由
+- 22:21 🔴 过程中暴露真实缺口：dsh 侧 `model.reasoningEffort` 未映射（provider 条目的 reasoningEfforts 取值形状未实测）→ 不猜形状，声明为豁免并记入 exemptions.yaml（补法已写明）
+- 22:21 踩坑两处：C3 的目录型声明（skills）被当文件读 → verify 支持目录；pi 的 enhancements 声明用文件存在性判断而路径基准错 → 改为按已声明的增强集合
 

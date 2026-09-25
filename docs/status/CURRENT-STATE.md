@@ -7,7 +7,7 @@
 - Theme-level focus: **首个示例走通（S4 `examples/idea-to-proof` 四道闸门 → 可用）**；下一步是双 harness 示例与 dsh 比较轨
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi。§7 记 dsh 实现待定项，§8 记 S3 进展）
-- Active work package: `S4` **已闭环**（`examples/idea-to-proof` 可用）；下一包：`S5 examples/contract-review`（双 harness）或 dsh 比较轨
+- Active work package: `S6` 文档 12 篇（M1 已达成：dsh 准入 10/10）
 
 ## Current Architecture
 
@@ -55,13 +55,14 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 
 ## Open Problems (theme-level)
 
-- **dsh 适配器：`render` + `doctor` 已交付并验证**；conformance **9/10**（仅剩 C3 渲染完整性；C6 零凭据闸门 3/4 与 C7 轨迹合规已过）。C5 与 C4 的「按 pi 形状写死」问题已在检查侧治本修复（声明式注入 + 适配器声明增强形态）
+- **dsh 适配器：`render` + `doctor` 已交付并验证**；conformance **10/10 全绿**。C5 与 C4 的「按 pi 形状写死」问题已在检查侧治本修复（声明式注入 + 适配器声明增强形态）
 - **C3 是最后一个「按 pi 产物形状写死」的检查**（认死 `AGENTS.md`/`settings.json`/`extensions`）→ 需要泛化成「以 manifest 为映射」的中性契约；不改的话第二个 harness 永远过不了
 - **`tools/probe.mjs` / `smoke.mjs` 目前只走 pi**（依赖 `adapters/pi/run.mjs`）→ dsh 的 C6 要等 `adapters/dsh/run.mjs`
 - **G1 只剩一半**：回调能看到「harness 发了几个工具」，看不到「网关收到后有没有吞」。三条互补路径已定（链路观测 / 响应侧不一致检测 / 响应头回显对照，后者已实现但仅在网关回显时生效）
 - **G3 的真值需要「做决策的扩展」自己上报**：轨迹扩展观测不到别的 handler 是否阻断，因此 `tool.call.decision` 目前恒为 `unobserved`（诚实近似，不是等价）
 - **闸门 2 硬断言 3 的口径是「已进入产物」而非「已加载」**：纯钩子型扩展目前观测不到（`failures.md` F6 已记，补法是让增强自证 id）
 - **首个业务示例已走通**：`examples/idea-to-proof` 四道闸门 → 可用；`examples/` 可整体删除而基座仍绿（N5 由 `examples-check` 静态验证）
+- ✅ **J1 有双边证据**：`conformance` C1–C10 对 pi 与 dsh **都全绿**（同一份中性定义两侧都能渲染并跑通）
 - **业务开发者上手路径三段全通**：派生 → 本地开发 → 容器边界，各有可重复判据（`new-agent-selftest` / `local-selftest` / `conformance C9`）
 - **上手路径仍只有 pi 一侧**：派生的智能体开箱 `usable`，`HARNESS=dsh` 仍会因 dsh 适配器未实现而失败
 - **镜像只在本地产出、尚未推任何 registry**：多架构 manifest 已能落盘（OCI 归档），推送路径待 I2（内网能否直连镜像仓库）确认

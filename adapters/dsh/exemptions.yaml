@@ -53,3 +53,12 @@
     跨 harness 比对工具边界时必须按 row 粒度而非工具名粒度看。
   reviewBy: 2027-06-30
 
+- id: reasoning-effort-not-mapped
+  scope: model.reasoningEffort
+  reason: >
+    本适配器尚未把中性定义的 `model.reasoningEffort` 映射到产物：该 harness 的 provider 模型条目
+    有 `reasoningEfforts` 字段，但它的取值形状（level → provider 值 的映射）**未实测**。
+    按纪律不猜形状 —— 因此渲染器把它声明为**豁免并写明理由**（清单 expresses 里可见），
+    而不是悄悄丢掉这个字段。补法：实测该字段的接受形状后补映射，并把本豁免删掉。
+  reviewBy: 2027-03-31
+

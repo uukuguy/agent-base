@@ -28,7 +28,7 @@
 |---|---|---|---|---|
 | **S0** | A | 中性定义契约：schema + 能力目录 + 参数层清单 | — | **done** |
 | **S1** | A | 四闸门框架 + 假网关 + 统一轨迹 schema | S0 | **done** |
-| **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | **pi 侧完成**（10/10）；**dsh 侧 7/10**（余 C3/C6/C7，见 §13） |
+| **S2** | A + B + C | `render` + `doctor`（pi 与 dsh）+ `conformance` C1–C10 | S1 | **两侧全绿 10/10**（dsh 准入完成，见 §16） |
 | **S3** | A + B + C | 探针 + smoke + `template/` + `new-agent` + 基座镜像 + 本地开发环境 | S2 | **闭环**（全部交付；Makefile 30 个目标、0 个未实现） |
 | **S4** | A + B + C | `examples/idea-to-proof` 全绿（含 C5/C8） | S3 | **闭环**（`make examples-check` 全绿：四道闸门 → 可用） |
 | **S5** | A + B + C | `examples/contract-review`（带 MCP，双 harness 等价性） | S4 | pending |
@@ -546,3 +546,46 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 C3 认死 `AGENTS.md` / `settings.json` / `extensions` 这些**文件名**。修法已定：
 渲染器在清单里声明 **`expresses` 映射**（定义字段路径 → 产物内位置），检查只验证"声明的位置存在且内容对"。
 **认死文件名等于把第一个 harness 的形状当成契约。**
+
+---
+
+## 16. M1 达成：dsh 准入 10/10（2026-09-25）
+
+**结论**：`conformance` 的十项阻断性门槛，**pi 与 dsh 都全绿**。J1「同一份中性定义，两个 harness
+都能渲染并跑通」第一次有了**双边证据** —— 此前只有 pi 一边。
+
+### 16.1 C3 的泛化：把"认死文件名"改成"按声明验证"
+
+C3 原先是唯一还按第一个 harness 的产物形状写死的检查（认死 `AGENTS.md` / `settings.json` /
+`extensions` 这些**文件名**），第二个 harness 必然误判。
+
+**新契约**：渲染器在清单里声明 `expresses` —— 「定义字段 → 产物内位置」，形如
+
+```json
+"expresses": {
+  "persona.instructions": { "at": "workspace/AGENTS.md", "contains": "你是「想法到证据」的分析助手" },
+  "model.route":          { "at": "…/cordis.patch.yml", "contains": "provider: corp-gateway" },
+  "tools.deny":           { "at": "…/cordis.patch.yml", "contains": ["- id: tool-bash", "- id: tool-fs"] },
+  "skills":               { "at": "skills" },
+  "model.reasoningEffort": { "exempt": "…非平凡理由…" }
+}
+```
+
+C3 只做三件事：① 每个期望字段都有声明；② 声明的位置**存在**；③ `contains` 与**定义里的字面值**
+都能在那里找到（独立复核，防"声明敷衍了事"）。豁免必须写非平凡理由。
+
+**为什么这样更好**：位置知识归**渲染器**（它是唯一知道产物形状的一方），检查不必认识任何 harness。
+认死文件名等于把第一个 harness 的形状当成契约。
+
+### 16.2 过程中暴露的一个真实缺口（已记为豁免，未静默丢弃）
+
+`model.reasoningEffort` 在 dsh 侧**尚未映射**：它的 provider 模型条目有 `reasoningEfforts` 字段，
+但**取值形状未实测**。按纪律不猜形状 —— 渲染器在 `expresses` 里声明为豁免并写明理由，
+同时进 `exemptions.yaml`（跨 harness 差异必须显式）。补法：实测形状后补映射并删掉豁免。
+
+### 16.3 M1 之后的顺序
+
+1. **M2 文档 12 篇（S6）** —— 「别人能直接接手」；其中 `07-troubleshooting`（失败模式清单）是灵魂
+2. **M3 版本策略 + CHANGELOG（S7）** —— 交付形态收口
+3. **S8 三件小事**（运行期无外网：关静默联网 / 装齐的反向检查 / 端到端断网证据）—— 并进 M2 前后
+4. **M4 `examples/contract-review`**（可选，因 I3 后置）

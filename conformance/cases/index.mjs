@@ -140,36 +140,70 @@ const cases = [
         const r = render(h, agent, out);
         if (r.status !== 0) { problems.push(`${h}: render 失败 ${r.stderr.slice(-200)}`); continue; }
         const manifest = JSON.parse(fs.readFileSync(path.join(out, "render-manifest.json"), "utf8"));
-        const read = (...p) => {
-          const f = path.join(out, ...p);
-          return fs.existsSync(f) ? fs.readFileSync(f, "utf8") : null;
-        };
-        // persona.instructions → 常驻指令文件
-        const personaText = read("agent-dir", "AGENTS.md");
-        if (!personaText || !personaText.includes("合规审阅助手")) problems.push(`${h}: persona.instructions 未出现在 AGENTS.md`);
-        // model.route / name → 模型配置模板 + settings
-        const models = read("agent-dir", "models.json.tmpl");
-        if (!models || !models.includes("corp-gateway") || !models.includes("corp-think")) problems.push(`${h}: model.route/name 未出现在模型配置模板`);
-        const settings = JSON.parse(read("agent-dir", "settings.json") ?? "{}");
-        if (settings.defaultProvider !== "corp-gateway" || settings.defaultModel !== "corp-think") problems.push(`${h}: settings 未表达模型选择`);
-        // model.reasoningEffort → 推理强度设置
-        if (settings.defaultThinkingLevel !== "medium") problems.push(`${h}: model.reasoningEffort 未在产物中表达`);
-        // tools.deny → 运行参数（该 harness 的边界靠运行参数生效，不烤进 settings）
-        if (JSON.stringify(manifest.runArgs?.excludeTools) !== JSON.stringify(["bash", "write"])) {
-          problems.push(`${h}: tools.deny 未进运行参数（${JSON.stringify(manifest.runArgs?.excludeTools)}）`);
+
+        // C3 判据已改为**按声明验证**：渲染器在清单里声明「定义字段 → 产物位置」（expresses），
+        // 检查只验证这份声明。此前它认死 AGENTS.md / settings.json / extensions 这些**文件名** ——
+        // 那等于把第一个 harness 的产物形状当成契约，第二个 harness 必然误判。
+        const expresses = manifest.expresses;
+        if (!expresses || typeof expresses !== "object") {
+          problems.push(`${h}: 清单缺 expresses 声明 —— 无法判断"每个定义字段去了哪里"`);
+          continue;
         }
-        // skills/（含 scripts/ 业务代码）→ 原样打包
-        if (!fs.existsSync(path.join(out, "agent-dir", "skills", "alpha", "SKILL.md"))) problems.push(`${h}: 技能未打包`);
-        if (!fs.existsSync(path.join(out, "agent-dir", "skills", "alpha", "scripts", "scan.sh"))) problems.push(`${h}: 技能携带的业务代码（scripts/）未打包`);
-        if (JSON.stringify(manifest.declaredSkills) !== JSON.stringify(["alpha"])) problems.push(`${h}: 声明的技能集合不对（${JSON.stringify(manifest.declaredSkills)}）`);
-        // 业务级增强 → 声明 + 实体
-        if (!manifest.declaredEnhancements?.includes("risk-score")) problems.push(`${h}: 业务级增强声明未进产物`);
-        // settings.extensions 必须登记增强入口
-        if (manifest.declaredEnhancements?.length && !(settings.extensions ?? []).some((x) => String(x).includes("risk-score"))) {
-          problems.push(`${h}: 业务级增强未登记到 settings.extensions`);
+        const readRel = (rel) => (fs.existsSync(path.join(out, rel)) ? fs.readFileSync(path.join(out, rel), "utf8") : null);
+
+        /**
+         * @param {string} field        定义字段路径
+         * @param {string[]} expectAny  定义里的字面值：必须真的出现在所声明的位置（防"声明敷衍了事"）
+         */
+        const verify = (field, expectAny = []) => {
+          const d = expresses[field];
+          if (!d) { problems.push(`${h}: 定义字段 ${field} 未在清单里声明落点`); return; }
+          if (d.exempt) {
+            if (String(d.exempt).length < 12) problems.push(`${h}: ${field} 声明为豁免，但理由过于简短（等于没写）`);
+            return;
+          }
+          if (!d.at) { problems.push(`${h}: ${field} 的声明缺 at（产物内位置）`); return; }
+          const abs = path.join(out, d.at);
+          if (!fs.existsSync(abs)) { problems.push(`${h}: ${field} 声明的位置在产物里不存在：${d.at}`); return; }
+          // 声明可以指向**目录**（例如技能整包）；但目录不能给 contains，也不能校验字面值
+          if (fs.statSync(abs).isDirectory()) {
+            if ([].concat(d.contains ?? []).length) problems.push(`${h}: ${field} 的声明指向目录（${d.at}），却给了 contains —— 目录里无法查内容，请声明到具体文件`);
+            if (expectAny.length) problems.push(`${h}: ${field} 的声明指向目录（${d.at}），无法校验定义值 —— 请声明到具体文件`);
+            return;
+          }
+          const content = fs.readFileSync(abs, "utf8");
+          for (const n of [].concat(d.contains ?? [])) {
+            if (n && !content.includes(n)) problems.push(`${h}: ${field} 声明在 ${d.at}，但那里找不到「${n}」`);
+          }
+          for (const v of expectAny) {
+            if (!content.includes(v)) problems.push(`${h}: ${field} 的定义值「${v}」未出现在声明位置 ${d.at} 里`);
+          }
+        };
+
+        verify("persona.instructions", ["你是合规审阅助手"]);
+        verify("model.route", ["corp-gateway"]);
+        verify("model.name", ["corp-think"]);
+        verify("model.reasoningEffort");          // 允许声明豁免（如该 harness 尚未映射）
+        verify("tools.deny");
+        verify("skills");
+        verify("enhancements", ["risk-score"]);
+
+        // 技能必须**原样打包**（含业务代码 scripts/）：位置来自清单声明，不猜目录名
+        const skillsRel = manifest.skillsInProduct;
+        if (!skillsRel) problems.push(`${h}: 清单缺 skillsInProduct（技能在产物内的位置）`);
+        else {
+          for (const rel of ["alpha/SKILL.md", "alpha/scripts/scan.sh"]) {
+            if (!fs.existsSync(path.join(out, skillsRel, rel))) problems.push(`${h}: 技能未打包：${skillsRel}/${rel}`);
+          }
+        }
+        if (JSON.stringify([...(manifest.declaredSkills ?? [])].sort()) !== JSON.stringify(["alpha"])) {
+          problems.push(`${h}: 声明的技能集合不对（${JSON.stringify(manifest.declaredSkills)}）`);
+        }
+        if (!(manifest.declaredEnhancements ?? []).includes("risk-score")) {
+          problems.push(`${h}: 业务级增强的声明未进产物清单`);
         }
       }
-      return problems.length ? bad(problems.join("；")) : ok("定义字段到产物表达无遗漏");
+      return problems.length ? bad(problems.join("；")) : ok("定义字段到产物表达无遗漏（按各适配器的 expresses 声明验证）");
     },
   },
 

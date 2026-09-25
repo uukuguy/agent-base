@@ -348,6 +348,24 @@ function main() {
     mcpClient: adapter.capabilities?.mcpClient ?? "unknown",
     skillsInImage: SKILLS_IN_IMAGE,
     skillsInProduct: "skills",   // 技能在产物内的相对位置（与 skillsInImage 是两回事）
+    // **定义字段 → 产物位置的声明**（conformance C3 只验证这份声明，不再认死文件名）
+    expresses: (() => {
+      const patchRel = `dsh-home/profiles/${agent.name}/cordis.patch.yml`;
+      const e = {
+        "persona.instructions": { at: "workspace/AGENTS.md", contains: persona.slice(0, 24) },
+        "model.route": { at: patchRel, contains: `provider: ${agent.model.route}` },
+        "model.name": { at: patchRel, contains: `model: ${agent.model.name}` },
+        skills: { at: "skills" },
+      };
+      if (agent.model?.reasoningEffort) {
+        // 诚实标注：本 harness 的 provider 模型条目有 reasoningEfforts 字段，但**本基座尚未映射**
+        // model.reasoningEffort（映射形状未实测）。不许猜形状 —— 声明为豁免并记缺口。
+        e["model.reasoningEffort"] = { exempt: "本基座尚未映射 model.reasoningEffort 到该 harness（provider 模型条目的 reasoningEfforts 形状未实测）；已记为待补缺口，不静默丢弃" };
+      }
+      if (agent.tools?.deny?.length) e["tools.deny"] = { at: patchRel, contains: denyRows.map((r) => `- id: ${r}`) };
+      if (enhancements.length) e.enhancements = { at: patchRel, contains: enhancements.map((x) => `- id: ${x.id}`) };
+      return e;
+    })(),
     workspaceInImage: WORKSPACE_IN_IMAGE,
     dshHomeInImage: DSH_HOME_IN_IMAGE,
     labelsProvided,

@@ -76,6 +76,29 @@ export function envPrefixFor(route) {
 }
 
 // ---------------------------------------------------------------------------
+/**
+ * 生成「定义字段 → 产物位置」的声明（conformance C3 的输入）。
+ *
+ * 为什么要有这份声明：C3 早先认死 `AGENTS.md` / `settings.json` / `extensions` 这些**文件名**，
+ * 于是第二个 harness 必然误判 —— 那等于把第一个 harness 的产物形状当成了契约。
+ * 现在由**渲染器**声明"我把每个定义字段放到了哪里"，检查只验证声明（位置在不在、内容对不对）。
+ *
+ * @returns {Record<string, {at: string, contains?: string|string[]} | {exempt: string}>}
+ */
+function buildExpresses({ agent, declaredEnhancements, skillsInProduct, profileOrSettings, modelFile, enhancementsFile }) {
+  const e = {
+    "persona.instructions": { at: "agent-dir/AGENTS.md", contains: String(agent.persona?.instructions ?? "").trim().slice(0, 24) },
+    "model.route": { at: modelFile, contains: agent.model.route },
+    "model.name": { at: modelFile, contains: agent.model.name },
+    skills: { at: skillsInProduct },
+  };
+  if (agent.model?.reasoningEffort) e["model.reasoningEffort"] = { at: profileOrSettings, contains: "defaultThinkingLevel" };
+  if (agent.tools?.deny?.length) e["tools.deny"] = { at: "render-manifest.json", contains: "excludeTools" };
+  // 有声明才需要落点：判据是"已声明的增强 id"，不是"某文件在不在"（用文件存在性判过，路径基准错了）
+  if (declaredEnhancements?.length) e.enhancements = { at: enhancementsFile, contains: declaredEnhancements };
+  return e;
+}
+
 function main() {
   // 统一解析器：手写"跳过旗标值"的索引过滤在本项目里错过三次（旗标缺席时会把第一个
   // 位置参数吞掉）。这里曾经用 `outIdx < 0 ||` 打过补丁 —— 能跑，但等于留下第二种写法。
@@ -231,6 +254,9 @@ function main() {
     modelRoutes: [agent.model.route],
     // 技能在**产物内**的相对位置：让上层工具（probe / C3）不必知道某 harness 的目录形状
     skillsInProduct: "agent-dir/skills",
+    // **定义字段 → 产物位置的声明**（conformance C3 只验证这份声明，不再认死文件名）。
+    // 契约形状：{ at: 产物内相对路径, contains?: 字符串或字符串数组 }，或 { exempt: 非平凡理由 }。
+    expresses: buildExpresses({ agent, declaredEnhancements, skillsInProduct: "agent-dir/skills", profileOrSettings: "agent-dir/settings.json", modelFile: "agent-dir/models.json.tmpl", enhancementsFile: "agent-dir/enhancements.yaml" }),
     mcpClient: readYaml(path.join(HERE, "adapter.yaml")).capabilities?.mcpClient ?? "unknown",
     labelsProvided,
     definitionDigest: digestDirectory(agentDir),
