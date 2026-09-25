@@ -40,7 +40,23 @@
 | **C** | 用第三方 pi MCP 扩展/包 | 需先做生态调研 + pin + 评审；依赖不可控 |
 | **D** | 重估 §1.6 主力定位：MCP 类场景默认走 dsh | 与「pi 稳定所以压关键路径」冲突；但 §1.6 本就允许依数据翻转 |
 
-**可行性已确认**：pi 扩展能 `pi.registerTool()`（TypeBox 参数 schema + `execute()`），并可行子进程（`examples/extensions/bash-spawn-hook.ts`）→ 选项 A 在技术上可做。
+**可行性已确认，且有了更省的答案**：pi 扩展能 `pi.registerTool()`（TypeBox 参数 schema + `execute()`）、可行子进程 → 选项 A 技术上可做。**但** npm 上已有成熟的第三方 pi MCP 扩展生态（`pi-mcp-adapter` 2.37.0、`pi-mcp-extension` 1.5.0、`@clawos-dev/pi-mcp-bridge` 读 `.mcp.json` —— 正是 §10.2 预测的形态）→ **自研大概率是不必要的重复劳动**。建议**用 `conformance` C1–C10 选型**（重点 C7 轨迹合规 / C9 安全声明一致），而不是凭版本号挑。详见 `docs/research/2026-09-25-mcp-ecosystem-survey.md`。
+
+## 🟠 第二项待确认：`connectors.yaml` 支持按名引用（公开契约变更）
+
+已交付 `core/image/preinstall.yaml` —— **独立可升级的预装清单**，目的是让**开发智能体**便捷（用户明确的方向，判据 = 心智负担低 / 约定明确 / 改动局部化 / 非专家可上手）。含 15 条预装条目（含 3 条 planned 技能）+ **11 个开发者面向引用名** + 6 条排除项理由；`make validate` 的 `preinstall/*` 组（10 项）守它不烂。
+
+要让它真正省事，需要一处公开契约变更（**未确认不实现**）：
+
+```yaml
+mcpServers:
+  - ref: filesystem     # 开发者只写一个名字；渲染器按 preinstall.yaml 解析出 transport/command/args/版本
+    enabled: true
+```
+
+现状 §4.3 要求开发者写全 `transport` + `command/args` 或 `urlRef` + 包名与版本 —— 与「心智负担低、非专家可上手」相悖。影响面：`core/spec/connectors.schema.json` + 两个 catalog + 渲染器（S2）+ 设计 §4.3/§4.6。**与既有决策不冲突**，反而更贴 P-a（能力=基座持有的包与版本，选择=智能体写不写这个 ref）与「升级局部化」。
+
+> 另记一处设计语言待对齐：§8.1 说镜像语义是「验证快照」，§8.5 说的是「生产基座镜像」。本清单只服务前者；到真做生产镜像时再回看分层（§7.2/§8.5）。
 
 ## 已实测：好消息（闸门 2 可实现，且都零凭据）
 
