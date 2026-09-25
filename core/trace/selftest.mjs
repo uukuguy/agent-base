@@ -50,7 +50,7 @@ const validEvents = {
   "tool.call": { ...base, type: "tool.call", callId: "call_abc", tool: "mcp__jira__get_issue", inputDigest: `sha256:${B}`, decision: "allow" },
   "tool.result": { ...base, type: "tool.result", callId: "call_abc", tool: "mcp__jira__get_issue", ok: true, ms: 840 },
   "带业务扩展位的核心事件": { ...base, type: "gate", name: "probes", target: "jira", ok: true, biz: { "contract.id": "C-1024", "risk.level": 3 } },
-  "biz.event（业务领域事件）": { ...base, type: "biz.event", name: "contract.risk_found", data: { clause: "7.2", level: 3 } },
+  "biz.event（业务日志）": { ...base, type: "biz.event", namespace: "contract.amount", level: "warn", message: "金额超阈值，转法务复核", data: { amount: 1200000 } },
   "gate": { ...base, type: "gate", name: "probes", target: "jira", ok: true },
   "native.raw": { ...base, type: "native.raw", nativeType: "brand.new.event", reason: "统一 schema 尚无对应形状", raw: { whatever: [1, 2, 3] } },
 };
@@ -75,7 +75,10 @@ const invalidCases = {
   "run.meta 的 mode 非法": { ...base, type: "run.meta", mode: "production" },
   "biz 键没有命名空间（大写）": { ...base, type: "run.meta", mode: "debug", biz: { ContractId: "x" } },
   "biz 值不是标量（嵌套对象）": { ...base, type: "run.meta", mode: "debug", biz: { "contract.id": { nested: 1 } } },
-  "biz.event 的 name 没有命名空间": { ...base, type: "biz.event", name: "riskfound" },
+  "biz.event 缺 level": { ...base, type: "biz.event", namespace: "contract", message: "x" },
+  "biz.event 的 level 非法": { ...base, type: "biz.event", namespace: "contract", level: "verbose", message: "x" },
+  "biz.event 缺 message": { ...base, type: "biz.event", namespace: "contract", level: "info" },
+  "biz.event 的 namespace 含大写": { ...base, type: "biz.event", namespace: "Contract", level: "info", message: "x" },
   "tool.call 缺 callId（画不出调用配对）": { ...base, type: "tool.call", tool: "t", inputDigest: `sha256:${B}`, decision: "allow" },
   "contentMode 取值非法": { ...base, type: "run.meta", mode: "debug", contentMode: "verbose" },
 };

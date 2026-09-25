@@ -157,27 +157,53 @@
           ],
           "default": "digest",
           "description": "内容模式。`digest`（默认）= 工具入参/结果只留摘要，防泄漏（§8.3）；`full` = 轨迹里含明文，供可视化与排障。**必须显式标注**：一份含明文的轨迹与一份纯摘要的轨迹，性质不同，不能在下游被当成同一种东西（否则可视化要的明文与审计要的脱敏会互相污染）。"
+        },
+        "definitionDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "本次运行所用**中性定义**的摘要（§6.7 报告的 definitionDigest）。业务标签（技能/连接器的业务描述）不在轨迹里重复，而是由查看方按这个 digest 去标签索引 join —— 单一真源留在定义里，改一句描述不会改写历史轨迹。"
         }
       }
     },
     "bizEvent": {
       "type": "object",
-      "description": "业务自定义事件：让业务开发层能把自己的**领域事件**写进同一条轨迹，使轨迹读起来是业务叙事，而不只是工具调用流水。基座只校验形状，不解释语义。",
+      "description": "业务级日志。业务方用熟悉的 logger 形状（命名空间 + 级别 + 消息 + 字段）打日志，输出落进统一轨迹。基座只校验形状，不解释任何业务语义——namespace / message / 字段值全部原样透传。",
       "required": [
         "type",
-        "name"
+        "namespace",
+        "level",
+        "message"
       ],
       "properties": {
         "type": {
           "const": "biz.event"
         },
-        "name": {
+        "namespace": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
-          "description": "必须带命名空间（至少一个点，如 contract.risk_found）——强制命名空间是为了让审计方一眼看出「这是业务语义」，而不是核心事件。"
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "description": "日志命名空间（如 contract 或 contract.amount）。相当于 logger 的 category，用来分组；基座不解释其含义。"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "description": "日志级别。通用语义，与任何业务无关。"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "这条日志说了什么（人读）。业务流操作就写在这里——例如「金额 1.2M 超阈值，转法务复核」。"
         },
         "data": {
           "$ref": "#/$defs/bizData"
+        },
+        "biz": {
+          "$ref": "#/$defs/bizBag"
         }
       }
     },

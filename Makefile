@@ -18,7 +18,7 @@ HARNESS ?= pi
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 NOT_YET = @echo "❌ $@ 尚未实现（包 $(1)）——见 docs/plans/IMPLEMENTATION-ROADMAP.md"; exit 1
 
-.PHONY: help validate validate-selftest gates-selftest trace-selftest gateway-selftest render doctor probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -41,6 +41,12 @@ gates-selftest: ## 四闸门框架自检：断言语言、短路、退出码、u
 
 trace-selftest: ## 统一轨迹 schema 自检：七类事件通过、未映射只能走 native.raw
 	@node core/trace/selftest.mjs
+
+emit-selftest: ## 业务事件发射器自检：业务控制点在轨迹里必须显形
+	@node core/trace/emit-selftest.mjs
+
+trace-view-selftest: ## 轨迹查看器自检：业务附加协议 + 查看器源码不含业务词汇
+	@node tools/trace-view/selftest.mjs
 
 gateway-selftest: ## 零凭据假网关自检：无 Authorization 可用、流式、tools 计数、轨迹合规
 	@node tools/fake-gateway/selftest.mjs

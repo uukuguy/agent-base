@@ -71,3 +71,15 @@
 - 17:55 trace/schema.json 增 tool.call/tool.result 的 callId 必填（可视化的调用配对键）
 - 17:55 trace 自检扩到 8 类合法 + 17 类必拒（新增 biz 键未命名空间/值嵌套/biz.event 名未命名空间/缺 callId/contentMode 非法）
 - 18:00 交付 core/trace/README.md：三层分工、业务介入三法、可视化承诺、内容 vs 摘要的取舍；设计 §8.3 同步增补
+- 18:20 🔴 用户纠正层次错误：基座不该懂业务语言，只需提供附加协议 → 翻译层从 core/ 移出到 tools/trace-view/
+- 18:20 core/trace/README 改为「附加协议」框架；查看器自检剥掉注释后断言**可执行代码不含任何业务词汇**
+- 18:25 交付 core/trace/emit.mjs：业务控制点一行调用（TraceWriter.decision）+ 协议保留键 decision/reason
+- 18:25 查看器把 biz.event 的 decision 渲染成「◆ 业务流 X → 判定 Y（依据）」
+- 18:25 新增 make emit-selftest（走完整链路：发射器→JSONL→schema 校验→查看器渲染）
+- 18:30 render.mjs 改为原样带出业务 trace-labels.yaml（基座不解析其语义）；修掉 render 的 TDZ bug
+- 18:30 🔴 自检抓到确定性 bug：manifest 内嵌 outRoot/agentDir → 跨输出路径 digest 不一致；改为路径无关 + 摘要不含 manifest 自身（可复算）
+- 18:45 🔵 用户纠正：别自创协议，「其实就是业务级的 logger」→ biz.event 改为 logger 形状（namespace+level+message+标量字段）
+- 18:45 删掉我自作的保留键 decision/reason 与「→ 判定」专用渲染；改成 logger 的 [LEVEL] namespace: message ［字段］
+- 18:45 交付 createLogger（log.info/warn/error/debug）；公共字段自动补齐；坏输入记问题并拒发（静默丢日志=黑箱起点）
+- 18:45 make emit-selftest 改为 logger 判据：业务控制点一行调用 → 过 schema → 查看器里显形
+

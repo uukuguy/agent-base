@@ -22,7 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { EXIT_CODES, digestDirectory, sha256 } from "../../core/gates/index.mjs";
+import { DEFAULT_EXCLUDES, EXIT_CODES, digestDirectory, sha256 } from "../../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -197,24 +197,32 @@ function main() {
   }
 
   // ---- 7. 清单与摘要 ----
+  // 业务附加协议：业务若提供了 trace-labels.yaml，**原样带出**，基座不解析其语义。
+  // 轨迹侧按 definitionDigest join 它 —— 基座不懂业务语言，只负责把它带到证据包里。
+  const labelsSrc = path.join(agentDir, "trace-labels.yaml");
+  const labelsProvided = fs.existsSync(labelsSrc);
+  if (labelsProvided) fs.copyFileSync(labelsSrc, path.join(outRoot, "trace-labels.yaml"));
+
   const runArgs = { excludeTools: agent.tools?.deny ?? [], skills: declaredSkills.map((s) => `skills/${s}`) };
   const manifest = {
     harness: HARNESS,
     harnessVersion: readYaml(path.join(HERE, "adapter.yaml")).version,
     agent: agent.name,
-    agentDir,
-    outRoot,
     declaredSkills,
     declaredEnhancements,
     connectors: [],
     connectorsNote: "pi 原生无 MCP 客户端；声明了连接器时渲染会直接失败（failures.md F10）",
     runArgs,
     modelRoutes: [agent.model.route],
+    labelsProvided,
     definitionDigest: digestDirectory(agentDir),
   };
-  writeFile(path.join(outRoot, "render-manifest.json"), stableJson(manifest));
-
-  const artifactsDigest = digestDirectory(outRoot);
+  // artifactsDigest 覆盖**除 manifest 自身之外**的全部产物：
+  //   · 不覆盖 manifest → 避免自指（先算 digest 再写 manifest，摘要才能被复算验证）
+  //   · manifest 里不放路径 → 同一定义渲染到不同目录必须得到同一 digest（N19 可复现）
+  const artifactsDigest = digestDirectory(outRoot, {
+    excludes: [...DEFAULT_EXCLUDES, "render-manifest.json"],
+  });
   manifest.artifactsDigest = artifactsDigest;
   writeFile(path.join(outRoot, "render-manifest.json"), stableJson(manifest));
 
