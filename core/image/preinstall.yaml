@@ -215,6 +215,24 @@ entries:
     rationale: 与「让 harness 自证」同一思路，是排查连接器最省事的手段
     notes: 它不是给智能体的能力，是给人调试连接器用的
 
+  - id: pi-mcp-client
+    refName: null
+    kind: system
+    category: reference
+    transport: null
+    install: { registry: npm, package: pi-mcp-adapter, version: "2.37.0" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-25"
+    runsOffline: true
+    devUse: 让 pi 能用上 MCP 连接器 —— pi 原生没有 MCP 客户端，这个扩展补上这块
+    rationale: >
+      基线运行时 pi 原生不含 MCP 客户端；调研结论是**不自研**，采用并精确 pin 一个第三方扩展。
+      运行期无外网 ⇒ 必须在**构建期**装好（本清单就是构建期安装的输入）。
+    notes: >
+      不是连接器条目（refName 为 null，不能被 connectors.yaml 的 ref 引用）；
+      它是**基座种子依赖**：装了它，pi 侧的连接器才能渲染并生效。
+
   - id: shell-toolchain
     refName: null
     kind: system

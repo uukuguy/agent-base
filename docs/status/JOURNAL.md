@@ -199,4 +199,8 @@
 - 22:28 ✅ **M3 达成**：交付 CHANGELOG.md（含版本策略：三个版本号分工 / 什么算破坏性变更 / 兼容承诺 / 摘要语义）+ 本期不包含清单
 - 22:28 新增闸门 1 检查 docs/changelog-version：改了 package.json 版本就必须有形如 `## <版本>` 的发布条目。**第一版用子串匹配被自己正文里的举例骗过**，已收紧并复验
 - 22:28 S7 在路线图标记闭环；文档索引与部署篇已互链到 CHANGELOG
+- 22:52 ✅ pi 的 MCP 通路打通（M4 地基）：采用并 pin 第三方扩展 pi-mcp-adapter@2.37.0 作为基座种子依赖；连接器渲染成 agent-dir/mcp.json + settings.packages
+- 22:52 实测证据：**不带连接器时端点收到 4 个工具，带 filesystem 连接器时收到 7 个**（MCP 服务器的工具真的注册进来了），退出码 0 无报错；负向（本地未提供扩展路径）运行器**响亮拒绝**
+- 22:52 复用既有装包机制：扩展进 preinstall.yaml（npm 12 条）→ 构建锁 → 构建期全局安装，运行期不需要网络；镜像已重建并在容器内确认版本 2.37.0
+- 22:52 同步更新声明与文档：adapter.yaml（mcpClient unsupported→extension，含证据）、exemptions（改为"机制不同"）、failures.md F10、docs 02/05/10、CHANGELOG；C9 复跑十项全绿
 

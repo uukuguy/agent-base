@@ -29,6 +29,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
 const SEED = path.join(HERE, "seed");
 const HARNESS = "pi";
+/**
+ * 镜像内 MCP 客户端扩展包的固定路径（构建期装好，运行期不下载）。
+ * 用的是 node 基础镜像里 `npm install -g` 的落地位置 —— 于是**复用既有的预装清单机制**，
+ * 不需要为扩展包新造一条安装通道。本地运行时由运行器把该路径改写成本地安装路径。
+ */
+const MCP_ADAPTER_IN_IMAGE = "/usr/local/lib/node_modules/pi-mcp-adapter";
 
 // ---------------------------------------------------------------------------
 // 工具
@@ -219,19 +225,56 @@ function main() {
   log(`  增强：基座 ${baseEnh.length} + 智能体 ${agentEnh.length} → 产物登记 ${settings.extensions.length} 个`);
   writeFile(path.join(agentOut, "settings.json"), stableJson(settings));
 
-  // ---- 6. 连接器（当前为显式缺口，必须响亮失败）----
+  // ---- 6. 连接器：渲染成 pi 的 MCP 配置文件 ----
+  //
+  // 背景：pi **原生没有 MCP 客户端**（`capabilities.mcpClient` 曾为 `unsupported`）。
+  // 调研结论是**不自研**，而是采用并精确 pin 一个第三方扩展。选定的扩展
+  // （`pi-mcp-adapter`）读的配置形状与设计 §10.2 的预测一致：agent-dir 下的 `mcp.json`，
+  // 结构 `{ mcpServers: { <名字>: {command,args,env} | {url,headers} }, settings: {...} }`。
+  //
+  // 两条纪律：
+  //   ① **不许静默跳过**：声明了连接器就必须真的渲染出来（静默跳过 = 你会得到一个没有连接器的智能体）
+  //   ② **运行期无外网**：扩展包在**镜像构建期**就装好（固定路径），运行期不下载 ⇒ 声明用本地路径
   const connectorsRel = agent.connectorsFile ?? "connectors.yaml";
   const connectorsAbs = path.join(agentDir, connectorsRel);
-  const connectors = fs.existsSync(connectorsAbs) ? readYaml(connectorsAbs) : { mcpServers: [] };
-  const enabledDecls = (connectors.mcpServers ?? []).filter((s) => s.enabled !== false);
-  if (enabledDecls.length) {
-    // capabilities.mcpClient = absent（见 adapter.yaml）。**不许静默跳过**：
-    // 静默跳过会渲染出一个没有连接器的智能体，而开发者以为连上了（failures.md F10）。
-    log(`❌ pi 原生没有 MCP 客户端（capabilities.mcpClient: absent），无法渲染 ${enabledDecls.length} 个启用的连接器：`);
-    for (const s of enabledDecls) log(`     - ${s.ref ?? s.name}`);
-    log("   处置：先用 conformance C1–C10 选定第三方 pi MCP 客户端扩展并进 seed（见");
-    log("   docs/research/2026-09-25-mcp-ecosystem-survey.md）。在选定之前，渲染必须失败而不是产出一个假的成功。");
+  const connectorsDoc = fs.existsSync(connectorsAbs) ? readYaml(connectorsAbs) : { mcpServers: [] };
+  const preinstall = loadPreinstall(PREINSTALL_PATH);
+  const { servers: resolved, problems: connProblems, paramNames: connParamNames } = resolveConnectors(connectorsDoc, preinstall);
+  if (connProblems.length) {
+    log("❌ 连接器解析失败：");
+    for (const cp of connProblems) log(`     - ${cp.server ?? ""} ${cp.code}: ${cp.detail}`);
     process.exit(EXIT_CODES.static);
+  }
+  const enabledConnectors = resolved.filter((c) => c.enabled !== false);
+
+  let mcpServers = {};
+  for (const c of enabledConnectors) {
+    if (c.transport === "stdio") {
+      mcpServers[c.name] = { command: c.command, args: c.args ?? [] };
+      // 凭据按参数层引用注入（运行期真值；定义里只有引用名）
+      if (c.credentialRef) mcpServers[c.name].env = { [c.credentialRef]: `\${${c.credentialRef}}` };
+    } else {
+      mcpServers[c.name] = {
+        url: `\${${c.urlRef}}`,
+        ...(c.credentialRef ? { headers: { Authorization: `Bearer \${${c.credentialRef}}` } } : {}),
+      };
+    }
+  }
+
+  if (enabledConnectors.length) {
+    // `settings` 由**基座**显式声明姿态，不吃扩展的默认值：
+    //   allowInstall=false      运行期不允许安装新服务器（无外网，且行为要可复现）
+    //   hostConfigDiscovery=off 不去发现宿主机上的 MCP 配置（P-b：隔离，不靠配置）
+    writeFile(path.join(agentOut, "mcp.json"), stableJson({
+      mcpServers,
+      settings: { allowInstall: false, hostConfigDiscovery: "off" },
+    }));
+    // 扩展包在**构建期**装进镜像的固定前缀，这里声明本地路径 ⇒ 运行期不需要网络
+    settings.packages = [MCP_ADAPTER_IN_IMAGE];
+    // 注意：settings.json 在上一节已落盘，这里改了内存对象必须**再写一次**
+    //       （第一版漏了这步：mcp.json 里连接器有、settings 里却没有包声明 ⇒ 静默不生效）
+    writeFile(path.join(agentOut, "settings.json"), stableJson(settings));
+    log(`  连接器：${enabledConnectors.length} 个 → agent-dir/mcp.json（MCP 客户端走基座种子扩展）`);
   }
 
   // ---- 7. 清单与摘要 ----
@@ -248,8 +291,10 @@ function main() {
     agent: agent.name,
     declaredSkills,
     declaredEnhancements,
-    connectors: [],
-    connectorsNote: "pi 原生无 MCP 客户端；声明了连接器时渲染会直接失败（failures.md F10）",
+    connectors: enabledConnectors.map((c) => ({ serverName: c.name, transport: c.transport })),
+    connectorsNote: "pi 原生无 MCP 客户端；连接器经基座种子扩展（pi-mcp-adapter，构建期装好）渲染成 agent-dir/mcp.json",
+    mcpAdapterInImage: MCP_ADAPTER_IN_IMAGE,
+    paramNames: connParamNames,
     runArgs,
     modelRoutes: [agent.model.route],
     // 技能在**产物内**的相对位置：让上层工具（probe / C3）不必知道某 harness 的目录形状

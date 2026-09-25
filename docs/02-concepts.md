@@ -24,7 +24,7 @@
 | 人设 | `persona.instructions` | `agent-dir/AGENTS.md` | `workspace/AGENTS.md` —— 该运行时的 `agent-instructions` 是"**工作区指令文件发现器**"，会去读工作区的 `AGENTS.md`/`CLAUDE.md`，所以人设必须落在**工作区**，不是某个配置字符串 |
 | 模型选择 | `model.route` / `model.name` | `models.json.tmpl`（启动期渲染）+ `settings.json` 的 `defaultProvider`/`defaultModel` | patch 里的 `agent-default-model` + **provider 路由声明**（`llm-pi-ai` 的 `providers` 字典：`api`/`baseURL`/`apiKeyEnv`/`models`） |
 | 技能 | `skills/<名字>/` | `agent-dir/skills/` + 运行参数 `--skill <目录>` | `skill-filesystem.customSkillDirs`（指向**镜像内固定路径**）+ 启用 `tool-skill` |
-| 连接器 | `connectors.yaml` | ⚠️ **原生不支持 MCP** —— 声明了连接器时**渲染直接失败**（不产出"没有连接器的智能体"），等选定第三方 MCP 客户端扩展 | 每服务器 `insert` 一条 `@deepseek-ai/dsh-mcp-client` row（`serverName`/`transport`/`command` 或 `url`） |
+| 连接器 | `connectors.yaml` | **原生没有，靠基座种子扩展补上**（`pi-mcp-adapter`，构建期装好）→ 渲染成 `agent-dir/mcp.json` + `settings.json` 的 `packages` 声明 | 原生支持：每服务器 `insert` 一条 `@deepseek-ai/dsh-mcp-client` row（`serverName`/`transport`/`command` 或 `url`） |
 | 工具边界 | `tools.deny` | 运行参数 `--exclude-tools`（**手工直接启动会绕过**，闸门 4 会抓） | 禁用对应的 tool row。⚠️ **粒度更粗**：`read`/`write`/`edit` 是**同一个** `tool-fs` row，禁一个等于禁三个 |
 | 端点/凭据 | 只写引用名 | `${PREFIX}_BASE_URL` / `${PREFIX}_API_KEY`，在**启动期**渲染进 `models.json` | `!!js process.env.<引用名>`（在 profile 里就是表达式） |
 | 轨迹 | —（自动） | **回调式**（订阅 loop 回调，能拿到实际发出的请求体）+ 事后映射兜底 | **`--json` 的 run events**（带 `callId`，可直接配对） |

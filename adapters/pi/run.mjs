@@ -49,6 +49,30 @@ export function stageRenderDir(renderDir, endpoint) {
     return "placeholder-not-a-credential"; // 零凭据：探针不需要真密钥
   });
   fs.writeFileSync(path.join(staging, "models.json"), out);
+
+  // 连接器扩展包：产物里写的是**镜像内固定路径**。本地运行时用 AGENT_MCP_ADAPTER_PATH 指向本地安装，
+  // 我们把它改写进暂存副本的 settings.json（**只改副本**）。
+  // 若产物声明了该包、本地却没给路径 ⇒ **响亮失败**，不静默产出一个"没有 MCP 客户端"的运行
+  // （那正是 failures.md F10 要防的静默忽略）。
+  const manifestPath = path.join(renderDir, "render-manifest.json");
+  if (fs.existsSync(manifestPath)) {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    const inImage = manifest.mcpAdapterInImage;
+    const settingsFile = path.join(staging, "settings.json");
+    if (inImage && fs.existsSync(settingsFile)) {
+      const text = fs.readFileSync(settingsFile, "utf8");
+      if (text.includes(inImage)) {
+        const local = process.env.AGENT_MCP_ADAPTER_PATH;
+        if (!local) {
+          throw new Error(
+            `产物声明了 MCP 客户端扩展（${inImage}），但本地运行未提供 AGENT_MCP_ADAPTER_PATH —— ` +
+            "不给的话会跑出一个**没有 MCP 客户端**的智能体而无人察觉。请指向本地安装路径。");
+        }
+        fs.writeFileSync(settingsFile, text.split(inImage).join(local));
+      }
+    }
+  }
+
   return { staging, placeholders };
 }
 

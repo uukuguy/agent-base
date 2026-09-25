@@ -67,7 +67,7 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 - **上手路径仍只有 pi 一侧**：派生的智能体开箱 `usable`，`HARNESS=dsh` 仍会因 dsh 适配器未实现而失败
 - **镜像只在本地产出、尚未推任何 registry**：多架构 manifest 已能落盘（OCI 归档），推送路径待 I2（内网能否直连镜像仓库）确认
 - **企业级 MCP 的每用户鉴权**与参数层模型（单一服务凭据 `credentialRef`）不匹配 —— 设计缺口，排在首个走通之后
-- **pi 侧 MCP 客户端需外部补齐**（pi 0.87.1 原生无 MCP；第三方扩展生态已成熟，见调研）→ 选定并 pin 一个扩展之前，声明了连接器的智能体在 pi 上渲染即失败（响亮，不静默）
+- **pi 的 MCP 客户端已选定并接入**（`pi-mcp-adapter@2.37.0`，基座种子依赖、构建期装好）→ 连接器在两侧都能用；实测工具数 4 → 7
 - **预装清单的服务器选择**仍未定稿：`core/image/preinstall.yaml` 已列出候选与 npm 实测存活表，但「预装哪些进镜像」是待定项；企业 SaaS 集与 per-user OAuth 的冲突同上
 - **上游版本漂移**：dsh `0.1.7-rc.1` 是预发布，pi 迭代快 —— pin 之外的回归保障（`conformance`）已建立但对 dsh 尚未生效
 - **业务级 harness 增强尚无最小示例**：`capabilities.yaml` 里该组字段仍是 `verified: false`，等首个真实增强验证其可写性

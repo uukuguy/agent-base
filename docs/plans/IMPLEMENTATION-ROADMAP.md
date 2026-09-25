@@ -649,3 +649,45 @@ C3 只做三件事：① 每个期望字段都有声明；② 声明的位置**�
 
 生产化能力、pi 侧 MCP 客户端、`examples/contract-review`、镜像推送链路、
 dsh 的 `model.reasoningEffort` 映射、pi 侧增强"已加载"的观测 —— 逐条写清并指向对应文档。
+
+---
+
+## 19. pi 的 MCP 通路打通（M4 地基，2026-09-25）
+
+**背景**：M4（`examples/contract-review`，双运行时 + MCP 等价性）卡在一件事上 ——
+pi **原生没有 MCP 客户端**，所以"双运行时 MCP 等价"当时做不到等价。
+
+**决策**（沿用调研结论）：**不自研**，采用并精确 pin 第三方扩展 `pi-mcp-adapter@2.37.0`，
+以**基座种子依赖**形式装进基座镜像。
+
+### 19.1 实现
+
+| 环节 | 做法 |
+|---|---|
+| 扩展从哪来 | 登记进 `core/image/preinstall.yaml`（kind: system）→ 进构建锁 → **构建期全局安装** ⇒ 运行期不需要网络。复用既有机制，**没有新造安装通道** |
+| 渲染 | `connectors.yaml` → `agent-dir/mcp.json`（`{mcpServers, settings:{allowInstall:false, hostConfigDiscovery:"off"}}`）+ `settings.json` 的 `packages` 声明扩展的**本地路径** |
+| 本地运行 | 暂存时把镜像内路径改写成本地路径（`AGENT_MCP_ADAPTER_PATH`）；**没给就响亮失败** —— 不许跑出一个没有 MCP 客户端的智能体而无人察觉 |
+
+配置形状不是我猜的：读了扩展实现，它读的正是 **agent-dir 下的 `mcp.json`**，
+条目结构 `{command,args,env}|{url,headers}` —— 与设计 §10.2 的预测一致。
+
+### 19.2 实测证据（这是关键）
+
+| 场景 | 模型端点收到的工具数 |
+|---|---|
+| 基线（不带连接器） | **4** |
+| 带 `ref: filesystem` 连接器 | **7** |
+
+即：该 MCP 服务器的 3 个工具**真的注册进了模型可见的工具列表**，退出码 0、无报错。
+负向也验了：产物声明了扩展包而本地未提供路径 ⇒ 运行器**拒绝运行**并说明原因。
+
+### 19.3 同步更新（改了行为就必须改说法）
+
+`adapters/pi/adapter.yaml`（`mcpClient: unsupported → extension`，含实测证据）、
+`exemptions.yaml`（豁免从"pi 不支持"改为"**机制不同**"）、`failures.md` F10、
+文档 02/05/10、`CHANGELOG.md`；镜像重建并复跑 **C9 十项全绿**。
+
+### 19.4 下一步
+
+M4 的地基已就位：可以做 `examples/contract-review`（带连接器、两个运行时都跑），
+并做**跨运行时等价性比对**（比较"启用了哪几台服务器/调到了什么工具"，而不是比较扩展内部的工具名）。
