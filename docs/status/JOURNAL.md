@@ -331,3 +331,5 @@
 - 22:26 D8 已固化为自检：`local-selftest` 新增"基座变了、定义没变 ⇒ 也重新渲染"且"不许误报成定义已变"（篡改清单里的 renderInputsDigest 命中同一条判据，不动真实基座文件）
 - 22:26 记忆配置**未能完成**：创建 Memory Space 需要 `mnemon` CLI，宿主里没有（`spawn mnemon ENOENT`，provider 数为 0）；需宿主装 CLI 或设 `MNEMON_CLI_PATH`，或提高 `runtimeMemory.memoryLimitBytes`。期间用户的两条反馈仍只落在仓库（roadmap §26 + JOURNAL）
 - 22:34 /project-state checkpoint：RESUME 更新（D8 修复入账；下一动作 = §26 V2 或 E2b；记忆配置待宿主装 mnemon CLI）
+- 22:40 **记忆配置完成（用户要求）**：装 `mnemon` CLI（官方 macOS 推荐 `brew install --cask mnemon-dev/tap/mnemon`，实测 0.2.9；写 `/opt/homebrew` 被沙箱拒 → 提权后成功）→ 建 Memory Space「agent-base 项目记忆」(id default) → **激活**（不激活则写被拒：catalog=1/writable=0）→ 归档生效
+- 22:40 归档实测：热记忆 15 条/10220 字节 → **11 条/7721 字节**（`mnemon.db` 15 insights · 41 edges）；补写三条：① 环境事实（CLI 装法 + 探活别用 `mnemon status` + MNEMON_CLI_PATH 退路）② D8 教训（复用判据必须覆盖全部输入）③ 用户 DX 偏好（`run-local` 交互调试方便；要会话内斜杠命令、补全即目录）
