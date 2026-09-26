@@ -258,6 +258,50 @@ check("config-check 不留运行目录", !fs.existsSync(freshWork) || fs.readdir
   }
   check("接入缝：prepare 成功且带 overlay 信息", !supportsOverlay || (ovr.status === 0 && prep?.overlay?.declared === 1), (ovr.stderr ?? "").slice(-200));
 
+  // 负向（路线图 §23 E1b）：overlay 的钩子**写错事件名**必须当场红，并点名那个名字。
+  // 事件名写错的后果是"配了但永远不会触发"，而 overlay 是上层镜像加钩子的主路径。
+  if (supportsOverlay) {
+    const ovBadEvent = fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-ovbad-"));
+    fs.mkdirSync(path.join(ovBadEvent, "extensions"), { recursive: true });
+    fs.writeFileSync(path.join(ovBadEvent, "extensions", "corp-audit.ext"), "export default function r() {}\n");
+    fs.writeFileSync(path.join(ovBadEvent, "overlay.yaml"), [
+      "apiVersion: agent-base/v1",
+      `harness: ${harness}`,
+      "enhancements:",
+      "  - kind: hook",
+      "    id: corp-audit",
+      "    entry: extensions/corp-audit.ext",
+      "    events: [tool_calls_typo]",
+      "",
+    ].join("\n"));
+    const badWork = fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-ovbadrun-"));
+    const bad = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", artifact, "--run-dir", badWork, "--json"],
+      { encoding: "utf8", env: { ...process.env, ...okEnv, AGENT_OVERLAY_DIR: ovBadEvent } });
+    const badText = `${bad.stdout ?? ""}${bad.stderr ?? ""}`;
+    check("接入缝：钩子事件名写错 ⇒ 响亮失败并点名该事件",
+      bad.status === 2 && badText.includes("tool_calls_typo") && /不存在/.test(badText), `${bad.status} ${badText.slice(-160)}`);
+
+    // 负向：钩子没写 events ⇒ 同样红（"钩子必须说明订阅哪些事件"）
+    fs.writeFileSync(path.join(ovBadEvent, "overlay.yaml"), [
+      "apiVersion: agent-base/v1",
+      `harness: ${harness}`,
+      "enhancements:",
+      "  - kind: hook",
+      "    id: corp-audit",
+      "    entry: extensions/corp-audit.ext",
+      "",
+    ].join("\n"));
+    const noEvents = mkRun();
+    check("接入缝：钩子没写 events ⇒ 响亮失败", noEvents.status === 2 && /没写 events/.test(noEvents.text), `${noEvents.status} ${noEvents.text.slice(-160)}`);
+
+    function mkRun() {
+      const w = fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-noev-"));
+      const r = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", artifact, "--run-dir", w, "--json"],
+        { encoding: "utf8", env: { ...process.env, ...okEnv, AGENT_OVERLAY_DIR: ovBadEvent } });
+      return { status: r.status, text: `${r.stdout ?? ""}${r.stderr ?? ""}` };
+    }
+  }
+
   // prep.env 里的值是**绝对路径**（startup 自己 join 过 runDir），别再 join 一次
   const envVal = Object.values(prep?.env ?? {})[0] ?? "";
   const staging = path.isAbsolute(envVal) ? envVal : path.join(ovWork, envVal);

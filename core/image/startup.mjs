@@ -167,7 +167,7 @@ function stage(artifactDir, plan, runDir) {
  *   ③ 把扩展路径追加进 `settings.json.extensions`（该运行时从这里加载扩展）
  * 产物本身一个字节都不动。
  */
-function applyOverlay(runDir, harnessName, overlayDir) {
+function applyOverlay(runDir, harnessName, overlayDir, hookEvents = null) {
   if (!overlayDir || !fs.existsSync(overlayDir)) return null;
   const manifestFile = path.join(overlayDir, "overlay.yaml");
   if (!fs.existsSync(manifestFile)) {
@@ -202,6 +202,26 @@ function applyOverlay(runDir, harnessName, overlayDir) {
   const enhFile = path.join(runDir, "enhancements.yaml");
   if (declared.length) {
     if (!fs.existsSync(enhFile)) die("overlay 声明了增强，但暂存副本里没有 enhancements.yaml（产物不完整？）");
+
+    // ---- 钩子事件名：**接入缝这条路径也要对名字**（路线图 §23 E1b）----
+    // 产物清单里带着该运行时的可订阅事件集合（E1 的契约面）。overlay 是"上层镜像在镜像内加钩子"
+    // 的主要路径，写错事件名的后果同样是"配了但永远不会触发" —— 在这里当场拦住，别等到线上看行为。
+    // enumerated=false（该运行时还没穷举集合）时**不做假校验**，但要如实提示一次。
+    const hookSet = hookEvents ?? null;
+    for (const e of declared.filter((x) => x?.kind === "hook")) {
+      const names = Array.isArray(e.events) ? e.events : [];
+      if (!names.length) die(`overlay 的钩子增强 ${e.id} 没写 events —— 钩子必须说明订阅哪些事件`);
+      if (hookSet?.enumerated === true) {
+        const bad = names.filter((n) => !(hookSet.events ?? []).includes(n));
+        if (bad.length) {
+          die(`overlay 的钩子增强 ${e.id} 订阅了该运行时不存在的 ${bad.length} 个事件：${bad.join(", ")}`
+            + `（产物清单里声明的 ${hookSet.events?.length ?? 0} 个可订阅事件里没有 —— 写错事件名的钩子永远不会触发）`);
+        }
+      } else if (hookSet?.enumerated === false) {
+        process.stderr.write(`ℹ️  overlay 钩子 ${e.id} 的事件名未校验（该运行时的可订阅集合未穷举）⇒ 按「未验证」处理\n`);
+      }
+    }
+
     const cur = YAML.parse(fs.readFileSync(enhFile, "utf8")) ?? {};
     const byId = new Map((cur.enhancements ?? []).map((e) => [e.id, e]));
     for (const e of declared) byId.set(e.id, e);      // 同 id 以 overlay 为准（它就是最后写入者）
@@ -341,7 +361,7 @@ function prepare({ artifact, runDir }) {
   // 不是运行目录根。写错根目录的表现是"overlay 生效了但产物里找不到 enhancements.yaml"。
   const stagingRel = Object.values(plan.env ?? {})[0] ?? null;
   const stagingDir = stagingRel ? path.join(effectiveRunDir, stagingRel) : effectiveRunDir;
-  const overlay = applyOverlay(stagingDir, manifest.harness, process.env.AGENT_OVERLAY_DIR ?? "/opt/agent-base/overlay");
+  const overlay = applyOverlay(stagingDir, manifest.harness, process.env.AGENT_OVERLAY_DIR ?? "/opt/agent-base/overlay", manifest.hookEvents ?? null);
 
   // 运行时环境：清单声明"哪个环境变量指向运行目录里的哪个相对路径"
   const env = {};

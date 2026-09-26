@@ -369,3 +369,4 @@
 - 00:05 A1 的"哪些只能在容器验"做成**声明式**：`core/introspect/_container-only.mjs` 四类（in-image-verify / security-floor / dual-arch / same-source）+ `why`（同时是失败归因依据）；自检 `project-info-selftest` 静态比对声明与 `conformance/image-*.mjs` 的 `add("…")` id，**双向**（声明里的必须在实现里存在；实现里字面量的必须已归类）—— 变量拼 id 的写法扫不到，该限制已写进文件顶部
 - 00:05 过程记录（我自己的错）：第一次全量回归 5 处红 + 两侧 C10 + examples 19 项失败 —— 原因是 core 里写了运行时常量默认值（`harness = "pi"`），被 **`core/harness-name`** 当场抓住。这个检查很值钱：core/ 的中立性靠它守着。改掉后全绿
 - 00:05 回归证据：16 个自检全绿 · 两侧 conformance **10/10** · `examples-check` 全绿；新增自检 2 个（`pi-project-info-selftest` 24 项 / `project-info-selftest` 23 项）；实测会话内 `/project plan` 与 `/project skills` 都在真运行时里正常产出
+- 00:06 **E1b 完成**：接入缝（overlay）的钩子事件名进判据 —— 启动期 `applyOverlay` 用产物清单里的 `hookEvents` 校验，写错**响亮失败并点名**（退出码 2）；`enumerated:false` 的运行时不做假校验但提示"按未验证处理"；钩子没写 events 同样红。自检新增两条负例（startup-selftest 37 项全绿）

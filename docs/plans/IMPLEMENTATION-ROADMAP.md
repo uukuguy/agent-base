@@ -926,7 +926,7 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 | # | 项 | 判据 | 依赖 | 状态 |
 |---|---|---|---|---|
 | E1 | 钩子声明契约（事件名集合 + 版本 pin） ✅ | 已做：`adapter.yaml` 的 `hookEvents` 声明可订阅集合（pi **39 个**，带 `reproduce` 复算命令；"版本 pin"由同文件的 `version` 承担 —— 不另立字段，避免同一事实两个真源）；`enhancements[].events`（**数组**：基座轨迹扩展自己就订阅 **6** 个）逐个对名字 ⇒ 闸门 1 `enhance/events`；负例 `13-enhance-hook-bad-event`（`tool_calls`）**只因该原因**红；顺手堵上"基座 seed 的声明没人校验"这个后门 | D1 | `done` |
-| E1b | **接入缝里的钩子事件名**也进判据（E1 只覆盖定义层与基座 seed，overlay 声明的事件名仍无人对） | 把 `adapter.yaml` 的 `hookEvents` 写进 render manifest（产物契约的一部分），启动期 `applyOverlay` / 闸门 2 用它校验 overlay 声明的事件名：写错 ⇒ 响亮失败（不静默） | E1 | `pending` |
+| E1b | **接入缝里的钩子事件名**也进判据（E1 只覆盖定义层与基座 seed） ✅ | 已做：`manifest.hookEvents` 早已随 E1 进产物契约；启动期 `applyOverlay` 现在用它校验 overlay 声明的事件名 —— 写错 ⇒ **响亮失败并点名**（退出码 2）；`enumerated: false` 的运行时不做假校验，但会如实提示"按未验证处理"；钩子没写 `events` 同样红。自检新增两条负例（`startup-selftest` 37 项）。（闸门 2 侧的覆盖天然成立：`stageRenderDir` 走的就是同一条 startup 路径，集合断言已含 overlay 合并进来的声明） | E1 | `done` |
 | E2 | **钩子确实触发** ✅（部分） | `probe/hook-fired`：轨迹事件带 `emitter: hook\|post-hoc`；声明了钩子就必须有钩子当场发出的事件（实测 5 条）。⚠️ 另一运行时的轨迹是事后映射 ⇒ 如实报"不适用" | —（**已先于 E1 落地**，勿按原依赖顺序阻塞） | `done` |
 | E2b | 钩子**逐条**自证：每个声明的钩子都要留痕（否则只能证明发射路径在工作） | 声明 N 个钩子 ⇒ N 个都能指到自己的痕迹 | E2 | `pending` |
 | E3 | 上层镜像**接入缝**：镜像内可加钩子（运行时覆盖目录 或 镜像内渲染，二者选一并声明） | 上层镜像里钩子生效有证据 | D-0014 | `done` —— 即 §25 **P3**（overlay 暂存副本；实测闸门 2 把 overlay 声明计入，集合相等 2 项）。**勿重复做** |
