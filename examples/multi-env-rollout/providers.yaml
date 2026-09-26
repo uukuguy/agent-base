@@ -1,0 +1,48 @@
+apiVersion: agent-base/v1
+
+# ============================================================================
+# 本示例自带的一份**供应商配置**（providers.yaml）
+#
+# 它就是 docs/08-conventions.md「供应商配置是配置，不是基座代码」的活例子：
+# 连哪个端点、端点服务哪些模型名，是**环境属性**；写在这里，**基座一行都不用改**。
+#
+# ## 它和基座内置那份是什么关系
+#
+# core/catalog/providers.yaml 是**内置底座**。里面 `corp-gateway` 那一条声明了：
+#   api: openai-completions · baseUrlParam: CORP_GATEWAY_BASE_URL
+#   credentialEnv: CORP_GATEWAY_API_KEY · models: [corp-think]
+#
+# 本文件放在 agent.yaml **旁边**，基座工具会自动认它（解析链第 ③ 层 agent-local），
+# 并与内置那份**同名 id 按字段合并**：这里只写要改的字段，其余全部继承内置那条。
+# 优先级（高 → 低）：AGENT_PROVIDERS_FILE > AGENT_CATALOG_DIR > 本文件 > 内置。
+#
+# ## 为什么这样做（本示例要演示的东西）
+#
+# dev / staging / prod 的网关地址不同、可用的模型别名也可能不同。这三件事必须在
+# **不碰中性定义、不碰基座代码**的前提下完成：
+#
+#   · 换端点      → 运行期给**同一个**引用名 `CORP_GATEWAY_BASE_URL` 不同的值
+#   · 换模型名    → 运行期给 `CORP_GATEWAY_MODEL`，取值须落在下面声明的名单里
+#   · 名单本身    → 由本文件声明（覆盖内置那份的 models）
+#
+# 于是「同一份制品，换值就换环境」成立：agent.yaml 与渲染产物完全不动。
+#
+# ## 只覆盖了一个字段
+#
+# 下面只写了 `displayName` / `models` / `note`；`api`、`baseUrlParam`、`credentialEnv`
+# 都没重复写 —— 它们**继承内置**（这正是"按字段合并"的含义）。
+# 注意：`models` 是**整字段替换**（不是往内置名单里追加），所以默认名 corp-think 必须写回来。
+#
+# ## 一条硬规矩
+#
+# 真实环境里名单**不要手填**，问端点要实测结果再粘回来：
+#   make providers-init ENDPOINT=https://gw.internal/v1 API_KEY=… PROVIDER=corp-gateway
+# 下面三个名字是给**零凭据示例**用的：保证四道闸门不连任何真实端点也能跑通。
+# ============================================================================
+
+providers:
+  - id: corp-gateway
+    displayName: 内网网关（本示例：dev / staging / prod 共用一个 provider，端点与模型名换值不换定义）
+    # 覆盖内置的默认名与两个环境别名；默认名 corp-think 必须保留（定义里用的就是它）。
+    models: [corp-think, corp-think-staging, corp-think-prod]
+    note: 端点仍由 CORP_GATEWAY_BASE_URL 给、凭据仍是 CORP_GATEWAY_API_KEY；模型名可用 CORP_GATEWAY_MODEL 覆盖，取值须在本名单内。

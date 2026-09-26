@@ -1,0 +1,17 @@
+apiVersion: agent-base/v1
+
+# 业务给「机械轨迹」起的说法。基座**不解释**这些词，只按定位符机械查找后原样呈现。
+# 换一个业务、换一套词，基座与查看器一行都不用改。
+#
+# 定位符语法（基座定义）：agent | model:<provider> | skill:<name> | connector:<name>
+#                        | tool:<原始工具名> | log:<日志命名空间> | gate:<闸门名>
+labels:
+  "agent":                              隐私与敏感信息处理审查助手
+  "model:corp-gateway":                 内网推理网关
+  "skill:sensitive-field-inventory":    敏感字段识别与分级
+  "skill:redaction-plan-audit":         脱敏方案与残留风险核对
+  "skill:compliance-claim-discipline":  合规结论的表述纪律
+  "tool:read":                          读取待审查材料
+  "log:privacy":                        隐私审查过程日志
+  "gate:probes":                        连通性检查（模型 / 技能 / 连接器）
+  "gate:smoke":                         端到端冒烟（只读边界实测）

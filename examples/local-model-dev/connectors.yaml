@@ -1,0 +1,13 @@
+apiVersion: agent-base/v1
+
+# 这个示例**故意不连任何外部系统**：它验证的对象是「模型端点」，不是别的系统。
+#
+# 为什么不加连接器：
+#   · 本地模型服务的可达性走 `model.provider`（Ollama 的 OpenAI 兼容面），**不是 MCP**；
+#     端点的核对与列举用只读探测命令（`curl <端点>/v1/models`、`ollama list`）就够。
+#   · 空连接器让闸门 3/4 保持**零凭据、零外部依赖**：clone 下来就能跑，验证结论只关于模型。
+#   · 想让它同时读某类文档时再加 —— 推荐按名引用基座预装条目，不必写包名/版本/参数：
+#       mcpServers:
+#         - ref: filesystem
+#           enabled: true
+mcpServers: []

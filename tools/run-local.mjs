@@ -85,14 +85,21 @@ const main = async () => {
   const endpointParamName = (manifest.runtimeParams ?? []).find((x) => x.backs === "model.provider" && !x.secret)?.name;
   const fromEnvEndpoint = endpointParamName ? process.env[endpointParamName] : null;
   const explicitEndpoint = values["--endpoint"] ?? process.env.AGENT_ENDPOINT ?? null;
-  const endpoint = explicitEndpoint ?? fromEnvEndpoint;
-  const endpointSource = explicitEndpoint ? "--endpoint" : (fromEnvEndpoint ? endpointParamName : null);
+  // 产物里可能**自带端点默认值**（例如本地模型 provider: ollama → http://localhost:11434/v1）。
+  // 不回退到它，就会出现"产物声明了默认端点、run-local 却说你没给端点"的自相矛盾。
+  const fromManifestDefault = (manifest.runtimeParams ?? [])
+    .find((x) => x.backs === "model.provider" && !x.secret && typeof x.default === "string")?.default ?? null;
+  const endpoint = explicitEndpoint ?? fromEnvEndpoint ?? fromManifestDefault;
+  const endpointSource = explicitEndpoint ? "--endpoint"
+    : fromEnvEndpoint ? endpointParamName
+    : fromManifestDefault ? "产物默认值" : null;
   if (!endpoint) {
     process.stderr.write(
       "❌ 未提供模型端点 —— 本地运行需要它（探针/冒烟才会用自带假网关，真实运行不会替你编一个）。\n" +
       `   给法：① make run-local --endpoint https://your-endpoint/v1\n` +
-      `         ② 环境变量 ${endpointParamName ?? "<路由前缀>_BASE_URL"}=https://your-endpoint/v1\n` +
-      `         ③ 或用 --secrets-dir / ${endpointParamName ?? "<路由前缀>_BASE_URL"}_FILE 指到文件\n`);
+      `         ② 环境变量 ${endpointParamName ?? "<供应商前缀>_BASE_URL"}=https://your-endpoint/v1\n` +
+      `         ③ 或用 --secrets-dir / ${endpointParamName ?? "<供应商前缀>_BASE_URL"}_FILE 指到文件\n` +
+      `   （产物里若自带端点默认值，会自动用它 —— 本地模型 provider 就是这样）\n`);
     process.exit(EXIT_CODES.usage);
   }
   // 手工运行的便利开关：直接映射到**产物声明的**运行期参数（不猜名字、不硬编码引用名）。
@@ -159,7 +166,7 @@ const main = async () => {
     `  制品        ${path.relative(REPO, renderDir)}`,
     `  暂存副本    ${staging}`,
     `  HOME        ${home}   ← 临时目录，隔离隐式技能源`,
-    `  模型端点    ${endpoint}（来源 ${endpointSource}）${placeholders.length ? `（${placeholders.length} 个参数用占位值：${placeholders.join(", ")}）` : ""}`,
+    `  模型端点    ${endpoint}（来源 ${endpointSource}）${placeholders.length ? `（${placeholders.length} 个参数用定义默认值：${placeholders.join(", ")}）` : ""}`,
     `  轨迹        ${traceFile}`,
     `  模式        ${values["--prompt"] ? "一次性（--prompt）" : "交互（stdin 直连，退出即结束）"}`,
     "",

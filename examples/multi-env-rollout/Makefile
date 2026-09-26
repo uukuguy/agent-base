@@ -5,7 +5,7 @@
 # 需要理解的概念只有一个：HARNESS（用哪个运行时）。其余命令都是"跑某道闸门"。
 # ============================================================================
 
-AGENT_BASE_DIR ?= {{AGENT_BASE_DIR}}
+AGENT_BASE_DIR ?= ../..
 HARNESS ?= pi
 
 # 智能体自己的**供应商配置**（可选）：旁边有 providers.yaml 就自动用它，
@@ -60,10 +60,10 @@ run-local: check-base ## 本地真跑一次（ENDPOINT=https://… API_KEY=… [
 	  $(if $(MODEL),--model "$(MODEL)",) $(if $(PROMPT),--prompt "$(PROMPT)",) \
 	  $(if $(RENDER_DIR),--render-dir $(RENDER_DIR),)
 
-providers-init: ## 问端点有哪些模型，写成 providers.yaml（ENDPOINT=https://… [API_KEY=…] [PROVIDER=…]）
+providers-init: ## 问端点有哪些模型，写成 routes.yaml（ENDPOINT=https://… [API_KEY=…] [PROVIDER=…]）
 	@node $(AGENT_BASE_DIR)/tools/providers-init.mjs --endpoint "$(ENDPOINT)" \
-	  $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(PROVIDER),--provider "$(PROVIDER)",) \
-	  $(if $(OUT),--out "$(OUT)",--out ./providers.yaml)
+	  $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--provider "$(PROVIDER)",) \
+	  $(if $(OUT),--out "$(OUT)",--out ./routes.yaml)
 
 walkthrough: ## 开发场景演练（在基座工作区跑：派生→闸门→渲染→真跑→容器→比对）
 	@node $(AGENT_BASE_DIR)/tools/walkthrough.mjs $(if $(LIVE),--live,)

@@ -1,0 +1,17 @@
+apiVersion: agent-base/v1
+
+# 业务给"机械轨迹"起的说法。基座**不解释**这些词，只按定位符机械查找后原样呈现。
+# 换一个业务、换一套词，基座与查看器一行都不用改。
+#
+# 定位符语法（基座定义）：agent | model:<route> | skill:<name> | connector:<name>
+#                        | tool:<原始工具名> | log:<日志命名空间> | gate:<闸门名>
+labels:
+  "agent":                          多环境上线核对助手
+  "skill:env-parity-check":         核对 dev / staging / prod 的环境差异并分类
+  "skill:artifact-consistency":     证明三个环境跑的是同一份制品（带可执行自检脚本）
+  "skill:rollback-criteria":        上线前定好可观测的回滚触发条件与放行检查单
+  "model:corp-gateway":             内网模型网关（三环境同一 provider，换端点/模型名只换值）
+  "gate:probes":                    连通性检查
+  "gate:smoke":                     端到端冒烟
+  "gate:doctor":                    运行时自证：实际加载了哪些技能
+  "log:rollout":                    上线核对过程记录

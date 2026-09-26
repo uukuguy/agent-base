@@ -88,9 +88,13 @@ export function normalizeProvider(entry) {
     baseUrlParam: endpointNative ? null : (entry.baseUrlParam ?? `${prefix}_BASE_URL`),
     endpointNative,
     auth,
-    // 只有 `auth: env` 才产生凭据引用名。`native`（运行时自己的凭据库，如订阅登录）
-    // 与 `none`（本地模型服务，根本不校验密钥）都不产生 —— 免得渲染出一个"永远填不上"的必填参数。
-    credentialParam: auth === "env" ? (entry.credentialEnv ?? entry.credentialParam ?? `${prefix}_API_KEY`) : null,
+    // `env` 与 `none` 都产生凭据引用名；差别在**默认值与是否必填**：
+    //   env  → 必填（真密钥，基座从环境/变量文件/凭据目录取）
+    //   none → 不必填，默认一个**占位值**（本地服务不校验密钥，但各运行时的 OpenAI 兼容
+    //          客户端都要求该字段存在：缺了会表现为"模型解析不出来"或"No API key"这类看不懂的错）
+    // `native` → 不产生（凭据在运行时自己的凭据库里，如订阅登录）
+    credentialParam: auth === "native" ? null : (entry.credentialEnv ?? entry.credentialParam ?? `${prefix}_API_KEY`),
+    credentialDefault: auth === "none" ? (entry.credentialDefault ?? "local-no-key-needed") : null,
     modelParam: entry.modelParam ?? `${prefix}_MODEL`,
     models: Array.isArray(entry.models) ? entry.models : [],
     harnesses,

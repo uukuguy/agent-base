@@ -168,7 +168,9 @@ function buildPatch({ agent, connectors, enhancements, route }) {
           [route.id]: {
             displayName: route.id,
             api: route.api,                              // 协议形状（与 pi 的 models.json.api 同名）
-            apiKeyEnv: route.credentialParam,            // **只写引用名**，真值由部署期注入
+            // 凭据引用名：**只写名字**（配置文件绝不包含密钥），真值由部署期经凭据 seam 解析。
+            // native（订阅登录）时不写这个字段 —— 凭据在运行时自己的凭据存储里。
+            ...(route.credentialParam ? { apiKeyEnv: route.credentialParam } : {}),
             // 端点：provider 给了字面值就用它兜底，环境变量仍可覆盖（部署层照旧能改）
             ...(route.endpointNative ? {} : {
               baseURL: route.baseUrl
@@ -392,7 +394,12 @@ function main() {
     },
     runtimeParams: [
       ...(route.endpointNative ? [] : [{ name: route.baseUrlParam, secret: false, required: !route.baseUrl, ...(route.baseUrl ? { default: route.baseUrl } : {}), backs: "model.provider" }]),
-      ...(route.credentialParam ? [{ name: route.credentialParam, secret: true, required: true, backs: "model.provider" }] : []),
+      // 凭据参数：native 不产生；none 带占位默认值且不必填；env 必填
+      ...(route.credentialParam
+        ? [route.credentialDefault
+            ? { name: route.credentialParam, secret: false, required: false, default: route.credentialDefault, backs: "model.provider" }
+            : { name: route.credentialParam, secret: true, required: true, backs: "model.provider" }]
+        : []),
       {
         name: route.modelParam, secret: false, required: false,
         default: agent.model.name, backs: "model.name", validate: "in-provider-models",

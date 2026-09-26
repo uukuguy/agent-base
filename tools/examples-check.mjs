@@ -76,6 +76,36 @@ const main = () => {
     const labels = run([path.join(REPO, "tools/trace-view/labels.mjs"), dir]);
     line(labels.status === 0, `标签表形状（退出码 ${labels.status}）`);
 
+    // 示例的 README 是**交付物的一部分**，不是装饰：别人 clone 下来要靠它把示例跑起来。
+    // 所以这里把"必须讲清构建与验证过程"变成可执行的检查 —— 缺节 / 太空的 README 直接红。
+    {
+      const readme = path.join(dir, "README.md");
+      const REQUIRED = ["## 它解决什么问题", "## 结构", "## 构建与验证过程", "## 改它", "## 已知边界"];
+      if (!fs.existsSync(readme)) {
+        line(false, "README.md 存在（示例必须能被人照着跑起来）");
+      } else {
+        const text = fs.readFileSync(readme, "utf8");
+        const missing = REQUIRED.filter((h) => !text.includes(h));
+        line(missing.length === 0, `README 必备小节齐备（缺：${missing.join(" / ") || "无"}）`);
+        // 构建与验证过程必须是"能照着做"的：含真实命令、含期望结果
+        const howto = text.slice(text.indexOf("## 构建与验证过程"), text.indexOf("## 改它"));
+        const hasCommand = /```(bash|sh)?[\s\S]*?\b(make|node|docker)\b/.test(howto);
+        const hasExpectation = /期望|应该看到|退出码|→|可用/.test(howto);
+        line(hasCommand && howto.length > 400, `构建与验证过程写了可执行命令（${howto.length} 字）`);
+        line(hasExpectation, "构建与验证过程写了期望结果（不是只说'跑一下'）");
+      }
+      // 结构清单里的文件必须真的存在（README 不许描述不存在的东西）
+      // 注意：这一段的输入是 README，所以**必须**先确认它存在 —— 否则缺 README 的示例
+      // 会让整个检查以未捕获 ENOENT 崩掉（那样连"缺 README"这条结论都拿不到）。
+      if (fs.existsSync(readme)) {
+      const listed = [...fs.readFileSync(readme, "utf8").matchAll(/`([A-Za-z0-9_.\/-]+\.(yaml|md|mjs|json))`/g)].map((m) => m[1]);
+      // 相对示例目录、相对仓库根都算"存在"：README 里引用 docs/… 或 core/… 是合理的
+      const ghost = [...new Set(listed)].filter((f) => !f.includes("..")
+        && !fs.existsSync(path.join(dir, f)) && !fs.existsSync(path.join(REPO, f)));
+        line(ghost.length === 0, `README 里提到的文件都存在（缺：${ghost.join(", ") || "无"}）`);
+      }
+    }
+
     for (const script of skillScripts(dir)) {
       const s = run([script, "--selftest"]);
       line(s.status === 0, `技能脚本自检 ${path.relative(dir, script)}（退出码 ${s.status}）`);

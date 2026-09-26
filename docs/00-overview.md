@@ -69,7 +69,7 @@ adapters/pi/   适配器：渲染器 · 自证 · 轨迹映射 · 失败表 · �
 adapters/dsh/  同上（第二个 harness）
 conformance/   新 harness 的准入门槛 C1–C10（10 项阻断性检查）
 template/      派生源：新智能体从这里开始
-examples/      示例智能体（不是基座的一部分，可整体删除）
+examples/      示例项目（不是基座的一部分，可整体删除）—— 覆盖主要场景的完整可跑样本，见 examples/README.md
 tools/         命令面实现：validate / probe / smoke / verify / new-agent / run-local …
 docs/          本套文档 + 设计正文 + 调研
 ```

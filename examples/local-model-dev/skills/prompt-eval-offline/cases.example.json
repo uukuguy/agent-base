@@ -1,0 +1,7 @@
+{
+  "cases": [
+    { "id": "json-only", "mustParseJson": true, "requiresNone": ["```"] },
+    { "id": "tool-call", "mustCallTool": true },
+    { "id": "err-code", "mustMatch": "^E[0-9]{4}$" }
+  ]
+}

@@ -1,0 +1,13 @@
+apiVersion: agent-base/v1
+
+# 本示例**不连外部系统**：上线核对只吃人给的配置、制品标识与观测结果。
+#
+# 要真的从发布系统 / CI / 监控平台取数时，在这里加连接器（按名引用基座预装条目即可）；
+# 写法见 examples/contract-review 的 connectors.yaml：
+#   mcpServers:
+#     - ref: filesystem
+#       enabled: true
+#
+# 但请注意：一旦连了系统，本示例的四道闸门就依赖那个系统可达 —— 示例刻意保持零依赖，
+# 让"同一份制品换值换环境"这件事可以被任何人 clone 下来就复现。
+mcpServers: []

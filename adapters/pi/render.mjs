@@ -206,7 +206,9 @@ function main() {
       [providerId]: {
         ...(activeRoute.endpointNative ? {} : { baseUrl: `\${${activeRoute.baseUrlParam}}` }),
         api: providerApi,   // 协议形状取自 provider 目录，不硬编码
-        apiKey: `\${${activeRoute.credentialParam}}`,
+        // 凭据：native（订阅登录）由运行时自己的凭据库提供 ⇒ 不写这个字段；
+        // env / none 都写引用名占位（none 的占位值由参数层默认值给出，用户不必提供）
+        ...(activeRoute.credentialParam ? { apiKey: `\${${activeRoute.credentialParam}}` } : {}),
         models: declaredModels.map((m) => ({ id: m === agent.model.name ? `\${${activeRoute.modelParam}}` : m })),
       },
     },
@@ -329,7 +331,12 @@ function main() {
   const runtimeParams = [
     // 端点：运行时原生解析时不产生参数；给了字面 baseUrl 就**不强制**从环境给（覆盖仍然可以）
     ...(activeRoute.endpointNative ? [] : [{ name: activeRoute.baseUrlParam, secret: false, required: !activeRoute.baseUrl, ...(activeRoute.baseUrl ? { default: activeRoute.baseUrl } : {}), backs: "model.provider" }]),
-    ...(activeRoute.credentialParam ? [{ name: activeRoute.credentialParam, secret: true, required: true, backs: "model.provider" }] : []),
+    // 凭据参数：native（订阅登录）不产生；none（本地服务）带占位默认值且不必填；env 必填
+    ...(activeRoute.credentialParam
+      ? [activeRoute.credentialDefault
+          ? { name: activeRoute.credentialParam, secret: false, required: false, default: activeRoute.credentialDefault, backs: "model.provider" }
+          : { name: activeRoute.credentialParam, secret: true, required: true, backs: "model.provider" }]
+      : []),
     {
       name: activeRoute.modelParam, secret: false, required: false,
       default: agent.model.name, backs: "model.name", validate: "in-provider-models",

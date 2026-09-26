@@ -9,7 +9,7 @@
 | 形态 | 纯技能型 | **带连接器**（MCP） |
 | 用来演示 | 最快路径 | **双运行时交付 + 等价性比对** |
 
-## 它做什么
+## 它解决什么问题
 
 读一份合同（通过文件连接器访问挂载目录），产出**条款级审阅表**：
 
@@ -18,25 +18,52 @@
 
 三条纪律贯穿三个技能：**结论必须能回到原文** · **分级必须写依据** · **不确定就说不确定**。
 
-## 怎么跑
+## 结构
+
+| 文件 | 干什么 |
+|---|---|
+| `agent.yaml` | 人设、模型、边界（只读：`deny: [bash, write, edit]`） |
+| `connectors.yaml` | `ref: filesystem`（零凭据、可离线 —— 服务器包在构建期预装进镜像） |
+| `skills/clause-extraction/SKILL.md` | 逐条抽条款并回指原文 |
+| `skills/risk-grading/SKILL.md` | 分级 + 依据 |
+| `skills/citation-anchoring/SKILL.md` | 回指自检（"结论必须能回到原文"的可执行形态） |
+| `skills/citation-anchoring/scripts/check-anchors.mjs` | 机械自检脚本：给审阅表与原文，逐行验证摘录能否逐字找到 |
+| `trace-labels.yaml` | 业务给轨迹起的说法（基座不解释这些词，只按定位符机械查找后原样呈现） |
+| `Makefile` | 薄转发层（跑闸门、渲染、本地运行、比对） |
+
+## 构建与验证过程
+
+在**仓库根**执行：
 
 ```bash
-# 准备本地运行环境（装上连接器服务器与 pi 的 MCP 客户端扩展）
+# ① 准备本地运行环境：装上连接器服务器与 pi 的 MCP 客户端扩展（一次性）
 make dev-env
+#   期望：退出码 0；本地包与扩展就位
 
-# 四道闸门（零凭据：闸门 3/4 用基座自带的假网关，不需要任何密钥）
-make verify AGENT_DIR=examples/contract-review                    # pi（默认）
+# ② 静态校验：定义、引用、命名、分层
+make validate AGENT_DIR=examples/contract-review
+#   期望：闸门 1：全绿（38 项检查）
+
+# ③ 四道闸门 —— 两个运行时都要给出「可用」
+make verify AGENT_DIR=examples/contract-review                     # 默认 pi
 make verify AGENT_DIR=examples/contract-review HARNESS=dsh
+#   期望：两行都是 ✅ 可用：四道闸门全过（§6.8）
+#   闸门 3/4 走基座自带的零凭据假网关，**不需要任何密钥**
 
-# 跨运行时等价性比对
+# ④ 跨运行时等价性：三组集合一致 + 差异都有声明
 make compare AGENT_DIR=examples/contract-review
+#   期望：等价性通过（技能集合 / 连接器集合 / 模型路由 / 协议形状 四行 ✅）
+
+# ⑤ 技能脚本自检
+node examples/contract-review/skills/citation-anchoring/scripts/check-anchors.mjs --selftest
+#   期望：退出码 0
 ```
 
 ## 实测证据（这个示例的意义就在这里）
 
 **四道闸门**：两个运行时都给出 **可用**。
 
-**连接器真的生效**（不是"我们声明了"）——模型端点侧收到的工具数：
+**连接器真的生效**（不是"我们声明了"）—— 模型端点侧收到的工具数：
 
 | 场景 | 端点收到的工具数 |
 |---|---|
@@ -64,16 +91,24 @@ make compare AGENT_DIR=examples/contract-review
 第二条正是"同一份定义在两个运行时行为不完全一致"的**真实例子** —— 基座的纪律不是假装它不存在，
 而是**必须写下来**（`adapters/*/exemptions.yaml`，`make compare` 会把它们列出来）。
 
-## 文件
+## 改它
 
-```
-agent.yaml                       人设、模型、边界（只读：禁 bash/write/edit）
-connectors.yaml                  ref: filesystem（零凭据、可离线）
-skills/clause-extraction/        逐条抽条款并回指原文
-skills/risk-grading/             分级 + 依据
-skills/citation-anchoring/       回指自检（带可执行的机械自检脚本）
-trace-labels.yaml                业务给轨迹起的说法（基座不解释这些词）
-```
+| 想改什么 | 改哪里 |
+|---|---|
+| 审阅纪律 / 人设 | `agent.yaml` 的 `persona.instructions` |
+| 换连接器 | `connectors.yaml`（`- ref: <预装条目>` 或完整写法带 `pin`） |
+| 加技能 | 新建 `skills/<名字>/SKILL.md`（frontmatter 的 `name` 必须与目录名一致） |
+| 挂载范围 | **不由参数层决定**：容器里把合同目录挂进 `/workspace`，智能体就只能看到那个目录 |
+| 业务轨迹用词 | `trace-labels.yaml` |
 
-`skills/citation-anchoring/scripts/check-anchors.mjs` 是一个可以直接用的工具：
-给一份审阅表与合同原文，它逐行检查「原文摘录」能否逐字找到。**它就是"结论必须能回到原文"这条纪律的可执行形态。**
+改完再跑 ②③④ 三条 —— 尤其 **④**：改了连接器或工具边界后，`compare` 会告诉你两侧是否还等价、
+差异有没有声明。
+
+## 已知边界
+
+- **不评价审阅质量**：闸门证明"连接器真的挂上、工具数变了、两边等价"，不证明条款判得对。
+- 本示例的 `filesystem` 连接器是**零凭据**的（谁 clone 下来都能跑）；真实企业的连接器通常要凭据，
+  给法见 `docs/06-deploy.md`（环境变量 / `_FILE` / `AGENT_SECRETS_DIR`）。
+- 两条不等价**是真实差异**，已在 `adapters/*/exemptions.yaml` 声明；它们不会消失，
+  只会被如实列出来。
+- 闸门 3/4 默认走零凭据假网关；要"真的能用"的证据加 `LIVE=1`。
