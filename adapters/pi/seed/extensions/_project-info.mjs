@@ -76,7 +76,9 @@ export function collect({ productDir, artifactDir, gatesDir } = {}) {
 
   const artifact = artifactDir && existsSync(artifactDir) ? artifactDir : path.dirname(productDir);
   const manifest = readJson(path.join(artifact, "render-manifest.json"));
-  if (!manifest) problems.push(`读不到渲染清单（${path.join(artifact, "render-manifest.json")}）—— 声明类信息只能显示"未知"`);
+  if (!manifest) problems.push(`读不到渲染清单（${path.join(artifact, "render-manifest.json")}）`
+    + ` —— 声明类信息只能显示"未知"。原因是本进程不知道**产物根**在哪：`
+    + `应设 AGENT_ARTIFACT_DIR=<渲染输出根>（清单在产物根，暂存的运行目录里没有它）`);
 
   const settings = readJson(path.join(productDir, "settings.json"));
   const models = readJson(path.join(productDir, "models.json.tmpl")) ?? readJson(path.join(productDir, "models.json"));

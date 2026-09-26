@@ -32,6 +32,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { EXIT_CODES, digestDirectory, parseArgs } from "../core/gates/index.mjs";
+import { localPlatformEnv } from "../core/image/platform-env.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -166,7 +167,7 @@ const main = async () => {
   // 零凭据：把必填项用显式占位值补齐（本地自检、或只想确认链路通的时候用）。
   // **必须是显式的**：真实运行不给这个开关 —— 免得跑出一个"看起来正常、其实连不上"的结果。
   const zeroCredential = values["--zero-credential"] === "true" || values["--zero-credential"] === "";
-  const { staging, placeholders } = stageRenderDir(renderDir, endpoint,
+  const { staging, placeholders, env: layoutEnv, runDir: stagedRunDir } = stageRenderDir(renderDir, endpoint,
     { zeroCredential, env: extraEnv, harnessHome: values["--harness-home"] ?? process.env.AGENT_HARNESS_HOME ?? null });
   const home = values["--keep-home"]
     ? fs.mkdtempSync(path.join(os.tmpdir(), "agent-local-home-"))
@@ -177,8 +178,15 @@ const main = async () => {
 
   const env = {
     ...process.env,
+    // ── 运行期**布局契约**：来自 startup 的 `runtimePlan.env`（哪个变量指向运行目录里的哪个相对路径）。
+    //    这里**不再手搓**（曾经手搓 ⇒ 与容器入口漂移 ⇒ "容器里能用、本地不能用"）。
+    ...layoutEnv,
+    // ── 平台级变量：与容器入口同一套（单一定义在 core/image/platform-env.mjs）。
+    //    其中 `AGENT_ARTIFACT_DIR` 是**产物根**：渲染清单在那里，而暂存副本里没有 ——
+    //    少了它，会话内 `/project`、任何"读清单"的能力都会失败（实测踩中）。
+    ...localPlatformEnv({ renderDir, runDir: stagedRunDir ?? path.dirname(staging) }),
+    // ── 本地的人机工程（只在本机有意义）
     HOME: home,
-    PI_CODING_AGENT_DIR: staging,
     AGENT_NAME: manifest.agent ?? null,
     AGENT_RUN_MODE: "local",
     AGENT_TRACE_CONTENT: process.env.AGENT_TRACE_CONTENT ?? "full",   // 本地看细节，默认留全文

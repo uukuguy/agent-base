@@ -107,6 +107,9 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
     dshHome: prep.env?.DSH_HOME ?? path.join(prep.runDir, "dsh-home"),
     workspace: prep.cwd ?? prep.runDir,
     placeholders,
+    // 运行期布局契约原样带出去（调用方不该自己拼），见 core/image/platform-env.mjs
+    env: prep.env ?? {},
+    runDir: prep.runDir ?? null,
   };
 }
 

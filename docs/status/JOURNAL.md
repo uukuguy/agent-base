@@ -341,3 +341,8 @@
 - 22:49 设计稿的要点：① 化解与「行为烤、参数下放」的冲突 —— **能力实体烤进制品 / 包定义进制品 / 包激活才是运行期选择**，且**运行期参数分"环境型"与"选择型"两类**（选择型：合法取值烤在制品里、激活集合必须进证据、结论绑定组合）；② 动态粒度如实：工具可运行期改（实测 `setActiveTools`）、扩展需 reload、技能/MCP 需重启会话，**不承诺热插拔**；③ 两类包：`verify-baseline`（默认开、纯净）与 `coding`（默认关）
 - 22:49 设计稿列了 5 个未决项（选择型参数是否进 params.yaml 新类别 / `effectiveConfigDigest` 是否纳入激活集合 / 默认组合由谁定 / 粒度契约措辞 / 结论与组合的绑定强度），每条都给了建议 —— 待用户裁
 - 22:52 用户决定：包设计**先记录、择机实现**（不占当前队列，不当下一步开工）。已在路线图 §27 顶部标注进度与落地顺序（B1 → C4 → B2 → C3），RESUME 的第 6 条同样标注"不要当成下一步"；记忆层对应条目已从"方案待拍板"更正为"方向已定、择机实现"
+- 22:57 **修 D10（用户报的真 bug）**：`/project` 在容器里能用、`make local` 里报"读不到渲染清单"。根因不止"少一个变量"：容器入口会给 `AGENT_ARTIFACT_DIR`/`AGENT_GATES_DIR`，而 `tools/run-local.mjs` **自己手搓一份 env**；更一般地，`startup.prepare` 返回的运行期布局 `env` 契约被 `stageRenderDir` 丢掉（只取了 `Object.values(...)[0]`）
+- 22:57 D10 修法：① 新增 `core/image/platform-env.mjs` = 平台变量**单一定义**（含镜像专有豁免清单）② `stageRenderDir`（两个适配器）原样带出布局契约与 runDir ③ `run-local` 改为消费它们、不再手搓 ④ 报错信息点名 `AGENT_ARTIFACT_DIR`
+- 22:57 D10 实测：用 run-local 的**同一套 env 拼装**重建后调 `/project hooks`，会话里真的产出报告（"trace → 6 个事件 / 运行时 39 个 / ✅ 都在集合内"）；两条新自检固化：`local-selftest` 静态比对"entrypoint 提到、本地没给"的变量，`pi-project-info-selftest` 断言本地 env 能读到清单
+- 22:57 又一课（用户问"渲染是什么"引出的）：**渲染清单在产物根，不在暂存的运行目录里** —— 任何"读清单"的能力都必须拿到 `AGENT_ARTIFACT_DIR`（或等价的产物根），去猜 `dirname(配置目录)` 会失败
+- 23:05 /project-state checkpoint：RESUME 更新（D10 入账；新增两条"别这么干"：两条启动路径各拼 env、去猜 dirname 找清单）

@@ -89,6 +89,7 @@
 - 参数层：`AGENT_PERMISSION_MODE` / `AGENT_WORKSPACE_ROOT` 已登记（适配器不许读未登记的名字）
 - 工具边界：**清单声明**（`runtimePlan.prependArgs`），本地与容器**两条启动路径都执行**（实测 `tools=1`）
 - 运行期复用产物前比**渲染输入摘要**（定义 + 基座 seed + 渲染器 + catalog，见 `adapters/<h>/render-inputs.mjs`）：**基座变了也要重渲**（只比定义摘要 ⇒ 新增基座扩展后旧产物被复用、新命令在会话里不存在，本轮实测踩中；判据与渲染器共用一份实现）
+- **平台级运行期变量单一定义**（`core/image/platform-env.mjs`）：容器入口与 `run-local` 必须给同一套；`startup.prepare` 的运行期布局 `env` 契约由 `stageRenderDir` 原样带出，本地**不再手搓**（手搓 ⇒ 漏 `AGENT_ARTIFACT_DIR` ⇒ 会话内 `/project` 容器能用、本地不能用，本轮实测踩中 D10）；`local-selftest` 静态比对两个入口的变量集合
 - `examples-check`：README 参数名必须落在产物契约或基座平台变量里；示例 Makefile 引用的脚本必须存在
 
 ## Open Problems (theme-level)

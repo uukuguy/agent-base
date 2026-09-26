@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 
 import { CATEGORIES, collect, complete, render } from "./seed/extensions/_project-info.mjs";
 import { piRpc, stageRenderDir } from "./run.mjs";
+import { localPlatformEnv } from "../../core/image/platform-env.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -152,6 +153,30 @@ check("产物不存在 ⇒ problems 非空（调用方据此响亮失败）", mi
 const empty = collect({});
 check("没给产物目录 ⇒ problems 非空并说明原因", empty.problems.length === 1, JSON.stringify(empty.problems));
 check("未知分类给出可用分类列表", /未知分类/.test(render("nope", facts)));
+
+// 本地入口（run-local）的环境必须**足够让本命令工作** —— 本轮真踩中：
+// 容器入口会给 AGENT_ARTIFACT_DIR，而 run-local 自己手搓 env 漏了它 ⇒ 会话里报"读不到渲染清单"。
+// 这里按 run-local 的**同一套拼装方式**（布局契约 + platform-env）重建一次，断言命令能读到清单。
+{
+  const staged = stageRenderDir(two.out, null, { zeroCredential: true });
+  const localEnv = {
+    ...staged.env,
+    ...localPlatformEnv({ renderDir: two.out, runDir: staged.runDir }),
+  };
+  const productDir = localEnv.PI_CODING_AGENT_DIR ?? staged.staging;
+  check("本地入口的 env 里有 AGENT_ARTIFACT_DIR 与 AGENT_GATES_DIR（少 = 容器能用、本地不能用）",
+    !!localEnv.AGENT_ARTIFACT_DIR && !!localEnv.AGENT_GATES_DIR,
+    JSON.stringify({ ARTIFACT: localEnv.AGENT_ARTIFACT_DIR, GATES: localEnv.AGENT_GATES_DIR }));
+  check("AGENT_ARTIFACT_DIR 真的指向含渲染清单的产物根",
+    fs.existsSync(path.join(localEnv.AGENT_ARTIFACT_DIR ?? "/nonexistent", "render-manifest.json")),
+    String(localEnv.AGENT_ARTIFACT_DIR));
+  const localFacts = collect({ productDir, artifactDir: localEnv.AGENT_ARTIFACT_DIR, gatesDir: localEnv.AGENT_GATES_DIR });
+  check("用本地入口的 env 调本命令 ⇒ 读得到声明（本轮用户报的就是这条失败）",
+    localFacts.problems.length === 0, localFacts.problems.join("；"));
+  check("布局契约带出了运行时配置目录变量（不在这里手搓）",
+    Object.values(staged.env ?? {}).some((v) => String(v).includes("agent-dir")),
+    JSON.stringify(staged.env));
+}
 
 // 可移植性：必须与**闸门 1 同源**（基座不变量不算这个智能体引入的不可移植性）
 const portNoBiz = render("portability", facts);

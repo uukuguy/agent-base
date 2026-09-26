@@ -875,6 +875,7 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 | D6 | `tools.deny` 交付入口不生效 ✅ | 改为**清单声明**（`runtimePlan.prependArgs`）**两条启动路径都执行**；实测本地与容器内 `tools=1`（旧写法下是 4，即根本没生效） | `probe/model.tools` 计数 | 中 | `done` |
 | D7 | `CURRENT-STATE.md` **已过期**（称 C3 按 pi 形状写死、dsh run 待做） | `docs/status/CURRENT-STATE.md` vs conformance 与 dsh run | 文档与实现一致（本轮已修） | 低 | `done` |
 | D8 | **产物复用判据只看定义摘要** ⇒ 基座变了（seed 扩展/渲染器/目录表）而定义没变时，旧产物被复用，**改了却没生效且无任何报错** | 实测踩中：新增基座扩展（会话内自省命令 `/project`）后，`examples/idea-to-proof/.render/pi` 照旧被复用 ⇒ `run-local` 的交互会话里根本没有该命令。修法：渲染器记录**渲染输入摘要**（定义 + seed + 渲染器 + adapter.yaml + catalog + emit.mjs，见 `adapters/<h>/render-inputs.mjs`），`run-local` 比它而不是只比定义摘要；旧产物无此字段 ⇒ 一律重渲 | 复用的产物必须与当前输入一致 | 中 | `done`（自检固化：`local-selftest` 里"基座变了也重渲"且不许误报成"定义已变"） |
+| D10 | **两条启动路径的平台变量不一致** ⇒ 同一能力**容器里能用、本地不能用** | 实测踩中（用户报）：`/project` 在容器里正常，`make local` 里报「读不到渲染清单」——容器入口会给 `AGENT_ARTIFACT_DIR`，而 `tools/run-local.mjs` 自己手搓一份 env、**漏了它**（渲染清单在**产物根**，暂存副本里没有）。根因更一般：`startup.prepare` 返回的运行期布局 `env` 契约被 `stageRenderDir` 丢掉了（只取了 `Object.values(...)[0]`），于是本地只能手搓、必然漂移。修法：① 新增 `core/image/platform-env.mjs` 作为平台变量的**单一定义**（含"镜像专有"豁免清单）② `stageRenderDir` 原样带出布局契约（两个适配器）③ `run-local` 改为消费这两份，不再手搓 ④ 报错信息点名 `AGENT_ARTIFACT_DIR` | 同一能力在容器与本地都必须可用 | 中 | `done`（自检固化：`local-selftest` 静态比对"entrypoint 提到、本地没给"的变量；`pi-project-info-selftest` 用本地入口的同一套 env 重建并断言能读到清单） |
 
 ### 23.2 演进项（按改动面从小到大）
 

@@ -118,7 +118,10 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
     }
   }
 
-  return { staging, placeholders };
+  // 运行期布局契约（`runtimePlan.env`：哪个变量指向运行目录里的哪个相对路径）**原样带出去**，
+  // 让调用方用它而不是自己拼 —— 早先这里只取 `Object.values(prep.env)[0]` 找 staging，
+  // 其余契约被丢掉，于是 run-local 只能手搓一份，漏了平台变量（见 core/image/platform-env.mjs 的注释）。
+  return { staging, placeholders, env: prep.env ?? {}, runDir: prep.runDir ?? null };
 }
 
 /** 从渲染清单算出 §6.7 的 effectiveConfigDigest（轨迹每条事件都要带它）。 */

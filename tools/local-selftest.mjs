@@ -15,6 +15,7 @@ import net from "node:net";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { EXIT_CODES, digestDirectory } from "../core/gates/index.mjs";
+import { IMAGE_ONLY_ENV_NAMES } from "../core/image/platform-env.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -96,6 +97,24 @@ console.log("\n── 改了定义就不许复用旧产物（「改了没生效�
   check("定义变了会重新渲染（而不是用旧产物）", /定义已变/.test(log2), log2.split("\n").slice(0, 3).join(" / "));
   check("重新渲染后仍然跑通", r2.status === 0 && /FAKE_GATEWAY_OK/.test(log2), (log2.match(/❌.*/) ?? [""])[0]);
   fs.writeFileSync(yamlFile, before);
+}
+
+console.log("\n── 两条启动路径的平台变量必须一致（容器入口 vs 本地入口）──");
+{
+  // 本轮真踩中：容器入口会给 `AGENT_ARTIFACT_DIR`，而 run-local 自己手搓一份 env、漏了它
+  // ⇒ 会话内 `/project` 在容器里正常、在 `make local` 里报"读不到渲染清单"。
+  // 这类"两条路径不一致"的失败**没有任何报错指向环境变量**，所以在这里静态拦住。
+  const names = (t) => new Set([...t.matchAll(/\bAGENT_[A-Z_]+\b/g)].map((m) => m[0]));
+  const inEntry = names(fs.readFileSync(path.join(REPO, "core/image/entrypoint.sh"), "utf8"));
+  // 本地入口的 env 由 run-local.mjs 与 platform-env.mjs 两处共同构成，都要算
+  const inLocal = names(
+    fs.readFileSync(path.join(HERE, "run-local.mjs"), "utf8")
+    + fs.readFileSync(path.join(REPO, "core/image/platform-env.mjs"), "utf8"));
+  const missing = [...inEntry].filter((n) => !IMAGE_ONLY_ENV_NAMES.includes(n) && !inLocal.has(n));
+  check("容器入口给的平台变量，本地入口也给了（缺 = 「容器里能用、本地不能用」）",
+    missing.length === 0, `本地缺：${missing.join(", ")}`);
+  check("AGENT_ARTIFACT_DIR 两个入口都有（缺它 ⇒ 会话内读不到渲染清单）",
+    inEntry.has("AGENT_ARTIFACT_DIR") && inLocal.has("AGENT_ARTIFACT_DIR"));
 }
 
 console.log("\n── 基座变了（定义没变）同样不许复用旧产物 ──");
