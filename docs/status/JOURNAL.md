@@ -325,3 +325,4 @@
 - 22:08 新自检 `pi-project-info-selftest`（21 项，Makefile 目标 38→39、selftest 13→14）：包含"删技能输出跟着变""事件名写错必须 ❌""读不到产物响亮失败""真起 pi 取证 get_commands"
 - 22:08 本轮踩坑（已记教训）：① **双引号字符串里又嵌双引号**，同一个坑第三次（前两次在 capabilities.yaml 与 _project-info.mjs）② `piRpc` 的 `responses` 键是**命令名**不是请求 id ③ 闸门 1 的**人读报告走 stderr**、stdout 只放 `--json`（自检里按 JSON 取才对）
 - 22:08 全量回归全绿：15 个自检 · 两侧 conformance **10/10** · `examples-check` · `walkthrough`（20/1/0）· `verify AGENT_DIR=examples/idea-to-proof` = **可用**（四道闸门全过）
+- 22:09 /project-state checkpoint：RESUME 重写（V1 完成；下一动作 = §26 V2 或 E2b；E1b 数据路径已就位）；记两条反复踩的坑（双引号嵌套、grep stderr 取闸门结论）
