@@ -76,13 +76,15 @@
 
 `core/`（91 文件）· `adapters/{pi,dsh}/`（24）· `tools/`（23）· `conformance/`（9）· `template/`（6）·
 `docs/`（16 篇 + `design/`、`plans/`、`status/`）；`dist/` 是构建产物（已 gitignore）。
-**Makefile 38 个目标全部已实现**（无 `NOT_YET` 桩）。
+**Makefile 39 个目标全部已实现**（无 `NOT_YET` 桩）。
 
 ### 契约与检查（近期收紧，均带负例）
 
 - `core/spec/enhancements.schema.json`：`kind` 枚举、`kind=hook` 必填 `events`（**数组**：基座轨迹扩展自己就订阅 6 个）、`entry`/`package` 至少一个
-- 钩子事件名的**契约面**：`adapters/<h>/adapter.yaml` 的 `hookEvents`（pi 39 个已穷举 + 复算命令；dsh 未穷举 ⇒ 如实标 `enumerated: false`）；闸门 1 `enhance/events` 逐个对名字，`hook/events-decl` 盯声明自洽（count 见证值），`catalog/enum-sync` 盯能力目录与 schema 的枚举一致
+- 钩子事件名的**契约面**：`adapters/<h>/adapter.yaml` 的 `hookEvents`（pi 39 个已穷举 + 复算命令；dsh 未穷举 ⇒ 如实标 `enumerated: false`）；闸门 1 `enhance/events` 逐个对名字，`hook/events-decl` 盯声明自洽（count 见证值），`catalog/enum-sync` 盯能力目录与 schema 的枚举一致；`hookEvents` 已**带进渲染清单**（产物自描述，E1b 的数据路径）
 - 闸门 1 现在**也校验基座自己的** `adapters/<h>/seed/enhancements.yaml`（此前它是唯一没人查的增强声明 —— 基座不给自己开后门）
+- 增强的**下划线约定**：`extensions/_*.mjs` = 被 import 的助手，不登记为扩展；声明指向 `_` 开头的文件在渲染期报错（声明了却永远不会被加载）
+- 会话内自省命令 `/project`（基座不变量，`adapters/pi/seed/extensions/project-info.ts`）：报告全部从产物现算，钩子事件名与运行时集合逐个核对，可移植性结论与闸门 1 **同源**；自检 `pi-project-info-selftest`
 - 渲染期：未声明的接入件、非法的 dsh 增强声明 ⇒ **响亮失败**（不静默跳过/静默加载）
 - 参数层：`AGENT_PERMISSION_MODE` / `AGENT_WORKSPACE_ROOT` 已登记（适配器不许读未登记的名字）
 - 工具边界：**清单声明**（`runtimePlan.prependArgs`），本地与容器**两条启动路径都执行**（实测 `tools=1`）
@@ -144,7 +146,7 @@
 - `tools/new-agent.mjs` + `template/` —— 派生入口与派生源（`new-agent-selftest` 验证"开箱可跑"）
 - `examples/` —— 6 个示例项目（**不是基座的一部分，可整体删除**），两侧"可用"，各自 README 载同一条开发循环
 - `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用运行器）
-- `adapters/{pi,dsh}/seed/` 与 `enhancements.yaml` —— 基座不变量：安全姿态 + 增强声明 + 轨迹扩展
+- `adapters/{pi,dsh}/seed/` 与 `enhancements.yaml` —— 基座不变量：安全姿态 + 两条增强（轨迹扩展 `trace.ts`、会话内自省命令 `project-info.ts`）
 - `core/gates/` —— 四闸门框架：编排 / 断言语言 / §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / CLI 解析
 - `core/trace/` —— 统一轨迹：`schema.json`（真源，9 类事件 + `emitter`）· `emit.mjs` · 业务级 logger · 自检
 - `core/spec/` —— 中性定义 schema（**public contract**）+ **增强 schema** + fixtures（1 合法 + **12** 注入式非法）

@@ -319,3 +319,9 @@
 - 21:18 /project-state checkpoint：RESUME 重写为活动会话检查点（E1 完成、下一动作 = §26 V1 或 E2b、E1b 与 dsh 事件集合缺口登记在案）
 - 21:45 **口径更正（用户指出我理解错了）**：用户要的不是 Makefile 目标 `make guide`，而是**交互会话里的智能体斜杠命令** —— 随时可查当前项目信息、内容全部来自项目文件/代码本身，且**靠补全功能反过来知道"一个项目应该有哪些信息"**。已据此重写路线图 §26（旧的 `make guide` 形态标为被否），拆成 V1（pi 基座不变量扩展注册命令）/V2（CLI 同源第二个出口）/V3（dsh 侧等价入口）
 - 21:45 机制的实测依据（不是推测）：pi 扩展 API 有 `registerCommand(name, {description, getArgumentCompletions, handler})`；`get_commands` 报出的命令带 `source`（`skill` 或 `extension`）。实测 idea-to-proof 渲染产物在会话里可见 **4 条命令**：`llama`(source=extension) + 3 条 `skill:*` ⇒ 补全列表本身就是可发现面
+- 22:08 **§26 V1 完成**：会话内自省命令 **`/project`**（基座不变量，每个智能体自带）—— `adapters/pi/seed/extensions/project-info.ts`（薄壳）+ `_project-info.mjs`（纯逻辑，可被自检直接 import）。分类：overview/model/skills/connectors/enhancements/hooks/trace/portability
+- 22:08 `/project` 实测证据：真起 pi 走 RPC 发 `/project hooks`，会话里出现该命令（source=extension）并原样输出「trace → 6 个事件 / 运行时 39 个 / ✅ 都在集合内」；补全一级=分类目录、二级=产物里真实的值（删技能即少一项）
+- 22:08 渲染器配套：① **下划线约定**（`extensions/_*.mjs` = 被 import 的助手，不登记为扩展；声明指向 `_` 开头 ⇒ 渲染期报错）② 清单新增 `hookEvents`（E1b 的数据路径，产物自描述，不必让产物去猜基座目录）③ 清单新增 `agentEnhancements`（只含智能体自己的增强）⇒ `/project portability` 与闸门 1 **同源**，自检里直接断言两者结论一致
+- 22:08 新自检 `pi-project-info-selftest`（21 项，Makefile 目标 38→39、selftest 13→14）：包含"删技能输出跟着变""事件名写错必须 ❌""读不到产物响亮失败""真起 pi 取证 get_commands"
+- 22:08 本轮踩坑（已记教训）：① **双引号字符串里又嵌双引号**，同一个坑第三次（前两次在 capabilities.yaml 与 _project-info.mjs）② `piRpc` 的 `responses` 键是**命令名**不是请求 id ③ 闸门 1 的**人读报告走 stderr**、stdout 只放 `--json`（自检里按 JSON 取才对）
+- 22:08 全量回归全绿：15 个自检 · 两侧 conformance **10/10** · `examples-check` · `walkthrough`（20/1/0）· `verify AGENT_DIR=examples/idea-to-proof` = **可用**（四道闸门全过）

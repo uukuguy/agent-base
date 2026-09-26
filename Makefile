@@ -19,7 +19,7 @@ JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -77,6 +77,9 @@ pi-trace-selftest: ## pi 事后映射自检：不许丢事件 / 推算值必须�
 
 pi-trace-ext-selftest: ## 基座轨迹扩展自检（回调式主路径）：真实 tools/stream、配对、判定口径
 	@node adapters/pi/trace-ext-selftest.mjs
+
+pi-project-info-selftest: ## 会话内自省命令自检（/project）：内容随项目变、补全即目录、事件名真核对
+	@node adapters/pi/project-info-selftest.mjs
 
 probe: ## 闸门 3：集成探针（默认零凭据假网关，需 RENDER_DIR）
 	@node tools/probe.mjs $(RENDER_DIR) $(if $(JSON),--json,) $(if $(ENDPOINT),--endpoint $(ENDPOINT),)

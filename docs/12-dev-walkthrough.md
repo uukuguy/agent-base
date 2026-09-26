@@ -57,6 +57,33 @@ make walkthrough LIVE=1 ENDPOINT=https://… API_KEY=…    # 再打真实端点
 `examples/` 的价值在**对照**：同一份定义在两个运行时上等价、连接器怎么声明、技能怎么组织。
 它不是你的项目的起点 —— 起点是 `make new-agent`。
 
+## 在会话里问"这个项目现在是什么样"：`/project`
+
+真实开发里最费时间的往往不是改一行，而是**确认这个项目现在到底声明了什么**。为此基座带了一条
+**常驻命令**（基座不变量，每个智能体都有）：
+
+```bash
+cd examples/idea-to-proof && make local     # 进交互会话
+> /project              # 整份项目信息（就是"一个项目有哪些信息"的目录）
+> /project skills       # 只看一类：skills | connectors | enhancements | hooks | model | trace | portability
+> /project <Tab>        # 补全列出分类；再 <Tab> 补**这个项目里真实存在的值**
+```
+
+它说的话**全部来自产物**（渲染清单 + 产物配置目录），不是文档抄来的：
+
+```
+── hooks ──
+· trace → session_start, before_provider_request, after_provider_response, tool_call, tool_result, session_shutdown
+运行时可订阅集合  39 个（0.87.1；来源 dist/core/extensions/types.d.ts:979-1017 …）
+✅ 订阅的 6 个事件都在集合内
+```
+
+判据（`make pi-project-info-selftest`）：定义里加一个技能/删一个技能 ⇒ 输出与补全项跟着变；
+钩子事件名写错 ⇒ 当场标 ❌；读不到产物 ⇒ 响亮失败而不是给半份清单；可移植性结论与闸门 1 **同源**。
+
+**补全本身就是"一个项目应该有哪些信息"的目录** —— 这是这条命令最容易被低估的用途：
+想不起该有什么时，敲 `/project ` 按 Tab。
+
 ## 没验的部分（诚实清单）
 
 - **真实模型质量**：演练只验"调用成功、工具字段没被吞、流式没被降级"，不评价回答好不好。

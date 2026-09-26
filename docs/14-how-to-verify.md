@@ -124,6 +124,7 @@ docker run --rm --network none \
 | 容器安全下限 | 同上 | C9 十六项（非 root、只读根、能力全丢、断网可用…） |
 | **镜像内**能自证 | `docker run <镜像> verify` | 闸门 2/3/4（有定义连闸门 1）—— 离线、零凭据 |
 | 接入缝不改产物 | `make startup-selftest` | 7 项接入缝断言（含「产物未被改动」） |
+| **会话里能问到项目真相** | `make local` 然后 `/project`（或 `make pi-project-info-selftest`） | 命令真的注册（source=extension）· 输出每项指到产物来源 · 补全项随项目变 · 事件名写错标 ❌ |
 | 声明了但没写对 ⇒ 响亮失败 | 见 §4 | 全部非 0 退出，且报错点明原因 |
 
 **一条命令跑全部**：`make verify-all`（每个示例 × 两个运行时）· `make conformance`（C1–C10）。
@@ -162,3 +163,6 @@ docker run --rm --network none \
 5. **dsh 侧的接入缝还是"未实现"**（overlay 只支持扩展目录 + settings 的装载形态）；
    声明了会**响亮失败**，不会静默跳过。
 6. **容器安全下限（C9）只能在构建侧验**，镜像内 `verify` 不覆盖它。
+7. **`/project` 只读产物、只报事实**：它不评价业务逻辑对不对，也不读 `auth.json`
+   （登录态不是项目信息）；`trace` 一行显示「未声明」说明这次不是在基座入口里跑的
+   （落点与摘要由运行期注入）。

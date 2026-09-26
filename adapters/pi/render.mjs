@@ -260,13 +260,25 @@ function main() {
   const extDir = path.join(agentOut, "extensions");
   // 缺陷 D2：本运行时把 `extensions/` 下的**每个文件**都登记为扩展 ⇒ 往目录里丢一个未声明的文件，
   // 它会被**真的加载**，而闸门 2 的"声明 == 进产物"只看声明过的 —— 查不出来。
-  // 在渲染期把这条堵上：登记的每个文件（基座发射器除外）都必须被某条 declared entry 认领。
+  // 在渲染期把这条堵上：登记的每个文件（助手文件除外）都必须被某条 declared entry 认领。
+  //
+  // **下划线开头 = 助手文件**（被扩展 import，自身不是扩展）：`_trace-emit.mjs`（基座发射器）、
+  // `_project-info.mjs`（自省命令的纯逻辑）。这条约定是必要的 —— 一个导出不是工厂函数的文件
+  // 被登记成扩展，会让运行时**整体加载失败**。
+  const isHelper = (f) => f.startsWith("_");
+  const declaredEntries = new Set([...baseEnh, ...agentEnh]
+    .map((e) => String(e.entry ?? "").replace(/^extensions\//, ""))
+    .filter(Boolean));
   if (fs.existsSync(extDir)) {
-    const declaredEntries = new Set([...baseEnh, ...agentEnh]
-      .map((e) => String(e.entry ?? "").replace(/^extensions\//, ""))
-      .filter(Boolean));
+    // 声明指向助手文件 = 声明了却永远不会被登记 ⇒ 响亮失败（否则又是"配了没生效"）
+    const declaredHelper = [...declaredEntries].filter(isHelper);
+    if (declaredHelper.length) {
+      throw new Error(`增强声明指向了下划线开头的助手文件：${declaredHelper.join(", ")}`
+        + ` —— 下划线开头表示"被 import 的助手，不是扩展"，它不会被登记进运行时。`
+        + ` 要加载的扩展请改名（不以 _ 开头）。`);
+    }
     const orphans = fs.readdirSync(extDir)
-      .filter((f) => f !== "_trace-emit.mjs")          // 基座发射器由渲染器注入，不属增强声明
+      .filter((f) => !isHelper(f))
       .filter((f) => !declaredEntries.has(f));
     if (orphans.length) {
       throw new Error(`extensions/ 里有未声明的接入件：${orphans.join(", ")}`
@@ -275,7 +287,7 @@ function main() {
     }
   }
   settings.extensions = fs.existsSync(extDir)
-    ? fs.readdirSync(extDir).filter((f) => f !== "_trace-emit.mjs").sort().map((f) => `extensions/${f}`)
+    ? fs.readdirSync(extDir).filter((f) => !isHelper(f)).sort().map((f) => `extensions/${f}`)
     : [];
   log(`  增强：基座 ${baseEnh.length} + 智能体 ${agentEnh.length} → 产物登记 ${settings.extensions.length} 个`);
   writeFile(path.join(agentOut, "settings.json"), stableJson(settings));
@@ -364,9 +376,11 @@ function main() {
       default: agent.model.name, backs: "model.name", validate: "in-provider-models",
     },
   ];
+  // 适配器自身的声明读一次就够（此前同一份文件被 readYaml 读了四遍）
+  const adapterDoc = readYaml(path.join(HERE, "adapter.yaml"));
   const manifest = {
     harness: HARNESS,
-    harnessVersion: readYaml(path.join(HERE, "adapter.yaml")).version,
+    harnessVersion: adapterDoc.version,
     agent: agent.name,
     declaredSkills,
     declaredEnhancements,
@@ -414,7 +428,15 @@ function main() {
     // **定义字段 → 产物位置的声明**（conformance C3 只验证这份声明，不再认死文件名）。
     // 契约形状：{ at: 产物内相对路径, contains?: 字符串或字符串数组 }，或 { exempt: 非平凡理由 }。
     expresses: buildExpresses({ agent, declaredEnhancements, modelParamName: `${prefix}_MODEL`, providerName: providerId, skillsInProduct: "agent-dir/skills", profileOrSettings: "agent-dir/settings.json", modelFile: "agent-dir/models.json.tmpl", enhancementsFile: "agent-dir/enhancements.yaml" }),
-    mcpClient: readYaml(path.join(HERE, "adapter.yaml")).capabilities?.mcpClient ?? "unknown",
+    mcpClient: adapterDoc.capabilities?.mcpClient ?? "unknown",
+    // **运行时可订阅的事件集合**（E1 的契约面）带进产物：
+    // 这样"某个钩子订阅的事件名到底存不存在"在产物里就能判（会话内 `/project hooks`、
+    // 以及将来的接入缝校验），而不必让产物去猜基座的 `adapters/` 目录在哪。
+    hookEvents: adapterDoc.hookEvents ?? null,
+    // 只属于**这个智能体**的增强（**不含**基座不变量）：可移植性等级按它算 ——
+    // 判据与闸门 1 的 portability/report 相同（看智能体自己的 harness/<h>/ 有没有东西）。
+    // 合并后的 declarations 里分不出"基座给的"和"业务写的"，所以这里单独记一份。
+    agentEnhancements: agentEnh.map((e) => e.id).sort(),
     labelsProvided,
     definitionDigest: digestDirectory(agentDir),
   };
@@ -429,7 +451,7 @@ function main() {
   // 渲染期就能算全 ⇒ 记进清单，运行期直接读（镜像里不需要摘要实现，避免两份实现漂移）。
   manifest.effectiveConfigDigest = computeEffectiveConfigDigest({
     harnessVersion: manifest.harnessVersion,
-    adapterVersion: readYaml(path.join(HERE, "adapter.yaml")).adapterVersion,
+    adapterVersion: adapterDoc.adapterVersion,
     artifactsDigest,
     paramNames: runtimeParams.map((p) => p.name),
   });
