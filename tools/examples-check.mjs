@@ -16,6 +16,7 @@
 // ============================================================================
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -33,6 +34,31 @@ function harnessesPresent() {
 }
 
 const run = (args, opts = {}) => spawnSync(process.execPath, args, { encoding: "utf8", cwd: REPO, timeout: 900000, ...opts });
+
+/**
+ * 基座**平台层**的环境变量名（扫源码得到）。
+ * 为什么要这个集合：README 里会同时提到两类名字 ——
+ *   · 产品参数（由产物契约声明，例如 DEEPSEEK_BASE_URL）→ 必须在 runtimeParams 里
+ *   · 基座平台变量（例如 AGENT_SECRETS_DIR / AGENT_PROVIDERS_FILE）→ 不属于产物契约
+ * 不区分就会假阳性，而假阳性会被人用"关掉检查"来绕过，比没有检查更糟。
+ */
+let platformEnvNames = null;
+function platformEnvVars() {
+  if (platformEnvNames) return platformEnvNames;
+  const names = new Set();
+  const scan = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const f = path.join(dir, e.name);
+      if (e.isDirectory()) { if (!/node_modules|dist|\.git/.test(e.name)) scan(f); continue; }
+      if (!/\.(mjs|js|ts|json|yaml|md|sh|yml)$/.test(e.name)) continue;
+      const t = fs.readFileSync(f, "utf8");
+      for (const m of t.matchAll(/\b(AGENT_[A-Z0-9_]+)/g)) names.add(m[1]);
+    }
+  };
+  for (const d of ["core", "tools", "adapters", "conformance"]) scan(path.join(REPO, d));
+  platformEnvNames = names;
+  return names;
+}
 
 /** 递归找出技能目录下的脚本（技能脚本落点：skills/<name>/scripts/）。 */
 function skillScripts(dir, acc = []) {
@@ -93,6 +119,34 @@ const main = () => {
         const hasExpectation = /期望|应该看到|退出码|→|可用/.test(howto);
         line(hasCommand && howto.length > 400, `构建与验证过程写了可执行命令（${howto.length} 字）`);
         line(hasExpectation, "构建与验证过程写了期望结果（不是只说'跑一下'）");
+
+        // README 里出现的**参数名**必须真的存在于产物契约里（`runtimeParams`）。
+        // 为什么：这类名字最容易漂 —— 供应商改名/换供应商后，README 还在教一个已不存在的变量，
+        // 照着做的人第一步就卡住（`routes-init` 那次就是这么坏的）。
+        {
+          // 判定"像运行期参数"：以 _URL/_KEY/_TOKEN/_ENDPOINT/_MODEL/_FILE 结尾的**大写**名字。
+          // 早先只认 `_BASE_URL|_API_KEY|_MODEL` 三种后缀 —— 于是"把名字改成 DEEPSEEK_ENDPOINT_URL"
+          // 这种错法根本不被检查（检查通过了，但它检查的是错的东西）。
+          // 兼容 `<参数名>_FILE`（参数层支持的"从文件读值"写法）：比对时剥掉 _FILE。
+          const mentioned = [...new Set([...text.matchAll(/`([A-Z][A-Z0-9_]{2,})`/g)].map((m) => m[1]))]
+            .filter((n) => /_(URL|KEY|TOKEN|ENDPOINT|MODEL|FILE)$/.test(n))
+            .map((n) => ({ raw: n, base: n.replace(/_FILE$/, "") }));
+          if (mentioned.length) {
+            const out = fs.mkdtempSync(path.join(os.tmpdir(), "ex-readme-params-"));
+            const r = run([path.join(REPO, "adapters/pi/render.mjs"), dir, "--out", out]);
+            let known = [];
+            try {
+              const m = JSON.parse(fs.readFileSync(path.join(out, "render-manifest.json"), "utf8"));
+              known = (m.runtimeParams ?? []).map((x) => x.name);
+            } catch { /* 渲染失败由上面的闸门报，这里不重复报 */ }
+            const platform = platformEnvVars();
+            const unknown = known.length
+              ? mentioned.filter((m) => !known.includes(m.base) && !platform.has(m.base) && !platform.has(m.raw)).map((m) => m.raw)
+              : [];
+            line(known.length > 0 && unknown.length === 0,
+              `README 里的参数名都在产物契约里（提到 ${mentioned.length} 个；既不是产品参数也不是平台变量：${unknown.join(", ") || "无"}）`);
+          }
+        }
       }
       // 结构清单里的文件必须真的存在（README 不许描述不存在的东西）
       // 注意：这一段的输入是 README，所以**必须**先确认它存在 —— 否则缺 README 的示例
