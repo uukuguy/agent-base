@@ -41,6 +41,7 @@ import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirec
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 // 路由目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/routes.mjs
 import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
+import { dshRenderInputsDigest } from "./render-inputs.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HARNESS = "dsh";
@@ -455,6 +456,9 @@ function main() {
     dshHomeInImage: DSH_HOME_IN_IMAGE,
     labelsProvided,
     definitionDigest: digestDirectory(agentDir),
+    // **渲染输入摘要**：复用旧产物前的判据（见 adapters/dsh/render-inputs.mjs）。
+    // 只比定义摘要会在"基座变了、定义没变"时错误复用旧产物。
+    renderInputsDigest: dshRenderInputsDigest(agentDir),
   };
   const artifactsDigest = digestDirectory(outRoot, { excludes: [...DEFAULT_EXCLUDES, "render-manifest.json"] });
   manifest.artifactsDigest = artifactsDigest;

@@ -16,4 +16,4 @@ export {
 } from "./assertions.mjs";
 export { runGates } from "./orchestrator.mjs";
 export { parseArgs } from "./cli.mjs";
-export { DEFAULT_EXCLUDES, digestCanonical, digestDirectory, digestFile } from "./digest.mjs";
+export { DEFAULT_EXCLUDES, digestCanonical, digestDirectory, digestFile, digestInputs } from "./digest.mjs";

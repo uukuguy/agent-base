@@ -326,3 +326,7 @@
 - 22:08 本轮踩坑（已记教训）：① **双引号字符串里又嵌双引号**，同一个坑第三次（前两次在 capabilities.yaml 与 _project-info.mjs）② `piRpc` 的 `responses` 键是**命令名**不是请求 id ③ 闸门 1 的**人读报告走 stderr**、stdout 只放 `--json`（自检里按 JSON 取才对）
 - 22:08 全量回归全绿：15 个自检 · 两侧 conformance **10/10** · `examples-check` · `walkthrough`（20/1/0）· `verify AGENT_DIR=examples/idea-to-proof` = **可用**（四道闸门全过）
 - 22:09 /project-state checkpoint：RESUME 重写（V1 完成；下一动作 = §26 V2 或 E2b；E1b 数据路径已就位）；记两条反复踩的坑（双引号嵌套、grep stderr 取闸门结论）
+- 22:26 **修 D8（用户报的真 bug）**：`run-local` 进交互后没有 `/project` —— 根因是**产物复用判据只看定义摘要**，而基座变了（新增 seed 扩展）定义没变 ⇒ `examples/idea-to-proof/.render/pi` 旧产物被复用且**无任何报错**。修法：渲染器记 **`renderInputsDigest`**（定义 + seed + 渲染器 + adapter.yaml + catalog + emit.mjs，见 `adapters/<h>/render-inputs.mjs`），`run-local` 比它；旧产物没这个字段 ⇒ 一律重渲（自愈）
+- 22:26 D8 实测修复：旧 `.render/pi` 首次运行被正确判为过期并重渲（"旧产物没有记录渲染输入摘要"）；随后**只动一个 seed 文件**、定义一字未改 ⇒ 也重渲（"基座变了、定义没变"）；什么都不动再跑 ⇒ **复用**（不误伤）
+- 22:26 D8 已固化为自检：`local-selftest` 新增"基座变了、定义没变 ⇒ 也重新渲染"且"不许误报成定义已变"（篡改清单里的 renderInputsDigest 命中同一条判据，不动真实基座文件）
+- 22:26 记忆配置**未能完成**：创建 Memory Space 需要 `mnemon` CLI，宿主里没有（`spawn mnemon ENOENT`，provider 数为 0）；需宿主装 CLI 或设 `MNEMON_CLI_PATH`，或提高 `runtimeMemory.memoryLimitBytes`。期间用户的两条反馈仍只落在仓库（roadmap §26 + JOURNAL）

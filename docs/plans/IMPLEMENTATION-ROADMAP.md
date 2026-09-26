@@ -874,6 +874,7 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 | D5 | 参数层被绕过 ✅ | 两个变量已登记进 `core/catalog/params.yaml`（基础设施类，`backs: []`） | 闸门 1 `params/backs-orphan` | 低 | `done` |
 | D6 | `tools.deny` 交付入口不生效 ✅ | 改为**清单声明**（`runtimePlan.prependArgs`）**两条启动路径都执行**；实测本地与容器内 `tools=1`（旧写法下是 4，即根本没生效） | `probe/model.tools` 计数 | 中 | `done` |
 | D7 | `CURRENT-STATE.md` **已过期**（称 C3 按 pi 形状写死、dsh run 待做） | `docs/status/CURRENT-STATE.md` vs conformance 与 dsh run | 文档与实现一致（本轮已修） | 低 | `done` |
+| D8 | **产物复用判据只看定义摘要** ⇒ 基座变了（seed 扩展/渲染器/目录表）而定义没变时，旧产物被复用，**改了却没生效且无任何报错** | 实测踩中：新增基座扩展（会话内自省命令 `/project`）后，`examples/idea-to-proof/.render/pi` 照旧被复用 ⇒ `run-local` 的交互会话里根本没有该命令。修法：渲染器记录**渲染输入摘要**（定义 + seed + 渲染器 + adapter.yaml + catalog + emit.mjs，见 `adapters/<h>/render-inputs.mjs`），`run-local` 比它而不是只比定义摘要；旧产物无此字段 ⇒ 一律重渲 | 复用的产物必须与当前输入一致 | 中 | `done`（自检固化：`local-selftest` 里"基座变了也重渲"且不许误报成"定义已变"） |
 
 ### 23.2 演进项（按改动面从小到大）
 

@@ -54,23 +54,34 @@ const main = async () => {
     process.exit(EXIT_CODES.usage);
   }
   const { stageRenderDir, digestOfRender, localInvocation } = await import(adapterRun);
+  // 渲染输入判据**与渲染器共用一份实现**（各写一份路径列表 = 迟早漂移，且失败时不报错）
+  const { renderInputsDigest } = await import(path.join(REPO, `adapters/${harness}/render-inputs.mjs`));
 
   // ① 渲染（或复用）
   const renderDir = path.resolve(values["--render-dir"] ?? path.join(REPO, "dist", harness, path.basename(path.resolve(agentDir))));
   const manifestFile = path.join(renderDir, "render-manifest.json");
-  // **新鲜度**：产物存在不等于它是当前定义渲出来的。
-  // 旧产物会导致"我改了定义却没生效"，而且报错会指向你已经不用的供应商/参数名 ——
-  // 这类问题极其费时间，所以在复用前先比定义摘要（清单里记了它）。
+  // **新鲜度**：产物存在不等于它是当前输入渲出来的。
+  // 判据是**渲染输入摘要**（定义 + 基座 seed + 渲染器 + 目录表），不是只比定义摘要：
+  //   只比定义 ⇒ "基座变了、定义没动"时旧产物被复用 ⇒ **改了却没生效**。
+  //   （本轮真踩中：新增基座扩展后，示例目录里的旧产物照旧复用，交互会话里根本没有那条命令。）
+  // 旧产物没有这个字段（旧版本渲的）⇒ 一律按旧产物处理，重新渲染。
   let stale = false;
   // 摘要计算故意放在 try 之外：**代码写错要当场炸**，不许被 catch 伪装成"旧产物清单读不出来"
-  // （刚才就是这样：漏了一个 import，结果报"清单坏了" —— 排查成本比直接崩高得多）。
+  // （曾经就是这样：漏了一个 import，结果报"清单坏了" —— 排查成本比直接崩高得多）。
   const currentDigest = digestDirectory(path.resolve(agentDir));
+  const currentInputs = renderInputsDigest(path.resolve(agentDir));
   if (fs.existsSync(manifestFile)) {
     try {
       const prev = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
-      if (prev.definitionDigest && prev.definitionDigest !== currentDigest) {
+      if (!prev.renderInputsDigest) {
         stale = true;
-        process.stderr.write(`▶ 定义已变（${currentDigest.slice(0, 19)}… ≠ 产物的 ${String(prev.definitionDigest).slice(0, 19)}…）⇒ 重新渲染，不用旧产物\n`);
+        process.stderr.write("▶ 旧产物没有记录渲染输入摘要（更早版本渲的）⇒ 重新渲染，不用旧产物\n");
+      } else if (prev.renderInputsDigest !== currentInputs) {
+        stale = true;
+        process.stderr.write(
+          prev.definitionDigest && prev.definitionDigest !== currentDigest
+            ? `▶ 定义已变（${currentDigest.slice(0, 19)}… ≠ 产物的 ${String(prev.definitionDigest).slice(0, 19)}…）⇒ 重新渲染，不用旧产物\n`
+            : "▶ **基座变了、定义没变**（seed 扩展 / 渲染器 / 目录表）⇒ 也重新渲染 —— 否则就是「我改了却没生效」\n");
       }
     } catch (e) {
       stale = true;

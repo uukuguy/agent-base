@@ -14,7 +14,7 @@ import path from "node:path";
 import net from "node:net";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { EXIT_CODES } from "../core/gates/index.mjs";
+import { EXIT_CODES, digestDirectory } from "../core/gates/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -96,6 +96,38 @@ console.log("\n── 改了定义就不许复用旧产物（「改了没生效�
   check("定义变了会重新渲染（而不是用旧产物）", /定义已变/.test(log2), log2.split("\n").slice(0, 3).join(" / "));
   check("重新渲染后仍然跑通", r2.status === 0 && /FAKE_GATEWAY_OK/.test(log2), (log2.match(/❌.*/) ?? [""])[0]);
   fs.writeFileSync(yamlFile, before);
+}
+
+console.log("\n── 基座变了（定义没变）同样不许复用旧产物 ──");
+{
+  // 本轮真踩中：基座新增一条 seed 扩展（会话内自省命令）后，示例目录里的旧产物照旧被复用
+  // ⇒ 交互会话里根本没有那条命令，而且**没有任何报错**。
+  // 这里篡改清单里的"渲染输入摘要"来命中同一条判据（不动真实基座文件），
+  // 并确认报的是「基座变了、定义没变」而不是「定义已变」——两者必须能区分。
+  const mf = path.join(base, "render", "render-manifest.json");
+  const doc = JSON.parse(fs.readFileSync(mf, "utf8"));
+  check("产物清单记录了渲染输入摘要（复用判据的载体）", typeof doc.renderInputsDigest === "string" && doc.renderInputsDigest.startsWith("sha256:"), String(doc.renderInputsDigest));
+  // 上一条测试把定义改回去了、但产物还是"改过的定义"渲的 ⇒ 先把定义摘要对齐到当前定义，
+  // 让这一轮**只留下"渲染输入摘要不一致"这一个变量**（否则命中的是定义分支，测不到基座分支）
+  fs.writeFileSync(mf, JSON.stringify({
+    ...doc,
+    definitionDigest: digestDirectory(agent),
+    renderInputsDigest: `sha256:${"c".repeat(64)}`,
+  }, null, 2));
+  const gw3 = spawn(process.execPath, ["-e",
+    `import("${REPO}/tools/fake-gateway/server.mjs").then(async (m) => { const g = await m.startFakeGateway({ port: ${port + 2} }); setTimeout(async () => { await g.close(); process.exit(0); }, 90000); });`],
+    { stdio: "ignore" });
+  await sleep(2500);
+  const r3 = spawnSync(process.execPath, [
+    path.join(HERE, "run-local.mjs"), agent, "--prompt", "再再说一句",
+    "--endpoint", `http://127.0.0.1:${port + 2}/v1`, "--zero-credential", "true",
+    "--render-dir", path.join(base, "render"),
+  ], { encoding: "utf8", cwd: REPO, timeout: 180000 });
+  gw3.kill("SIGTERM");
+  const log3 = `${r3.stdout ?? ""}\n${r3.stderr ?? ""}`;
+  check("基座变了、定义没变 ⇒ 也重新渲染", /基座变了、定义没变/.test(log3), log3.split("\n").slice(0, 3).join(" / "));
+  check("没有误报成「定义已变」（两者要能区分）", !/定义已变/.test(log3), log3.split("\n").slice(0, 3).join(" / "));
+  check("重渲后仍然跑通", r3.status === 0 && /FAKE_GATEWAY_OK/.test(log3), (log3.match(/❌.*/) ?? [""])[0]);
 }
 
 console.log("\n── 未实现的 harness 必须响亮失败，不许静默改用别的 ──");

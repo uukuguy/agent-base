@@ -26,6 +26,7 @@ import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirec
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 // Provider 目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/providers.mjs
 import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
+import { piRenderInputsDigest } from "./render-inputs.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -439,6 +440,10 @@ function main() {
     agentEnhancements: agentEnh.map((e) => e.id).sort(),
     labelsProvided,
     definitionDigest: digestDirectory(agentDir),
+    // **渲染输入摘要**（定义 + 基座 seed + 渲染器 + 目录表）：复用旧产物前要比它。
+    // 只比定义摘要会在"基座变了、定义没变"时错误地复用旧产物 —— 本轮真踩中（新增基座扩展后
+    // 交互会话里没有那条命令）。判据在 adapters/pi/render-inputs.mjs，与 run-local 共用一份。
+    renderInputsDigest: piRenderInputsDigest(agentDir),
   };
   // artifactsDigest 覆盖**除 manifest 自身之外**的全部产物：
   //   · 不覆盖 manifest → 避免自指（先算 digest 再写 manifest，摘要才能被复算验证）

@@ -88,7 +88,7 @@
 - 渲染期：未声明的接入件、非法的 dsh 增强声明 ⇒ **响亮失败**（不静默跳过/静默加载）
 - 参数层：`AGENT_PERMISSION_MODE` / `AGENT_WORKSPACE_ROOT` 已登记（适配器不许读未登记的名字）
 - 工具边界：**清单声明**（`runtimePlan.prependArgs`），本地与容器**两条启动路径都执行**（实测 `tools=1`）
-- 运行期复用产物前比**定义摘要**：定义变了就重渲（防"改了没生效"）
+- 运行期复用产物前比**渲染输入摘要**（定义 + 基座 seed + 渲染器 + catalog，见 `adapters/<h>/render-inputs.mjs`）：**基座变了也要重渲**（只比定义摘要 ⇒ 新增基座扩展后旧产物被复用、新命令在会话里不存在，本轮实测踩中；判据与渲染器共用一份实现）
 - `examples-check`：README 参数名必须落在产物契约或基座平台变量里；示例 Makefile 引用的脚本必须存在
 
 ## Open Problems (theme-level)

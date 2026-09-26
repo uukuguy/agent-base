@@ -71,3 +71,34 @@ export function digestCanonical(value) {
 export function digestFile(file) {
   return `sha256:${createHash("sha256").update(fs.readFileSync(file)).digest("hex")}`;
 }
+
+/**
+ * **一组带角色的输入**的确定性摘要 —— 用来回答"这个产物还是当前输入渲出来的吗"。
+ *
+ * 为什么不能只比定义摘要：产物是「定义 + 基座（seed 扩展、渲染器、目录表）」一起决定的。
+ * 改了基座、定义没动 ⇒ 定义摘要不变 ⇒ 复用旧产物 ⇒ **"我改了却没生效"**（本仓库已踩中：
+ * 新增一条基座扩展后，示例目录里的旧产物照旧被复用，新命令在会话里根本不存在）。
+ *
+ * 角色（role）进摘要而不是绝对路径：换台机器、换个目录，同一组输入必须得到同一个摘要（N19）。
+ * 传 `kind: "file"` 时按文件内容算；否则按目录内容算。
+ *
+ * @param {Array<{role: string, path: string, kind?: "dir"|"file", optional?: boolean}>} entries
+ */
+export function digestInputs(entries) {
+  const hash = createHash("sha256");
+  for (const e of [...entries].sort((a, b) => a.role.localeCompare(b.role))) {
+    hash.update(e.role, "utf8");
+    hash.update("\0", "utf8");
+    const exists = fs.existsSync(e.path);
+    // 可选项（如某运行时没有 seed 目录）显式记为 absent，而不是悄悄跳过 ——
+    // "没有"和"有但没算"必须是不同的摘要。
+    if (!exists) {
+      if (!e.optional) throw new Error(`渲染输入不存在：${e.role} → ${e.path}`);
+      hash.update("absent", "utf8");
+    } else {
+      hash.update(e.kind === "file" ? digestFile(e.path) : digestDirectory(e.path), "utf8");
+    }
+    hash.update("\0", "utf8");
+  }
+  return `sha256:${hash.digest("hex")}`;
+}
