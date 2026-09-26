@@ -330,3 +330,4 @@
 - 22:26 D8 实测修复：旧 `.render/pi` 首次运行被正确判为过期并重渲（"旧产物没有记录渲染输入摘要"）；随后**只动一个 seed 文件**、定义一字未改 ⇒ 也重渲（"基座变了、定义没变"）；什么都不动再跑 ⇒ **复用**（不误伤）
 - 22:26 D8 已固化为自检：`local-selftest` 新增"基座变了、定义没变 ⇒ 也重新渲染"且"不许误报成定义已变"（篡改清单里的 renderInputsDigest 命中同一条判据，不动真实基座文件）
 - 22:26 记忆配置**未能完成**：创建 Memory Space 需要 `mnemon` CLI，宿主里没有（`spawn mnemon ENOENT`，provider 数为 0）；需宿主装 CLI 或设 `MNEMON_CLI_PATH`，或提高 `runtimeMemory.memoryLimitBytes`。期间用户的两条反馈仍只落在仓库（roadmap §26 + JOURNAL）
+- 22:34 /project-state checkpoint：RESUME 更新（D8 修复入账；下一动作 = §26 V2 或 E2b；记忆配置待宿主装 mnemon CLI）

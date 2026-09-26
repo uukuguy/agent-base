@@ -1,56 +1,53 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-26 21:45. **Session remains active — not a final handoff.**
+> Updated: 2026-09-26 22:30. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-1. **§26 V1 完成**：会话内自省命令 **`/project`**（基座不变量，每个智能体自带）—— 在交互会话里随时查"这个项目现在是什么样"，内容**全部从产物现算**，补全列表本身就是"一个项目应该有哪些信息"的目录 [4ed2916]
-2. 前一轮：**E1 完成**（钩子事件名成为可校验契约）[686c6d4]；记账漂移已对齐 [7afeaeb]
-3. **下一个具体动作**：§26 **V2**（同一份逻辑再开一个 CLI 出口，CI/容器可用）或 **E2b**（钩子逐条自证）—— 两者都依赖已就绪
+1. **D8 修复（用户报的真 bug）**：`run-local` 进交互后**没有 `/project`** —— 根因是**产物复用判据只看定义摘要**，基座变了（新增 seed 扩展）而定义没变 ⇒ 旧产物被复用且**无任何报错**。现在渲染输入自己有摘要（定义 + seed + 渲染器 + adapter.yaml + catalog + emit.mjs），旧产物无此字段 ⇒ 一律重渲（自愈）。自检已固化 [181d2ac]
+2. **§26 V1 完成**：会话内自省命令 `/project`（基座不变量）；**E1 完成**（钩子事件名成为可校验契约）[4ed2916 · 686c6d4]
+3. **下一个具体动作**：§26 **V2**（同一份逻辑再开 CLI 出口）或 **E2b**（钩子逐条自证）；**E1b**（接入缝事件名）数据路径已就位
 
 ## Where things stand
 
-- **全绿**：15 个自检 · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20 通过 / 1 跳过 / 0 失败）· `make verify AGENT_DIR=examples/idea-to-proof` = **可用**
-- 闸门 1：基座 **29** 项 · 带定义 **43** 项 · 负例 **13** 个；Makefile **39** 个目标（selftest 13→14）
-- 工作树干净；三个提交都在本地（无远端）
-- ⚠️ **运行时记忆仍写不进去**：`MEMORY.md` 满（10220/10240）+ Memory Space 数为 0（无处归档）⇒ mnemon 拒绝写入、既有条目不变。本轮用户的两条反馈因此只落在仓库（roadmap §26 + JOURNAL）
+- **全绿**：15 个自检 · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）· 两侧渲染清单都记 `renderInputsDigest`
+- ⚠️ **记忆配置未能完成（需宿主操作）**：创建 Memory Space 要 `mnemon` CLI，宿主里没有（`spawn mnemon ENOENT`，provider 0 个）。二选一：**装 mnemon CLI 或设 `MNEMON_CLI_PATH`**，或**提高 `runtimeMemory.memoryLimitBytes`**。在此之前热记忆写不进（容量 10220/10240），新事实只落仓库
+- 工作树干净；5 个提交都在本地（无远端）
+- `examples/idea-to-proof/.render/pi` 已重渲（含 `/project`）；其它示例的旧缓存会在下次 `make local`/`run-local` 时**自动重渲**
 
 ## What this session delivered
 
-**记账与契约**（前两轮）
+**D8：产物复用判据（本轮，`181d2ac`）**
 
-- [7afeaeb] roadmap/`docs/13` 与实现对齐（P4/E3/E4 勾 done、假依赖改正、数字现场复核）
-- [686c6d4] **E1**：`kind: hook` 的 `event` → **`events`（数组）**；`adapter.yaml` 声明 `hookEvents`（pi 39 个 + `reproduce` 复算命令；dsh `enumerated: false` 如实标未穷举）；闸门 1 `enhance/events` + `hook/events-decl` + `catalog/enum-sync`；闸门 1 现在也校验**基座自己的** seed 声明；负例 `13-enhance-hook-bad-event`。契约记账：CHANGELOG 破坏性条目 + **D-0017**（harness 层契约随基座版本演进，不进 `apiVersion`）
+- `core/gates/digest.mjs` 新增 `digestInputs(entries)`（带角色的输入集合摘要；`optional` 显式记 `absent`，区分"没有"与"没算"）
+- `adapters/{pi,dsh}/render-inputs.mjs`：声明各自决定产物的输入（定义 / seed / 渲染器 / adapter.yaml / catalog / emit.mjs），并导出与 harness 无关的 `renderInputsDigest`
+- 两侧渲染器把 `renderInputsDigest` 写进清单；`tools/run-local.mjs` 用它判新鲜度（缺失字段 ⇒ 视为旧产物）
+- `local-selftest` 新增两条：**"基座变了、定义没变 ⇒ 也重新渲染"** 与 **"不许误报成定义已变"**
 
-**§26 V1：`/project`**（本轮，`4ed2916`）
+**§26 V1：`/project`**（`4ed2916`）—— 八个分类，全部从产物现算；补全即"项目应该有哪些信息"的目录；钩子事件名与运行时 39 个集合逐个核对；可移植性与闸门 1 同源；自检 21 项（含真起 pi 的 `get_commands` 取证）
 
-- `adapters/pi/seed/extensions/project-info.ts`（薄壳：`registerCommand` + `getArgumentCompletions` + `sendMessage`，不触发模型调用）
-- `adapters/pi/seed/extensions/_project-info.mjs`（纯逻辑：不依赖任何运行时 API ⇒ 自检可直接 import，dsh 侧将来可复用）
-- 八个分类：`overview` / `model`（只给引用名，不读 auth.json）/ `skills` / `connectors` / `enhancements` / `hooks`（与运行时 39 个可订阅事件逐个核对）/ `trace`（9 类事件从 schema 现算）/ `portability`（与闸门 1 同源）
-- 渲染器配套：① **下划线约定**（`extensions/_*.mjs` = 助手，不登记为扩展；声明指向 `_` 开头 ⇒ 渲染期报错）② 清单新增 **`hookEvents`**（E1b 的数据路径：产物自描述）③ 清单新增 **`agentEnhancements`**（只含智能体自己的增强 ⇒ 可移植性与闸门 1 同判据）
-- 新自检 `make pi-project-info-selftest`（21 项，含真起 pi 的 `get_commands` 取证）
+**E1：钩子事件名契约**（`686c6d4`）—— `event` → `events[]`；`adapter.yaml` 的 `hookEvents`（pi 39 个 + 复算命令，dsh 如实标未穷举）；闸门 1 `enhance/events` / `hook/events-decl` / `catalog/enum-sync`；基座自己的 seed 声明也进校验；D-0017 裁定 harness 层契约随基座版本演进
 
-**用户两条反馈（原话要点，已登记）**
-
-- ① `make local` / `run-local` 进交互 pi **调试很方便**（已写进 RESUME 的常用命令）
-- ② 要**会话内的斜杠命令**（不是 Makefile 目标）能随时查项目信息、且**靠补全反过来知道项目应该有哪些信息** → §26 V1/V2/V3
+**记账对齐**（`7afeaeb`）—— roadmap/docs13 与实现一致
 
 ## Next steps (immediate, action-level)
 
-1. **§26 V2**：把同一份 `_project-info.mjs` 再开一个 CLI 出口（`make project-info AGENT_DIR=…`，CI/容器里可用）—— 逻辑已共享，**不要写第二份文案**
-2. **E2b 钩子逐条自证**：声明 N 个钩子 ⇒ N 个都能指到自己的痕迹（现在只证明"发射路径在工作"）
-3. **E1b 接入缝的事件名**：`manifest.hookEvents` 已就位 ⇒ 启动期 `applyOverlay` / 闸门 2 用它校验 overlay 声明的事件名
-4. **§26 V3**：dsh 侧的等价入口（做不到就显式写进 `exemptions.yaml`，不假装等价）
-5. 次要：dsh 侧接入缝装载形态只有一种 · 多语言业务代码（E9）· `image-push` 未对真实 registry 验证 · `CLAUDE.md` 仍未创建
+1. **§26 V2**：同一份 `_project-info.mjs` 再开一个 CLI 出口（CI/容器可用）—— **不要写第二份文案**
+2. **E2b 钩子逐条自证**（路线图顺序的下一项）
+3. **E1b 接入缝的事件名**：`manifest.hookEvents` 已就位，启动期 `applyOverlay` / 闸门 2 用它校验
+4. **§26 V3**：dsh 侧等价入口（做不到就写进 `exemptions.yaml`）
+5. 次要：dsh 接入缝装载形态只有一种 · 多语言业务代码（E9）· `image-push` 未对真实 registry 验证 · `CLAUDE.md` 仍未创建
 
 ## Don't go down these paths again (ruled out)
 
-- **在双引号字符串里再嵌双引号** —— 本轮踩了**第三次**（`capabilities.yaml`、`_project-info.mjs`、自检文件）；中文全角括号不是问题，**嵌套的 `"` 才是**，一律改用「」或单引号
-- **靠 grep 人读输出取闸门结论** —— 人读报告走 **stderr**，stdout 只放 `--json`；自检里要按 JSON 取（`gates[].checks[]` 里找 id）
-- **记 `piRpc` 的 responses 键为请求 id** —— 键是**命令名**（`responses.get("get_commands")`）
-- **`/project` 自己算一套可移植性** ⇒ 立刻与闸门 1 打架（第一版就犯：把基座不变量算进了"不可移植"）。凡"同一结论两处算"都要像这次一样在自检里**断言两者一致**
-- **助手文件混进扩展登记** ⇒ 一个不导出工厂函数的文件被登记会让运行时**整体加载失败**；写作 `_` 开头，并在渲染期拦住"声明指向 `_` 开头"的写法
-- **给 dsh 编一份假的事件清单** ⇒ 穷举不出来就如实标"未验证"（既有教训，继续遵守）
+- **只比定义摘要就复用产物** ⇒ 基座变了却不重渲，**且不报错**（D8，本轮实测：新命令在会话里根本不存在）
+- **复用判据各写一份路径列表** ⇒ 两份迟早不一致，失败方式是"某次改动不触发重渲"且无声；判据必须与渲染器共用一份实现
+- **在双引号字符串里再嵌双引号** —— 本轮踩了**第三次**；中文全角括号无害，嵌套的 `"` 才致命，一律用「」
+- **y 靠 grep 人读输出取闸门结论** —— 人读报告走 **stderr**，stdout 只放 `--json`
+- **把 piRpc 的 responses 键当成请求 id** —— 键是**命令名**（`responses.get("get_commands")`）
+- **`/project` 自己算一套可移植性** ⇒ 立刻与闸门 1 打架（第一版就犯）
+- **给 dsh 编一份假的事件清单** ⇒ 穷举不出来就如实标"未验证"
+- **靠沙箱内操作装 CLI / 改宿主配置** —— 记忆那条是宿主环境问题，我这边做不到，别反复重试
 
 ## Ready-to-paste commands
 
@@ -65,12 +62,11 @@ for t in validate validate-selftest gates-selftest trace-selftest emit-selftest 
 node conformance/run.mjs --harness pi && node conformance/run.mjs --harness dsh
 make examples-check && make walkthrough
 
-# 会话内自省命令（人肉看一眼）
+# 用户报的那条路径（现在应该有 /project）
 cd examples/idea-to-proof && make local
-> /project              # 整份
-> /project hooks        # 只看钩子（含"订阅的事件在不在 39 个里"）
-> /project <Tab>        # 补全即"项目应该有哪些信息"的目录
+> /project            # 整份；/project hooks 只看钩子；/project <Tab> 补全即目录
 
-# 自省命令自检（含真起 pi 的 get_commands 取证）
-make pi-project-info-selftest
+# 产物新鲜度自愈（基座变了也会重渲）
+make pi-project-info-selftest && make local-selftest
 ```
+
