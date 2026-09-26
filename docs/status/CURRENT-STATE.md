@@ -129,6 +129,7 @@
 - `docs/design/2026-09-25-{pi,dsh}-harness-design.md` —— 各自 harness 专有实测约束的唯一事实来源
 - `docs/design/2026-09-26-harness-customization.md` —— **可定制点实测调研**（两侧钩子/loop/服务形态、层次模型 L0–L4、7 处实证缺陷）
 - `docs/design/2026-09-26-base-value-and-openness.md` —— 基座价值定义（保证/允许/不管三段式、全生命周期表）
+- `docs/design/2026-09-26-capability-bundles.md` —— **能力包设计稿（未实现）**：包的概念与动态使能、能力实体/包定义/包激活的归属、与闸门/轨迹/`/project` 的接线、未决项
 - `docs/13-developer-contract.md` —— 开发者契约（起点与保证、跨版本稳定性承诺、不约束清单）
 - `docs/14-how-to-verify.md` —— 能做什么 / 怎么做 / 怎么确认（每条的期望与边界、负例表）
 - `docs/06-deploy.md` —— 部署与派生镜像（接入缝、镜像内自证、权限坑）

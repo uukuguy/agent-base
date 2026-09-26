@@ -964,6 +964,11 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 > **npm 12 + apt 6**，含 git / ripgrep / jq / filesystem / repomix / playwright /
 > chrome-devtools / inspector / context7 等）。缺的是**三处**，不是从零设计。
 
+> **设计稿（先看它）**：[`docs/design/2026-09-26-capability-bundles.md`](../design/2026-09-26-capability-bundles.md)
+> —— 用户明确要求"**要有包的概念，不能一个一个选**"，且包要**动态使能**（验证时纯净、编程时打开）。
+> 本文的三处缺口在该设计里重新归位：**D9 → 默认「包组合」**（不再是"默认开几个连接器"）·
+> **C1 → `coding` 包的技能内容** · **C2 → 包定义里的 `plugins` 字段**。
+
 ### 27.1 三处缺口（实测评据）
 
 | # | 缺口 | 实测证据 | 性质 |
@@ -986,6 +991,8 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 
 | # | 项 | 判据（什么算做完） | 依赖 | 状态 |
 |---|---|---|---|---|
+| B1 | **包机制本体**（设计稿 §2 / §6）：能力目录里立 `bundles`（包 = 具名能力集合 + 默认策略 + 判据）；**选择型运行期参数**与环境型分开记账；激活集合进轨迹与 `verify --json`；`effectiveConfigDigest` 纳入激活集合（设计稿未决项 2） | ① 同一份定义 + 同一份产物、两个不同包组合 ⇒ 行为确实不同，且**两份证据各自标明组合**；② 运行期写一个不存在的包名 ⇒ **响亮失败**（不静默忽略）；③ 闸门 2 的期望集合 = **声明 ∩ 当前启用**（开/关各一条实测）；④ 包切换**留痕**（能回答"这次为什么调不到那个工具"） | — | `pending` |
+| B2 | **发现面接线**：`/project bundles` 列出可用包 + 当前激活 + 包里有什么 + 怎么开；补全项来自包定义与产物（沿用 V1 的同一份逻辑，不写第二份文案） | 加一个包 ⇒ 输出与补全跟着变；未激活的包明确标注；`/project` 已有分类不回归 | B1 | `pending` |
 | C3 | **兑现模板默认子集（D9）**：`template/connectors.yaml` 默认启用一个"开发常用子集"（不得写死包名/版本 —— 只用 `ref:`），使 `new-agent` → `verify` → `run-local` 立刻具备编码条件 | ① `make new-agent-selftest` 全绿（含四道闸门、且闸门 2 的"已启用连接器集合"断言仍成立）；② `run-local` 进交互后能真的调到一个默认启用的连接器（端点侧工具数变化，非"声明了但没连上"）；③ 子集内容与理由写清（为什么这几个进默认、其余不进） | — | `pending` |
 | C4 | **落盘 3 个编码技能（C1）**，并定"基座技能如何进产物且进声明"（见 27.2） | ① `preinstall.lock.txt` 里技能数 0 → 3，且 `make validate` 的 `preinstall/planned-skill` 与 `lock-sync` 同步变绿；② 闸门 2 的技能集合断言在**每个示例**上仍绿（基座技能已进声明）；③ 每个技能有 `SKILL.md`（含 frontmatter name/description）+ 一条可执行的自检；④ 双架构、运行期离线（构建期装齐） | C3 | `pending` |
 | C5 | **补"插件/扩展"预装类目（C2）**：为 pi（packages）与 dsh（cordis 插件）各定一条"基座预装编码插件"的类目与命名引用 | ① `preinstall.yaml` 有该 category，且 `preinstall/category` 检查通过；② 至少一条真实条目（pin + `verifiedAlive` 实测日期 + 「开发时拿它做什么」）；③ 渲染/启动两条路径都会加载它，且有闸门或自检覆盖（不许静默不加载） | — | `pending` |
