@@ -11,7 +11,7 @@
 ## Where things stand
 
 - **全绿**：15 个自检 · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）· 两侧渲染清单都记 `renderInputsDigest`
-- ⚠️ **记忆配置未能完成（需宿主操作）**：创建 Memory Space 要 `mnemon` CLI，宿主里没有（`spawn mnemon ENOENT`，provider 0 个）。二选一：**装 mnemon CLI 或设 `MNEMON_CLI_PATH`**，或**提高 `runtimeMemory.memoryLimitBytes`**。在此之前热记忆写不进（容量 10220/10240），新事实只落仓库
+- ✅ **记忆层已配好（本轮）**：`mnemon` CLI 装好（官方 macOS 推荐 `brew install --cask mnemon-dev/tap/mnemon`，实测 0.2.9；写 `/opt/homebrew` 会被沙箱拒 ⇒ 需提权）+ Memory Space「agent-base 项目记忆」(id `default`) 已建并**激活**。归档真的跑起来了：热记忆 15 条/10220 字节 → **11 条/7721 字节**（`~/.mnemon/data/default/mnemon.db`，15 insights / 41 edges）。排错：`mnemon --version` 探活（**别用 `mnemon status`**，有副作用）；宿主找不到二进制时设 `MNEMON_CLI_PATH`
 - 工作树干净；5 个提交都在本地（无远端）
 - `examples/idea-to-proof/.render/pi` 已重渲（含 `/project`）；其它示例的旧缓存会在下次 `make local`/`run-local` 时**自动重渲**
 
@@ -47,7 +47,7 @@
 - **把 piRpc 的 responses 键当成请求 id** —— 键是**命令名**（`responses.get("get_commands")`）
 - **`/project` 自己算一套可移植性** ⇒ 立刻与闸门 1 打架（第一版就犯）
 - **给 dsh 编一份假的事件清单** ⇒ 穷举不出来就如实标"未验证"
-- **靠沙箱内操作装 CLI / 改宿主配置** —— 记忆那条是宿主环境问题，我这边做不到，别反复重试
+- **以为沙箱内装不了 CLI** —— 会被拒的是"写 `/opt/homebrew`"，走**一次提权**（`sandbox_permissions`）就能装成；真正的坑是**建了 Memory Space 却没激活**（报 `catalog=1 / writable=0`），以及用 `mnemon status` 当探活（有副作用）
 
 ## Ready-to-paste commands
 
