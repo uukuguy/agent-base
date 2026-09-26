@@ -10,7 +10,7 @@
 // ## 必含七个字段（缺一即 conformance 失败）
 //
 //   harness + version · definitionPath · skills[] · connectors[] · enhancements[]
-//   modelRoutes[] · effectiveConfigDigest
+//   modelProviders[] · effectiveConfigDigest
 //
 // ## 三条硬断言（所有 harness 相同）
 //
@@ -420,7 +420,7 @@ async function main() {
           detail: "硬断言 3：已加载扩展 id 集合必须等于 enhancements.yaml 声明集合",
         },
         {
-          id: "resolution/model-routes",
+          id: "resolution/model-providers",
           assert: "set-equals",
           actual: "declaredRoutes",
           expectedPath: "expectedRoutes",
@@ -435,7 +435,7 @@ async function main() {
   // 清单里的字段是 serverName（渲染器与两个 harness 统一用这个名）；早期这里写 c.name，
   // 于是"声明集合"变成了 [undefined] —— 集合断言必错，而且错得看不懂。
   ctx.enabledConnectors = (manifest.connectors ?? []).map((c) => c.serverName ?? c.name).filter(Boolean).sort();
-  ctx.expectedRoutes = [...(manifest.modelRoutes ?? [])].sort();
+  ctx.expectedRoutes = [...(manifest.modelProviders ?? [])].sort();
 
   // 基座不变量技能（清单里声明为 shipped 且默认启用）也要进期望集合
   try {
@@ -461,7 +461,7 @@ async function main() {
     skills: ctx.observedSkills ?? [],
     connectors: ctx.observedConnectors ?? [],
     enhancements: ctx.observedEnhancements ?? [],
-    modelRoutes: ctx.declaredRoutes ?? [],
+    modelProviders: ctx.declaredRoutes ?? [],
     effectiveConfigDigest: report.effectiveConfigDigest,
     adapterVersion: report.adapterVersion,
     // 额外证据（供排障；不属七个必含字段）
@@ -486,7 +486,7 @@ async function main() {
     process.stderr.write(`  skills            ${JSON.stringify(doc.skills)}\n`);
     process.stderr.write(`  connectors        ${JSON.stringify(doc.connectors)}\n`);
     process.stderr.write(`  enhancements      ${JSON.stringify(doc.enhancements)}\n`);
-    process.stderr.write(`  modelRoutes       ${JSON.stringify(doc.modelRoutes)}\n`);
+    process.stderr.write(`  modelProviders       ${JSON.stringify(doc.modelProviders)}\n`);
     process.stderr.write(`  effectiveConfigDigest ${doc.effectiveConfigDigest}\n`);
   }
   process.exit(report.exitCode);

@@ -181,12 +181,12 @@ function main() {
 
   // ---- 模型路由：实际生效的 provider/model ----
   const am = byId.get("agent-default-model");
-  const routes = manifest.modelRoutes ?? [];
+  const routes = manifest.modelProviders ?? [];
   const composedRoute = am?.config?.provider ?? null;
   if (routes.length && composedRoute === routes[0]) {
-    report.pass(GATE, "resolution/model-routes", `实际生效的模型来自本次渲染产物（${composedRoute}/${am.config.model}）—— 不是宿主配置`);
+    report.pass(GATE, "resolution/model-providers", `实际生效的模型来自本次渲染产物（${composedRoute}/${am.config.model}）—— 不是宿主配置`);
   } else {
-    report.fail(GATE, "resolution/model-routes", `组合树里的 provider 是「${composedRoute}」，声明的是「${routes[0] ?? "（无）"}」`);
+    report.fail(GATE, "resolution/model-providers", `组合树里的 provider 是「${composedRoute}」，声明的是「${routes[0] ?? "（无）"}」`);
   }
 
   // ---- 硬断言 1：技能集合 ----
@@ -268,7 +268,7 @@ function main() {
     skills: declaredSkills,
     connectors: composed,
     enhancements: declaredEnh,
-    modelRoutes: routes,
+    modelProviders: routes,
     effectiveConfigDigest: report.effectiveConfigDigest,
     adapterVersion: adapter.adapterVersion,
     evidence: {
@@ -291,7 +291,7 @@ function main() {
     log(`  skills            ${JSON.stringify(doc.skills)}`);
     log(`  connectors        ${JSON.stringify(doc.connectors)}`);
     log(`  enhancements      ${JSON.stringify(doc.enhancements)}`);
-    log(`  modelRoutes       ${JSON.stringify(doc.modelRoutes)}`);
+    log(`  modelProviders       ${JSON.stringify(doc.modelProviders)}`);
     log(`  effectiveConfigDigest ${doc.effectiveConfigDigest}`);
   }
   process.exit(report.exitCode);

@@ -119,11 +119,11 @@ function resolveParams(manifest) {
         `③ 凭据目录 AGENT_SECRETS_DIR=/dir（读 /dir/${p.name}）`);
       continue;
     }
-    if (p.validate === "in-route-models") {
-      const allowed = manifest.modelRouteModels ?? [];
+    if (p.validate === "in-provider-models") {
+      const allowed = manifest.modelProviderModels ?? [];
       if (allowed.length && !allowed.includes(value)) {
         problems.push(
-          `${p.name}「${value}」不在路由 ${manifest.modelRoutes?.[0] ?? "?"} 声明的模型名单内。该路由提供：${allowed.join(", ")}`);
+          `${p.name}「${value}」不在供应商 ${manifest.modelProviders?.[0] ?? "?"} 声明的模型名单内。它提供：${allowed.join(", ")}`);
         continue;
       }
     }

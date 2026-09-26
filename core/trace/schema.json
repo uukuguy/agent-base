@@ -219,7 +219,7 @@
         "type": {
           "const": "model.request"
         },
-        "route": {
+        "provider": {
           "type": "string",
           "minLength": 1
         },
@@ -244,7 +244,7 @@
       "required": [
         "type",
         "code",
-        "route"
+        "provider"
       ],
       "properties": {
         "type": {
@@ -254,7 +254,7 @@
           "type": "string",
           "minLength": 1
         },
-        "route": {
+        "provider": {
           "type": "string",
           "minLength": 1
         },

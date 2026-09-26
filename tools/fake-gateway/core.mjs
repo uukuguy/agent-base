@@ -21,8 +21,8 @@ import crypto from "node:crypto";
 /** 假网关自身版本。进配置摘要，便于事后归因「当时生效的是哪个假网关」。 */
 export const FAKE_GATEWAY_VERSION = "0.1.0";
 
-/** 默认路由名（对应 §6.7 verify 输出与 §8.3 轨迹里的 model.route）。 */
-export const DEFAULT_ROUTE = "fake-gateway";
+/** 默认供应商名（对应 §6.7 verify 输出与 §8.3 轨迹里的 provider）。 */
+export const DEFAULT_PROVIDER = "fake-gateway";
 
 /** 默认模型名。假网关不校验模型名——零配置是它的存在理由。 */
 export const DEFAULT_MODEL = "fake-model";
@@ -66,12 +66,12 @@ export function canonicalJson(value) {
 }
 
 /** 假网关的确定性配置对象。进配置摘要的只有这些「基座选择」，不含任何凭据。 */
-export function gatewayConfig({ route = DEFAULT_ROUTE, model = DEFAULT_MODEL, protocol = "openai" } = {}) {
+export function gatewayConfig({ provider = DEFAULT_PROVIDER, model = DEFAULT_MODEL, protocol = "openai" } = {}) {
   return {
     name: "fake-gateway",
     version: FAKE_GATEWAY_VERSION,
     protocol,
-    route,
+    provider,
     model,
   };
 }
@@ -107,11 +107,11 @@ function nonEmptyString(value) {
  * 协议适配层抽出的「准中性形状」→ 规范化请求。
  *
  * 入参形状（各协议适配层负责把原生请求映射到这里）：
- *   { model, messages, tools?, stream?, route? }
+ *   { model, messages, tools?, stream?, provider? }
  * 只做**中性**校验：model 必填、messages 必填非空、tools 必须是数组。
  * 不校验模型名、不校验路由、不看任何凭据字段——零凭据是硬需求。
  */
-export function normalizeRequest(input, { route = DEFAULT_ROUTE } = {}) {
+export function normalizeRequest(input, { provider = DEFAULT_PROVIDER } = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new FakeGatewayRequestError("BAD_BODY", "请求体必须是 JSON 对象");
   }
@@ -128,7 +128,7 @@ export function normalizeRequest(input, { route = DEFAULT_ROUTE } = {}) {
   const tools = rawTools.map(normalizeTool);
 
   return {
-    route: nonEmptyString(input.route) ?? route,
+    provider: nonEmptyString(input.provider) ?? provider,
     model,
     messages,
     tools,

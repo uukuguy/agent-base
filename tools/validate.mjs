@@ -94,7 +94,7 @@ function pathExists(obj, dotted) {
  * 从 JSON Schema 推导出「字段路径」集合，用于与能力目录对账。
  *
  * 路径约定（与 core/catalog/capabilities.yaml 一致）：
- *   · 标量 / 对象字段        → `model.route`、`persona.instructions`
+ *   · 标量 / 对象字段        → `model.provider`、`persona.instructions`
  *   · 标量数组本身就是字段    → `tools.deny`、`mcpServers[].args`
  *   · 对象数组的**元素字段**  → `mcpServers[].name`（容器 `mcpServers` 由元素字段代表）
  */
@@ -308,12 +308,12 @@ function checkBase(report, agentDir = process.cwd()) {
       }
       // 「引用名必须被参数层允许」不能靠一张手写名单（那张名单不存在 ⇒ 这个检查曾经是**空转**的）。
       // 真正的判据是：名字必须匹配 params.allowed 里某条**支撑模型组字段**的 pattern
-      // （端点/凭据 backs model.route；模型名 backs model.name —— 三者都由路由前缀派生）。
+      // （端点/凭据 backs model.provider；模型名 backs model.name —— 三者都由供应商名前缀派生）。
       // 空转的检查比没有更糟 —— 它给了一种"已经管住了"的错觉。
       // 模型组字段：provider（新）与 route（旧名）都算 —— 引用名由供应商名派生
-      const ROUTE_DERIVED_BACKS = ["model.provider", "model.route", "model.name", "model.reasoningEffort"];
+      const MODEL_GROUP_BACKS = ["model.provider", "model.name", "model.reasoningEffort"];
       const routePats = (params.allowed ?? [])
-        .filter((a) => (a.backs ?? []).some((b) => ROUTE_DERIVED_BACKS.includes(b)))
+        .filter((a) => (a.backs ?? []).some((b) => MODEL_GROUP_BACKS.includes(b)))
         .map((a) => ({ id: a.id, re: new RegExp(a.pattern) }));
       const notAllowed = [];
       for (const r of list) for (const k of ["baseUrlParam", "credentialParam", "modelParam"]) {
@@ -609,7 +609,7 @@ function checkAgent(report, ctx, agentDir) {
   //     解析逻辑在 core/image/resolve-preinstall.mjs（harness 无关），这里只消费结果。
   if (connectors) {
     const resolved = resolveConnectors(connectors, ctx.preinstall);
-    if (agent.model?.route) report.paramNames.push(agent.model.route);
+    if (agent.model?.provider) report.paramNames.push(agent.model.provider);
     report.paramNames.push(...resolved.paramNames);
     report.paramNames = [...new Set(report.paramNames)].sort();
 
@@ -669,10 +669,15 @@ function checkAgent(report, ctx, agentDir) {
     const cat = ctx.routeCatalog ?? { providers: [], errors: ["未加载 provider 目录"] };
     const routes = cat.providers ?? [];
     const declared = new Set(routes.map((r) => r.id));
-    const providerId = agent.model?.provider ?? agent.model?.route;
-    const fieldName = agent.model?.provider ? "model.provider" : "model.route";
+    // `model.route` 已废除（不留旧名）。schema 会因 additionalProperties 拦下，
+    // 但那条报错看不懂 —— 这里给一句能直接照做的迁移提示。
+    if (agent.model?.route !== undefined) {
+      report.fail(GATE, "provider/renamed", "`model.route` 已废除 → 请改写 `model.provider`（同一个值，不必改别处）");
+    }
+    const providerId = agent.model?.provider;
+    const fieldName = "model.provider";
     if (!routes.length) report.fail(GATE, "provider/declared", `${cat.errors?.join("；") ?? "provider 目录为空"} —— 无法校验 ${fieldName}`);
-    else if (!providerId) report.fail(GATE, "provider/declared", "缺 model.provider（或旧名 model.route）");
+    else if (!providerId) report.fail(GATE, "provider/declared", "缺 model.provider");
     else if (!declared.has(providerId)) report.fail(GATE, "provider/declared", `${fieldName}「${providerId}」不在 provider 目录里。可用：${[...declared].sort().join(", ")}`);
     else {
       const p = routes.find((r) => r.id === providerId);

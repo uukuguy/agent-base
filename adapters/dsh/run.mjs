@@ -78,14 +78,14 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-run-"));
 
   const env = { ...process.env, ...extraEnv };
-  const endpointParam = (manifest.runtimeParams ?? []).find((x) => (x.backs === "model.provider" || x.backs === "model.route") && !x.secret);
+  const endpointParam = (manifest.runtimeParams ?? []).find((x) => x.backs === "model.provider" && !x.secret);
   if (endpoint && endpointParam) env[endpointParam.name] = endpoint;
   // 零凭据模式（**显式开启**）：自证/探针/冒烟用假值补齐必填项；真实运行不允许
   if (zeroCredential) {
     for (const p of manifest.runtimeParams ?? []) {
       if (env[p.name]) continue;
       if (p.secret) env[p.name] = "placeholder-not-a-credential";
-      else if (p.required && (p.backs === "model.provider" || p.backs === "model.route")) env[p.name] = "http://127.0.0.1:9/v1";
+      else if (p.required && p.backs === "model.provider") env[p.name] = "http://127.0.0.1:9/v1";
     }
   }
 

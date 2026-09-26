@@ -60,19 +60,15 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "provider",
         "name"
       ],
-      "description": "「它用哪个模型」。provider 是供应商名（不是 URL）；name 是**默认**模型名，属环境属性、运行期可用 `<PROVIDER>_MODEL` 覆盖。",
+      "description": "「它用哪个模型」。provider 是**供应商名**（基座内置 deepseek / openai / corp-gateway，也可由你自己的 providers.yaml 新增）；name 是**默认**模型名，属环境属性、运行期可用 `<PROVIDER>_MODEL` 覆盖。",
       "properties": {
         "provider": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]{1,30}$",
           "description": "模型供应商（provider）名。基座内置了常用供应商（deepseek / openai / corp-gateway …），写名字即可，不必建任何文件；要改端点或模型名单，用自己的 providers.yaml 覆盖同名条目。不是 URL。"
-        },
-        "route": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{1,30}$",
-          "description": "`provider` 的旧名（等价）。新定义请写 provider。"
         },
         "name": {
           "type": "string",
@@ -88,19 +84,7 @@
           ],
           "description": "可选。harness 不支持时按 exemptions.yaml 处理（§5.4），不得静默忽略。"
         }
-      },
-      "anyOf": [
-        {
-          "required": [
-            "provider"
-          ]
-        },
-        {
-          "required": [
-            "route"
-          ]
-        }
-      ]
+      }
     },
     "tools": {
       "type": "object",

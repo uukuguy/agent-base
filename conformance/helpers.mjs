@@ -75,7 +75,7 @@ export function makeFullAgent(dir, { name = "conformance-agent", reasoningEffort
     "  instructions: |",
     "    你是合规审阅助手。只做条款风险识别，不做法律意见。",
     "model:",
-    "  route: corp-gateway",
+    "  provider: corp-gateway",
     `  name: corp-think${reasoningEffort ? `\n  reasoningEffort: ${reasoningEffort}` : ""}`,
     "tools:",
     "  deny: [bash, write]",

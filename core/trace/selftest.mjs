@@ -45,8 +45,8 @@ const base = {
 console.log("── 七类事件必须通过 ──");
 const validEvents = {
   "run.meta": { ...base, type: "run.meta", mode: "debug" },
-  "model.request": { ...base, type: "model.request", route: "corp-gateway", model: "corp-think", tools: 10, stream: true },
-  "model.error": { ...base, type: "model.error", code: "MISSING_CREDENTIAL", route: "corp-gateway" },
+  "model.request": { ...base, type: "model.request", provider: "corp-gateway", model: "corp-think", tools: 10, stream: true },
+  "model.error": { ...base, type: "model.error", code: "MISSING_CREDENTIAL", provider: "corp-gateway" },
   "tool.call": { ...base, type: "tool.call", callId: "call_abc", tool: "mcp__jira__get_issue", inputDigest: `sha256:${B}`, decision: "allow" },
   "tool.result": { ...base, type: "tool.result", callId: "call_abc", tool: "mcp__jira__get_issue", ok: true, ms: 840 },
   "带业务扩展位的核心事件": { ...base, type: "gate", name: "probes", target: "jira", ok: true, biz: { "contract.id": "C-1024", "risk.level": 3 } },
@@ -68,8 +68,8 @@ const invalidCases = {
   "未知事件类型（未映射又想蒙过）": { ...base, type: "something.new", detail: "…" },
   "native.raw 缺 reason": { ...base, type: "native.raw", nativeType: "x", raw: {} },
   "native.raw 缺 raw": { ...base, type: "native.raw", nativeType: "x", reason: "…" },
-  "model.request 缺 tools（tools 计数是闸门 3 的核心断言对象）": { ...base, type: "model.request", route: "r", model: "m", stream: true },
-  "model.request tools 为负": { ...base, type: "model.request", route: "r", model: "m", tools: -1, stream: false },
+  "model.request 缺 tools（tools 计数是闸门 3 的核心断言对象）": { ...base, type: "model.request", provider: "r", model: "m", stream: true },
+  "model.request tools 为负": { ...base, type: "model.request", provider: "r", model: "m", tools: -1, stream: false },
   "tool.call 的 decision 取值非法": { ...base, type: "tool.call", tool: "t", inputDigest: `sha256:${B}`, decision: "maybe" },
   "gate 的 name 不是四道闸门之一": { ...base, type: "gate", name: "lint", target: "x", ok: true },
   "run.meta 的 mode 非法": { ...base, type: "run.meta", mode: "production" },

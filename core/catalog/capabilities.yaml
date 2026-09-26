@@ -134,7 +134,6 @@ groups:
     label: 「它用哪个模型」
     businessConcept: true
     fields:
-      # 通行写法是 model.provider；model.route 是旧名（等价，schema 两者都收）
       - path: model.provider
         source: agent.yaml
         type: string
@@ -149,19 +148,6 @@ groups:
           智能体只写名字；端点、凭据引用名、模型名单都来自那份内置目录，
           要改就用 `providers.yaml`（放智能体旁边或用 AGENT_PROVIDERS_FILE）覆盖同名条目。
         degradation: 供应商不在目录里 → 渲染期直接失败并列出可用名字。
-
-      - path: model.route
-        source: agent.yaml
-        type: string
-        required: false
-        layer: artifact
-        harnesses:
-          pi: { support: supported, verified: true }
-          dsh: { support: supported, verified: true }
-        doc: >
-          `model.provider` 的**旧名**（等价）。新定义请写 provider；两者都写时以 provider 为准。
-          保留它只为不让已写好的定义失效 —— 它不是独立能力，所以不占参数层引用名。
-        degradation: 路由名写错时 dsh 只在请求期暴露（MISSING_CREDENTIAL）→ 闸门 3 的模型探针为此存在（§14 风险 9）。
 
       - path: model.name
         source: agent.yaml

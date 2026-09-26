@@ -224,7 +224,7 @@ const cases = [
         const payload = jsonOf(d.stdout);
         const doc = payload?.doctor;
         if (!doc) { problems.push(`${h}: doctor 未输出可解析 JSON（退出码 ${d.status}）`); continue; }
-        for (const k of ["harness", "version", "definitionPath", "skills", "connectors", "enhancements", "modelRoutes", "effectiveConfigDigest"]) {
+        for (const k of ["harness", "version", "definitionPath", "skills", "connectors", "enhancements", "modelProviders", "effectiveConfigDigest"]) {
           if (doc[k] === undefined) problems.push(`${h}: doctor 缺字段 ${k}`);
         }
         const manifest = JSON.parse(fs.readFileSync(path.join(out, "render-manifest.json"), "utf8"));

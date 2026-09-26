@@ -109,6 +109,14 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 > 已改为按「值是否随部署环境而变」判定 —— 模型名是环境属性，进参数层；`model.route` 仍是制品层
 > （它决定后面三个引用名）。
 
+### 破坏性：`model.route` 废除；轨迹字段 `route` 改名 `provider`
+
+- **`model.route` 不再接受**（连旧名都不留）：定义里写 `route:` 会在闸门 1 失败，并给出
+  `已废除 → 请改写 model.provider` 的提示。`AGENT_ROUTES_FILE` 同样移除，改用 `AGENT_PROVIDERS_FILE`
+- **轨迹事件字段 `route` → `provider`**（`model.request` / `model.error`），与配置层同一个词，
+  全项目一种说法；统一轨迹 schema、假网关（含 `--provider` / `FAKE_GATEWAY_PROVIDER` 与
+  `x-fake-gateway-provider` 头）、轨迹视图、产物清单字段（`modelRoutes`→`modelProviders` 等）同步改名
+
 ### 模型协议形状：声明 + 校验（`providers/model-api`）
 
 - 两个适配器各自声明**支持的协议形状**（`adapters/<h>/adapter.yaml` 的 `capabilities.modelApis`，

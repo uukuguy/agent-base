@@ -295,7 +295,7 @@ function main() {
   // 路由必须由基座声明（闸门 1 已校验）；渲染器据此产出 provider 配置
   // 选 provider：`model.provider` 是通行写法，`model.route` 是旧名（同一个东西）
   const catalog = loadProviders({ agentDir });
-  const providerId = agent.model?.provider ?? agent.model?.route;
+  const providerId = agent.model?.provider;
   const route = findProvider(catalog, providerId);
   if (!route) {
     log(`❌ model.provider「${providerId}」不在 provider 目录里（来源：${(catalog.sources ?? []).join(" + ") || "无"}）。`);
@@ -353,10 +353,10 @@ function main() {
     denyTools: agent.tools?.deny ?? [],
     denyRows,
     denyNote: "工具粒度不同：中性的 read/write/edit 在这边是同一个 tool-fs row，禁用其一即禁用三者（见 exemptions.yaml）",
-    modelRoutes: [providerId],
-    modelRouteApi: route.api,
+    modelProviders: [providerId],
+    modelProviderApi: route.api,
     // 该路由声明的模型名单：启动期校验运行期覆盖的模型名用
-    modelRouteModels: route.models ?? [],
+    modelProviderModels: route.models ?? [],
     /**
      * **运行期参数契约**：入口脚本按这份声明解析并校验（不猜名字、不硬编码）。
      * 本 harness 原生支持 `!!js` 求值 ⇒ `rendersParams: false`（不在启动期改写产物），
@@ -386,7 +386,7 @@ function main() {
       { name: route.credentialParam, secret: true, required: true, backs: "model.provider" },
       {
         name: route.modelParam, secret: false, required: false,
-        default: agent.model.name, backs: "model.name", validate: "in-route-models",
+        default: agent.model.name, backs: "model.name", validate: "in-provider-models",
       },
     ],
     // 端点/凭据的**参数引用名**：运行期靠这两个名字注入真值（参数下放）

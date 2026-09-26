@@ -11,7 +11,7 @@
 // 使基座自身的回归不依赖任何外部系统。它是 harness 无关的——只讲协议，不讲 harness。
 //
 // 用法：
-//   node tools/fake-gateway/server.mjs [--port 0] [--host 127.0.0.1] [--route fake-gateway]
+//   node tools/fake-gateway/server.mjs [--port 0] [--host 127.0.0.1] [--provider fake-gateway]
 //                                     [--model fake-model] [--no-trace] [--help]
 //   · stdout 只打印一行 base URL（§8.2：stdout 只放结果，便于脚本直接取用）
 //   · 人读提示与轨迹都走 stderr
@@ -36,7 +36,7 @@ import { pathToFileURL } from "node:url";
 
 import {
   DEFAULT_MODEL,
-  DEFAULT_ROUTE,
+  DEFAULT_PROVIDER,
   FAKE_GATEWAY_VERSION,
   FakeGatewayRequestError,
   configDigest,
@@ -196,7 +196,7 @@ async function handleRequest(req, res, { config, emitter }) {
       version: FAKE_GATEWAY_VERSION,
       protocol: openai.PROTOCOL_ID,
       credentials: "none",
-      route: config.route,
+      provider: config.provider,
       model: config.model,
     });
   }
@@ -212,20 +212,20 @@ async function handleRequest(req, res, { config, emitter }) {
 
   if (pathname === "/v1/chat/completions") {
     if (req.method !== "POST") {
-      emitter.emit({ type: "model.error", code: "METHOD_NOT_ALLOWED", route: config.route, message: "chat/completions 只接受 POST" });
+      emitter.emit({ type: "model.error", code: "METHOD_NOT_ALLOWED", provider: config.provider, message: "chat/completions 只接受 POST" });
       return sendJson(res, 405, errorBody("chat/completions 只接受 POST", "METHOD_NOT_ALLOWED"));
     }
     return handleChatCompletion(req, res, { config, emitter });
   }
 
-  emitter.emit({ type: "model.error", code: "NOT_FOUND", route: config.route, message: `未知路径：${pathname}` });
+  emitter.emit({ type: "model.error", code: "NOT_FOUND", provider: config.provider, message: `未知路径：${pathname}` });
   return sendJson(res, 404, errorBody(`假网关不提供该路径：${pathname}`, "NOT_FOUND"));
 }
 
 async function handleChatCompletion(req, res, { config, emitter }) {
   const body = await readBody(req);
   if (body.tooLarge) {
-    emitter.emit({ type: "model.error", code: "PAYLOAD_TOO_LARGE", route: config.route, message: `请求体超过 ${MAX_BODY_BYTES} 字节` });
+    emitter.emit({ type: "model.error", code: "PAYLOAD_TOO_LARGE", provider: config.provider, message: `请求体超过 ${MAX_BODY_BYTES} 字节` });
     return sendJson(res, 413, errorBody("请求体过大", "PAYLOAD_TOO_LARGE"));
   }
 
@@ -233,7 +233,7 @@ async function handleChatCompletion(req, res, { config, emitter }) {
   try {
     parsed = JSON.parse(body.text === "" ? "{}" : body.text);
   } catch (err) {
-    emitter.emit({ type: "model.error", code: "BAD_JSON", route: config.route, message: "请求体不是合法 JSON" });
+    emitter.emit({ type: "model.error", code: "BAD_JSON", provider: config.provider, message: "请求体不是合法 JSON" });
     return sendJson(res, 400, errorBody(`请求体不是合法 JSON：${err.message}`, "BAD_JSON"));
   }
 
@@ -241,18 +241,18 @@ async function handleChatCompletion(req, res, { config, emitter }) {
   let result;
   try {
     const raw = openai.parseChatCompletionRequest(parsed, req.headers);
-    ({ normalized, result } = handleNormalizedRequest(raw, { route: config.route }));
+    ({ normalized, result } = handleNormalizedRequest(raw, { provider: config.provider }));
   } catch (err) {
     const code = err instanceof FakeGatewayRequestError ? err.code : "BAD_REQUEST";
-    const route = normalized?.route ?? config.route;
-    emitter.emit({ type: "model.error", code, route, message: err.message });
+    const provider = normalized?.provider ?? config.provider;
+    emitter.emit({ type: "model.error", code, provider, message: err.message });
     return sendJson(res, 400, errorBody(err.message, code));
   }
 
   // 轨迹：tools 计数与 stream 标记在这里对审计可见（§6.4 的核心断言对象）
   emitter.emit({
     type: "model.request",
-    route: normalized.route,
+    provider: normalized.provider,
     model: normalized.model,
     tools: normalized.tools.length,
     stream: normalized.stream,
@@ -279,7 +279,7 @@ async function handleChatCompletion(req, res, { config, emitter }) {
  * @param {number}  [options.port=0]        0 = 由内核分配空闲端口
  * @param {boolean} [options.trace=true]    false = 完全不产轨迹（traceLines 保持空）
  * @param {string}  [options.host="127.0.0.1"] 只绑本地：零凭据服务不对外
- * @param {string}  [options.route]         缺省取 FAKE_GATEWAY_ROUTE，再缺省 "fake-gateway"
+ * @param {string}  [options.provider]      缺省取 FAKE_GATEWAY_PROVIDER，再缺省 "fake-gateway"
  * @param {string}  [options.model]         缺省取 FAKE_GATEWAY_MODEL，再缺省 "fake-model"
  * @param {string}  [options.traceDest]     缺省取 AGENT_TRACE_DEST，再缺省 "stderr"
  * @param {object}  [options.env=process.env] 轨迹上下文来源（便于测试注入）
@@ -291,13 +291,13 @@ export async function startFakeGateway(options = {}) {
     port = 0,
     trace = true,
     host = "127.0.0.1",
-    route = process.env.FAKE_GATEWAY_ROUTE || DEFAULT_ROUTE,
+    provider = process.env.FAKE_GATEWAY_PROVIDER || DEFAULT_PROVIDER,
     model = process.env.FAKE_GATEWAY_MODEL || DEFAULT_MODEL,
     traceDest,
     env = process.env,
   } = options;
 
-  const config = gatewayConfig({ route, model, protocol: openai.PROTOCOL_ID });
+  const config = gatewayConfig({ provider, model, protocol: openai.PROTOCOL_ID });
   const context = traceContext(env, config);
   const traceLines = [];
   const dest = traceDest ?? (env.AGENT_TRACE_DEST || "stderr");
@@ -342,7 +342,7 @@ export async function startFakeGateway(options = {}) {
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const opts = { port: 0, host: "127.0.0.1", route: DEFAULT_ROUTE, model: DEFAULT_MODEL, trace: true };
+  const opts = { port: 0, host: "127.0.0.1", provider: DEFAULT_PROVIDER, model: DEFAULT_MODEL, trace: true };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const next = () => {
@@ -353,7 +353,7 @@ function parseArgs(argv) {
     switch (arg) {
       case "--port": opts.port = Number(next()); break;
       case "--host": opts.host = next(); break;
-      case "--route": opts.route = next(); break;
+      case "--provider": opts.route = next(); break;
       case "--model": opts.model = next(); break;
       case "--no-trace": opts.trace = false; break;
       case "--help":
@@ -375,7 +375,7 @@ const HELP = `零凭据假网关（统一设计 §6.4）
 选项：
   --port <n>     监听端口，0 = 自动分配空闲端口（默认 0）
   --host <addr>  监听地址，默认 127.0.0.1（零凭据服务不对外暴露）
-  --route <name> 轨迹里的 model.route，默认 fake-gateway
+  --provider <name> 轨迹里记录的供应商名，默认 fake-gateway
   --model <name> /v1/models 暴露的模型名，默认 fake-model
   --no-trace     不产轨迹
   --help         打印本帮助
@@ -424,4 +424,4 @@ if (isCli) {
 }
 
 // 再导出协议适配层，方便调用方从一处拿到协议常量（README 里闸门 3 只要求 startFakeGateway）。
-export { openai, FAKE_GATEWAY_VERSION, DEFAULT_ROUTE, DEFAULT_MODEL };
+export { openai, FAKE_GATEWAY_VERSION, DEFAULT_PROVIDER, DEFAULT_MODEL };

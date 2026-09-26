@@ -5,7 +5,7 @@ persona:
   instructions: |
     你是企业合同审阅助手。只做条款风险识别，不做法律意见。
 model:
-  route: corp-gateway
+  provider: corp-gateway
   name: corp-think
   reasoningEffort: medium
 tools:

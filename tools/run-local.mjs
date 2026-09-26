@@ -82,7 +82,7 @@ const main = async () => {
   // **不能默默用死端口兜底**：早前默认 `http://127.0.0.1:9/v1`，于是用户明明设了
   // `DEEPSEEK_BASE_URL=https://api.deepseek.com`，run-local 又把它覆盖成死端口 ——
   // 表现为"我配了却连不上"，正是本项目一直在治的那类静默覆盖。
-  const endpointParamName = (manifest.runtimeParams ?? []).find((x) => (x.backs === "model.provider" || x.backs === "model.route") && !x.secret)?.name;
+  const endpointParamName = (manifest.runtimeParams ?? []).find((x) => x.backs === "model.provider" && !x.secret)?.name;
   const fromEnvEndpoint = endpointParamName ? process.env[endpointParamName] : null;
   const explicitEndpoint = values["--endpoint"] ?? process.env.AGENT_ENDPOINT ?? null;
   const endpoint = explicitEndpoint ?? fromEnvEndpoint;
@@ -105,7 +105,7 @@ const main = async () => {
     const isModelGroup = (x) => x.backs === "model.provider" || x.backs === "model.route";
     const endpointParam = params.find((x) => isModelGroup(x) && !x.secret);
     const secretParam = params.find((x) => x.secret === true);
-    const modelParam = params.find((x) => x.validate === "in-route-models");
+    const modelParam = params.find((x) => x.validate === "in-provider-models");
     const map = [
       ["--endpoint", endpointParam, "模型端点"],
       ["--api-key", secretParam, "凭据"],
@@ -146,7 +146,7 @@ const main = async () => {
     AGENT_TRACE_CONTENT: process.env.AGENT_TRACE_CONTENT ?? "full",   // 本地看细节，默认留全文
     AGENT_EFFECTIVE_CONFIG_DIGEST: digestOfRender(renderDir),
     AGENT_TRACE_DEST: traceFile,
-    ...(manifest.modelRoutes?.[0] ? { AGENT_MODEL_ROUTE: manifest.modelRoutes[0] } : {}),
+    ...(manifest.modelProviders?.[0] ? { AGENT_MODEL_ROUTE: manifest.modelProviders[0] } : {}),
   };
 
   const { bin, args } = localInvocation({ staging, prompt: values["--prompt"] ?? null });

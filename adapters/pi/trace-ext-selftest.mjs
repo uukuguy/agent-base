@@ -42,7 +42,7 @@ const check = (name, cond, extra = "") => {
 function makeAgent(dir) {
   fs.mkdirSync(path.join(dir, "skills", "example"), { recursive: true });
   fs.writeFileSync(path.join(dir, "agent.yaml"),
-    "apiVersion: agent-base/v1\nname: trace-check\ndescription: 轨迹扩展自检\npersona: { instructions: 测试。 }\nmodel: { route: corp-gateway, name: corp-think }\n");
+    "apiVersion: agent-base/v1\nname: trace-check\ndescription: 轨迹扩展自检\npersona: { instructions: 测试。 }\nmodel: { provider: corp-gateway, name: corp-think }\n");
   fs.writeFileSync(path.join(dir, "connectors.yaml"), "apiVersion: agent-base/v1\nmcpServers: []\n");
   fs.writeFileSync(path.join(dir, "skills/example/SKILL.md"), "---\nname: example\ndescription: 示例\n---\n正文\n");
 }
@@ -56,7 +56,7 @@ function stage(endpoint) {
   if (r.status !== 0) throw new Error(`render 失败：${r.stderr.slice(-300)}`);
   // 暂存/渲染**共用运行期那一份实现**（run.mjs → core/image/startup.mjs）。
   // 早先这里是自己再渲染一遍、把非端点参数一律换成字面量 "placeholder" ——
-  // 于是模型名成了 "placeholder"，这条自检断言的是"带上了 model 与 route"，自然红。
+  // 于是模型名成了 "placeholder"，这条自检断言的是"带上了 model 与 provider"，自然红。
   // 一份实现、一处改：这是本项目在"两份实现必漂移"上第 N 次交的学费。
   return stageRenderDir(out, endpoint, { zeroCredential: true }).staging;
 }
@@ -119,7 +119,7 @@ const mrA = eventsA.find((e) => e.type === "model.request");
 check("拿到 model.request", !!mrA);
 check("tools 是**真实发出去的工具数**（不是 harness 侧声明）", mrA?.tools === 4, `tools=${mrA?.tools}`);
 check("stream 是**真实的流式标志**", mrA?.stream === true, `stream=${mrA?.stream}`);
-check("带上了 model 与 route", mrA?.model === "corp-think" && mrA?.route === "corp-gateway", JSON.stringify({ m: mrA?.model, r: mrA?.route }));
+check("带上了 model 与 provider", mrA?.model === "corp-think" && mrA?.provider === "corp-gateway", JSON.stringify({ m: mrA?.model, p: mrA?.provider }));
 check("request 失败时留下 model.error（不静默）", eventsA.some((e) => e.type === "model.error") || true);
 check("每个事件都带生效配置摘要", eventsA.length > 0 && eventsA.every((e) => e.effectiveConfigDigest === DIGEST));
 

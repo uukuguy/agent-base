@@ -117,7 +117,7 @@ export function mapEventStream(records, ctx, opts = {}) {
       deltaSeen = false;
       push(rec, {
         type: "model.request",
-        route: rec.message.provider ?? "unknown",
+        provider: rec.message.provider ?? "unknown",
         model: rec.message.model ?? "unknown",
         tools: toolsAddedCount,
         stream: false, // 尚不知；在 message_end 处按是否见到增量块修正
@@ -132,7 +132,7 @@ export function mapEventStream(records, ctx, opts = {}) {
       const t = rec.assistantMessageEvent?.type;
       if (t === "text_delta" || t === "thinking_delta" || t === "toolcall_delta") deltaSeen = true;
       if (t === "error") {
-        push(rec, { type: "model.error", code: String(rec.assistantMessageEvent.reason ?? "PROVIDER_ERROR"), route: currentRequest?.provider ?? "unknown" });
+        push(rec, { type: "model.error", code: String(rec.assistantMessageEvent.reason ?? "PROVIDER_ERROR"), provider: currentRequest?.provider ?? "unknown" });
         stats.mapped++;
         return;
       }

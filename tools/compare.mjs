@@ -68,10 +68,10 @@ function survey(h) {
   return {
     harness: h,
     rendered: true,
-    routeApi: manifest.modelRouteApi ?? null,
+    providerApi: manifest.modelProviderApi ?? null,
     skills: [...(manifest.declaredSkills ?? [])].sort(),
     connectors: (manifest.connectors ?? []).map((c) => c.serverName ?? c.name).filter(Boolean).sort(),
-    routes: [...(manifest.modelRoutes ?? [])].sort(),
+    routes: [...(manifest.modelProviders ?? [])].sort(),
     doctorOk: d.status === 0,
     doctorError: d.status === 0 ? null : (d.stderr ?? d.stdout ?? "").slice(-200),
     connectorsScope: doctor?.doctor?.connectorsObservationScope ?? null,
@@ -108,8 +108,8 @@ for (const [key, label] of fields) {
 }
 
 // ---- 判据 3：路由的协议形状必须一致（否则"同一份定义"其实跑在不同协议上）----
-const apis = [...new Set(rows.filter((r) => r.rendered).map((r) => r.routeApi))];
-if (apis.length > 1) problems.push(`路由协议形状不一致：${rows.map((r) => `${r.harness}=${r.routeApi}`).join(" vs ")}`);
+const apis = [...new Set(rows.filter((r) => r.rendered).map((r) => r.providerApi))];
+if (apis.length > 1) problems.push(`路由协议形状不一致：${rows.map((r) => `${r.harness}=${r.providerApi}`).join(" vs ")}`);
 
 // ---- 已知不等价（来自豁免声明，供读者对照）----
 const asymmetries = harnesses.flatMap((h) => exemptionsOf(h).map((e) => ({ harness: h, id: e.id, scope: e.scope })));
@@ -119,7 +119,7 @@ if (asJson) {
     agent: path.basename(agentDir),
     harnesses,
     compared,
-    routeApis: apis,
+    providerApis: apis,
     asymmetries,
     problems,
     equivalent: problems.length === 0,

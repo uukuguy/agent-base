@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
-// 路由目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/routes.mjs
+// Provider 目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/providers.mjs
 import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -96,7 +96,7 @@ export function envPrefixFor(route) {
 function buildExpresses({ agent, declaredEnhancements, modelParamName, providerName, skillsInProduct, profileOrSettings, modelFile, enhancementsFile }) {
   const e = {
     "persona.instructions": { at: "agent-dir/AGENTS.md", contains: String(agent.persona?.instructions ?? "").trim().slice(0, 24) },
-    // provider 名（或旧名 route）—— 落点仍是模型配置模板
+    // provider 名 —— 落点仍是模型配置模板
     "model.route": { at: modelFile, contains: providerName },
     // model.name 现在是**默认值**（环境属性、运行期可覆盖）⇒ 它的落点是**清单**：
     // 默认值记在 runtimeParams[].default，产物里则是 `${…_MODEL}` 占位。
@@ -172,22 +172,22 @@ function main() {
   const mcpServersCopied = copyTree(path.join(agentDir, "mcp-servers"), path.join(agentOut, "mcp-servers"));
 
   // ---- 4. 模型 → models.json.tmpl（参数下放）----
-  if (!(agent.model?.provider ?? agent.model?.route) || !agent.model?.name) {
+  if (!agent.model?.provider || !agent.model?.name) {
     log("❌ model.provider / model.name 缺失（渲染需要它们推导端点引用名）");
     process.exit(EXIT_CODES.static);
   }
-  const prefix = envPrefixFor(agent.model.provider ?? agent.model.route);
+  const prefix = envPrefixFor(agent.model.provider);
   // 路由必须由基座声明（闸门 1 已校验）；渲染器据此取协议形状并记录到清单
-  // 选 provider：`model.provider` 是通行写法，`model.route` 是它的旧名（同一个东西）
+  // 选供应商：`model.provider`
   const catalog = loadProviders({ agentDir });
-  const providerId = agent.model?.provider ?? agent.model?.route;
+  const providerId = agent.model?.provider;
   const activeRoute = findProvider(catalog, providerId);
   if (!activeRoute) {
     log(`❌ model.provider「${providerId}」不在 provider 目录里（来源：${(catalog.sources ?? []).join(" + ") || "无"}）。`);
     log(`   可用 provider：${(catalog.providers ?? []).map((r) => r.id).join(", ") || "(空)"} —— 用 AGENT_PROVIDERS_FILE 指到你自己的那份，或改这里列出的名字。`);
     process.exit(EXIT_CODES.static);
   }
-  const routeApi = activeRoute.api;
+  const providerApi = activeRoute.api;
 
   // 运行期参数写成 `${NAME}` 占位：**入口脚本在启动期解析**（本 harness 的 models.json 不做 baseUrl 插值）。
   // 模型名同样是占位 —— 它是环境属性（同一份制品在不同环境常要指向不同模型名）；
@@ -199,7 +199,7 @@ function main() {
     providers: {
       [providerId]: {
         baseUrl: `\${${activeRoute.baseUrlParam}}`,
-        api: routeApi,   // 协议形状取自 provider 目录，不硬编码
+        api: providerApi,   // 协议形状取自 provider 目录，不硬编码
         apiKey: `\${${activeRoute.credentialParam}}`,
         models: declaredModels.map((m) => ({ id: m === agent.model.name ? `\${${activeRoute.modelParam}}` : m })),
       },
@@ -326,7 +326,7 @@ function main() {
     { name: activeRoute.credentialParam, secret: true, required: true, backs: "model.provider" },
     {
       name: activeRoute.modelParam, secret: false, required: false,
-      default: agent.model.name, backs: "model.name", validate: "in-route-models",
+      default: agent.model.name, backs: "model.name", validate: "in-provider-models",
     },
   ];
   const manifest = {
@@ -342,17 +342,17 @@ function main() {
     mcpAdapterInImage: MCP_ADAPTER_IN_IMAGE,
     paramNames: connParamNames,
     runArgs,
-    modelRoutes: [providerId],
-    modelRouteApi: routeApi,   // 两个运行时都记录：比对时要求协议形状一致
+    modelProviders: [providerId],
+    modelProviderApi: providerApi,   // 两个运行时都记录：比对时要求协议形状一致
     // 该路由声明的模型名单：启动期校验运行期覆盖的模型名用
-    modelRouteModels: activeRoute.models ?? [],
+    modelProviderModels: activeRoute.models ?? [],
     /**
      * **运行期参数契约**：入口脚本按这份声明解析并注入（不猜名字、不硬编码）。
      *   name      引用名（环境变量名；同名 + `_FILE` 表示"从文件读"，K8s/Docker secret 的标准接法）
      *   secret    true = 日志里必须掩码，且永不写进产物
      *   required  缺了就直接失败（退出码 2），不静默降级、不用别的模型顶替
      *   default   没被注入时的兜底（= 定义里的默认值）
-     *   validate  额外校验：in-route-models = 取值须在 modelRouteModels 内
+     *   validate  额外校验：in-provider-models = 取值须在 modelProviderModels 内
      */
     rendersParams: true,   // 本 harness 的 models.json 不做环境插值 ⇒ 由启动期渲染
     runtimeParams,

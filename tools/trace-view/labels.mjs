@@ -140,13 +140,13 @@ export function describeEvent(event, labels = {}) {
     }
 
     case "model.request": {
-      const custom = lookup(labels, [locator.model(event.route)]);
+      const custom = lookup(labels, [locator.model(event.provider)]);
       return { kind: "model", source: custom ? "business" : "mechanical",
-        label: `${custom ?? `请求模型 ${event.route}/${event.model}`}（携带 ${event.tools} 个工具${event.stream ? "，流式" : ""}）` };
+        label: `${custom ?? `请求模型 ${event.provider}/${event.model}`}（携带 ${event.tools} 个工具${event.stream ? "，流式" : ""}）` };
     }
 
     case "model.error":
-      return { kind: "model", source: "mechanical", label: `模型调用失败（${event.code}，路由 ${event.route}）` };
+      return { kind: "model", source: "mechanical", label: `模型调用失败（${event.code}，路由 ${event.provider}）` };
 
     case "gate": {
       const custom = lookup(labels, [locator.gate(event.name)]);

@@ -41,7 +41,6 @@
 | 字段 | 类型 | 所属层 | 必填 | 取值 | dsh | pi | 说明 |
 |---|---|---|---|---|---|---|---|
 | `model.provider` | string | artifact | 是 | （参数层） | ✅ 支持 | ✅ 支持 | 模型供应商名。基座**内置**了常用供应商（deepseek / openai / corp-gateway …）， 智能体只写名字；端点、凭据引用名、模型名单都来自那份内置目录， 要改就用 `providers.yaml`（放智能体旁边或用 AGENT_PROVIDERS_FILE）覆盖同名条目。 |
-| `model.route` | string | artifact | 否 | — | ✅ 支持 | ✅ 支持 | `model.provider` 的**旧名**（等价）。新定义请写 provider；两者都写时以 provider 为准。 保留它只为不让已写好的定义失效 —— 它不是独立能力，所以不占参数层引用名。 |
 | `model.name` | string | valueRefParameter | 是 | （参数层） | ✅ 支持 | ✅ 支持 | **默认**模型名。属环境属性 —— 同一份制品在不同环境常要指向不同模型名（端点不同、模型目录不同）。 运行期可用 `<供应商前缀>_MODEL` 覆盖；覆盖值须在该 provider 声明的模型名单内，并会记进轨迹。 可配置 ≠ 随便配 ≠ 配了没人知道。 |
 | `model.reasoningEffort` | enum | artifact | 否 | `low` / `medium` / `high` | ✅ 支持（未实测） | unknown（未实测） | 推理强度。harness 不支持时按 exemptions.yaml 处理（§5.4），三种合法处置：等效替代 / 豁免 / 拒绝；禁止静默降级。 |
 
@@ -121,7 +120,7 @@
 | `persona-text` | behavior-content | `persona.instructions` / `persona.instructionsFile` | 人设文本改变行为，必须可评审、可回滚、可签名。 | gates/1,conformance/C8 |
 | `skills-manifest-or-content` | behavior-content | `skillsDir` | 技能是可执行内容（含 skills/<name>/scripts/ 下的业务代码），必须随制品烤入并参与 digest。 | gates/1,conformance/C8 |
 | `connector-enablement` | capability-declaration | `mcpServers[].enabled` / `mcpServers[].name` / `mcpServers[].transport` | 「它能连哪些系统」是能力声明，不是环境差异。同名系统换环境只换端点（见 allowed.connector-endpoint）。 | gates/1,conformance/C8 |
-| `model-provider-selection` | provider-choice | `model.route` / `model.provider` | **选哪家供应商**留在制品层：供应商名决定后面三个引用名（端点 / 凭据 / 模型名）， 是「这份制品连哪家」的身份，不是环境属性。（`model.route` 是 `model.provider` 的旧名） | gates/1,conformance/C8 |
+| `model-provider-selection` | provider-choice | `model.provider` | **选哪家供应商**留在制品层：供应商名决定后面三个引用名（端点 / 凭据 / 模型名）， 是「这份制品连哪家」的身份，不是环境属性。 | gates/1,conformance/C8 |
 | `tool-boundary` | behavior-content | `tools.deny` | 工具白/黑名单是边界，属制品层。 | gates/1,conformance/C8 |
 | `harness-enhancement-content` | behavior-content | `harness/<h>/**` | 业务级增强是行为（§4.5），构建期烤进智能体镜像薄层，随 digest 可复现。 | gates/1,conformance/C8 |
 

@@ -4,5 +4,5 @@ description: 增强重复表达中性定义字段
 persona:
   instructions: 测试
 model:
-  route: corp-gateway
+  provider: corp-gateway
   name: corp-think

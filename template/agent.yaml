@@ -10,9 +10,9 @@ persona:
     你是一个专注、克制的助手。
     只给可以验证的结论；不确定就说不确定，不要编。
 
-# 它用哪个模型。route 是**基座声明的路由名**，不是 URL、不是 provider
+# 它用哪个模型。provider 是**供应商名**（基座内置 deepseek / openai / corp-gateway），不是 URL
 model:
-  route: corp-gateway
+  provider: corp-gateway
   name: corp-think
   # reasoningEffort: medium   # 可选：low | medium | high
 

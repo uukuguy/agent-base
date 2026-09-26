@@ -5,5 +5,5 @@ persona:
   instructions: 内联人设
   instructionsFile: prompts/system.md
 model:
-  route: corp-gateway
+  provider: corp-gateway
   name: corp-think

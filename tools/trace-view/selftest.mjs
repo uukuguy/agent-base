@@ -25,7 +25,7 @@ const check = (name, cond, extra = "") => {
 const base = { ts: "2026-09-25T10:00:00Z", run: "r1", effectiveConfigDigest: `sha256:${"a".repeat(64)}` };
 const events = [
   { ...base, seq: 0, type: "run.meta", mode: "oneshot" },
-  { ...base, seq: 1, type: "model.request", route: "corp-gateway", model: "corp-think", tools: 4, stream: true },
+  { ...base, seq: 1, type: "model.request", provider: "corp-gateway", model: "corp-think", tools: 4, stream: true },
   { ...base, seq: 2, type: "tool.call", callId: "c1", tool: "mcp__jira__get_issue", inputDigest: `sha256:${"b".repeat(64)}`, decision: "allow", biz: { "contract.id": "C-1024" } },
   { ...base, seq: 3, type: "tool.result", callId: "c1", tool: "mcp__jira__get_issue", ok: true, ms: 840, msIsEstimated: true },
   { ...base, seq: 4, type: "biz.event", namespace: "contract", level: "warn", message: "金额超阈值，转法务复核", data: { clause: "7.2" } },

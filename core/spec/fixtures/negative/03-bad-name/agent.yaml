@@ -4,5 +4,5 @@ description: 命名不合规
 persona:
   instructions: 测试
 model:
-  route: corp-gateway
+  provider: corp-gateway
   name: corp-think

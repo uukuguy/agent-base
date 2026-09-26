@@ -420,7 +420,7 @@ const pos = args.find((a, i) => !a.startsWith("--") && i !== args.indexOf("--out
 | 检查 | 作用 |
 |---|---|
 | `resolution/patch-targets` | **D1 的唯一防线**：patch 的每个 target id 必须出现在组合树里。该 harness 对"目标不存在"**只打警告、退出码 0**，所以这条是基座在替上游报它不报的错 |
-| `resolution/model-routes` | 实际生效的模型来自本次渲染产物，不是宿主配置 |
+| `resolution/model-providers` | 实际生效的模型来自本次渲染产物，不是宿主配置 |
 | `resolution/skills-set` | 硬断言 1（口径：已配置且就位 —— 见下"不对称"） |
 | `resolution/connectors-set` | 硬断言 2（只认 `dsh-mcp-client` 行；`mcp-resources` 是 base 自带的，不是业务连接器） |
 | `resolution/enhancements-set` | 硬断言 3（**这边是真观测**：组合树列出全部 row） |

@@ -26,7 +26,7 @@ apiVersion: agent-base/v1
 #   · 智能体自带：把 `providers.yaml` 放在 agent.yaml 旁边
 #   · 同名 id **合并覆盖**（你只需写要改的字段），新 id 追加
 #
-# 模型名会随供应商更新：`make routes-init ENDPOINT=… ` 可以问出真实名单，
+# 模型名会随供应商更新：`make providers-init ENDPOINT=… ` 可以问出真实名单，
 # 或直接在本文件/你的 providers.yaml 里改 `models`。
 # ============================================================================
 

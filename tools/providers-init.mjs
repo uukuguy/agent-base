@@ -14,8 +14,8 @@
 // 所以这条路径可以离线自测）。返回体依次尝试几种常见形状：
 //   { data: [{ id }] } · { models: [{ name | id }] } · ["a","b"]
 //
-// 输出：默认写到 `--out`；没给就看 `AGENT_ROUTES_FILE`；再没有就写 `./providers.yaml`。
-// 写出来的那份用 `AGENT_ROUTES_FILE=<路径>` 指给基座即可 —— **不需要改基座代码**。
+// 输出：默认写到 `--out`；没给就看 `AGENT_PROVIDERS_FILE`；再没有就写 `./providers.yaml`。
+// 写出来的那份用 `AGENT_PROVIDERS_FILE=<路径>` 指给基座即可（或直接放在智能体旁边）—— **不需要改基座代码**。
 // ============================================================================
 
 import fs from "node:fs";

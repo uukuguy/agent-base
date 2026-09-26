@@ -29,7 +29,7 @@ const check = (name, cond, extra = "") => {
 function makeAgent(dir) {
   fs.mkdirSync(path.join(dir, "skills", "scratch"), { recursive: true });
   fs.writeFileSync(path.join(dir, "agent.yaml"),
-    "apiVersion: agent-base/v1\nname: local-check\ndescription: 本地运行入口验证\npersona: { instructions: 测试。 }\nmodel: { route: corp-gateway, name: corp-think }\n");
+    "apiVersion: agent-base/v1\nname: local-check\ndescription: 本地运行入口验证\npersona: { instructions: 测试。 }\nmodel: { provider: corp-gateway, name: corp-think }\n");
   fs.writeFileSync(path.join(dir, "connectors.yaml"), "apiVersion: agent-base/v1\nmcpServers: []\n");
   fs.writeFileSync(path.join(dir, "skills/scratch/SKILL.md"), "---\nname: scratch\ndescription: 示例技能\n---\n正文\n");
 }

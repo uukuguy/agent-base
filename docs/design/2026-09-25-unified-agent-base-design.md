@@ -777,7 +777,7 @@ pi 的示例（来自 pi 约束 1/3）：
 | `skills[]` | 对治"隐式加载源关不掉"（pi 约束 3/4）与"技能没加载" |
 | `connectors[]` | 对治"工具没出现但静默降级"（dsh `failOnStartupError: false`） |
 | `enhancements[]` | 对治"业务级增强静默没加载"（§4.5）——这是企业智能体的**常态**需求，不是边缘情况 |
-| `modelRoutes[]` | 对治"路由名写错只在请求时暴露"（dsh `MISSING_CREDENTIAL`） |
+| `modelProviders[]` | 对治"路由名写错只在请求时暴露"（dsh `MISSING_CREDENTIAL`） |
 | `effectiveConfigDigest` | 可复现性的载体（§6.7） |
 
 **三条硬断言**（所有 harness 相同）：

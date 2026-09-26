@@ -58,7 +58,7 @@ function makeAgent() {
     "  instructions: |",
     "    你是自检用的智能体。",
     "model:",
-    "  route: corp-gateway",
+    "  provider: corp-gateway",
     "  name: corp-think",
     "connectorsFile: connectors.yaml",
     "",
@@ -97,11 +97,11 @@ if (r0.status !== 0) { process.stdout.write("\n启动期准备自检：前置失
 
 const manifest = JSON.parse(fs.readFileSync(path.join(artifact, "render-manifest.json"), "utf8"));
 const declared = manifest.runtimeParams ?? [];
-const endpointParam = declared.find((p) => (p.backs === "model.provider" || p.backs === "model.route") && !p.secret) ?? {};
+const endpointParam = declared.find((p) => p.backs === "model.provider" && !p.secret) ?? {};
 const secretParam = declared.find((p) => p.secret === true)?.name;
-const modelParam = declared.find((p) => p.validate === "in-route-models") ?? {};
+const modelParam = declared.find((p) => p.validate === "in-provider-models") ?? {};
 const defaultModel = modelParam.default;
-const models = manifest.modelRouteModels ?? [];
+const models = manifest.modelProviderModels ?? [];
 
 const rendersParams = manifest.rendersParams === true;   // 该运行时是否需要启动期渲染（能力差异）
 const work = fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-work-"));

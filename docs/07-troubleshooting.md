@@ -79,7 +79,7 @@
 |---|---|---|
 | §6.7 报告 | `make verify AGENT_DIR=… JSON=1` | 四道闸门的逐条结论 + `usable` |
 | 渲染清单 | `<render>/render-manifest.json` | 产物摘要、声明的技能/连接器/增强、**`expresses`（每个定义字段落在产物哪里）** |
-| 自证输出 | `make doctor RENDER_DIR=… JSON=1` | 七个字段：harness/version、definitionPath、skills、connectors、enhancements、modelRoutes、effectiveConfigDigest |
+| 自证输出 | `make doctor RENDER_DIR=… JSON=1` | 七个字段：harness/version、definitionPath、skills、connectors、enhancements、modelProviders、effectiveConfigDigest |
 | 统一轨迹 | 运行期轨迹文件（JSONL） | 8 类事件；未映射的原生事件进 `native.raw`（**不许丢弃**） |
 | 业务可读时间轴 | `node tools/trace-view/labels.mjs <AGENT_DIR> --timeline <轨迹>` | 按业务标签表把机械轨迹渲染成业务语言 |
 | 容器内诊断 shell | `make debug RENDER_DIR=…` | 复现"只在容器里出现"的问题（生产镜像会明确拒绝调试模式） |

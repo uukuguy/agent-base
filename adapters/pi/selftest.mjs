@@ -36,7 +36,7 @@ function makeAgent(dir, { thinkingLevel } = {}) {
     `name: ${path.basename(dir).toLowerCase().replace(/[^a-z0-9-]/g, "-")}`,
     "description: 适配器自检用",
     "persona: { instructions: 只给可验证的结论。 }",
-    `model: { route: corp-gateway, name: corp-think${thinkingLevel ? `, reasoningEffort: ${thinkingLevel}` : ""} }`,
+    `model: { provider: corp-gateway, name: corp-think${thinkingLevel ? `, reasoningEffort: ${thinkingLevel}` : ""} }`,
     "tools: { deny: [bash] }",
     "",
   ].join("\n"));
@@ -72,7 +72,7 @@ const doc = run(["adapters/pi/doctor.mjs", path.join(tmp, "out-a"), "--json"]);
 check("doctor 退出码 0", doc.status === 0, doc.stderr?.slice(-500));
 let payload = {};
 try { payload = JSON.parse(doc.stdout || "{}"); } catch { /* 下面会报 */ }
-const seven = ["harness", "version", "definitionPath", "skills", "connectors", "enhancements", "modelRoutes", "effectiveConfigDigest"];
+const seven = ["harness", "version", "definitionPath", "skills", "connectors", "enhancements", "modelProviders", "effectiveConfigDigest"];
 check("doctor 输出七个必含字段", seven.every((k) => k in (payload.doctor ?? {})), Object.keys(payload.doctor ?? {}).join(","));
 check("skills 是实际加载的集合（== 声明）", JSON.stringify(payload.doctor?.skills) === '["example"]', JSON.stringify(payload.doctor?.skills));
 check("三条硬断言全部通过",

@@ -63,7 +63,7 @@ BASE=$(node tools/fake-gateway/server.mjs --port 0 2>/dev/null & echo $!)
 |---|---|
 | `--port <n>` | 监听端口，`0` = 自动分配空闲端口（默认 `0`） |
 | `--host <addr>` | 监听地址，默认 `127.0.0.1`（零凭据服务不对外暴露） |
-| `--route <name>` | 轨迹里的 `model.route`，默认 `fake-gateway` |
+| `--provider <name>` | 轨迹里的 `provider`，默认 `fake-gateway` |
 | `--model <name>` | `/v1/models` 暴露的模型名，默认 `fake-model` |
 | `--no-trace` | 不产轨迹 |
 | `--help` | 帮助（退出码 0） |
@@ -87,7 +87,7 @@ await startFakeGateway({
   port: 0,                 // 0 = 空闲端口
   trace: true,             // false = 完全不产轨迹（traceLines 保持空）
   host: "127.0.0.1",
-  route: "corp-gateway",   // 缺省取 FAKE_GATEWAY_ROUTE，再缺省 "fake-gateway"
+  route: "corp-gateway",   // 缺省取 FAKE_GATEWAY_PROVIDER，再缺省 "fake-gateway"
   model: "corp-think",     // 缺省取 FAKE_GATEWAY_MODEL，再缺省 "fake-model"
   traceDest: "stderr",     // 缺省取 AGENT_TRACE_DEST，再缺省 "stderr"；可给文件路径
   env: process.env,        // 轨迹上下文来源（便于测试注入）
@@ -168,14 +168,14 @@ CI 里依赖外部系统：上游网关抖动、key 过期、配额耗尽都会�
 | `AGENT_RUN_ID` | 随机 uuid（随机量只进轨迹，绝不进响应体） |
 | `AGENT_NAME` / `HARNESS` / `HARNESS_VERSION` | 不带（未知就不写，不编造） |
 | `AGENT_TRACE_DEST` | `stderr`；给文件路径则改为追加写入该文件 |
-| `FAKE_GATEWAY_ROUTE` / `FAKE_GATEWAY_MODEL` | `fake-gateway` / `fake-model` |
+| `FAKE_GATEWAY_PROVIDER` / `FAKE_GATEWAY_MODEL` | `fake-gateway` / `fake-model` |
 
 **写轨迹绝不会影响 HTTP 响应**：所有轨迹 I/O 都裹在 `try/catch` 里，写失败只丢一条审计。
 否则一个 stderr 被打满的容器会把"审计故障"伪装成"探针失败"，正是 §6.4 要防的那类误判。
 
 ### 唯一的请求头扩展
 
-`x-fake-gateway-route: <route>` 覆盖**本次调用**的 `model.route`。
+`x-fake-gateway-provider: <route>` 覆盖**本次调用**的 `provider`。
 用途：闸门 3 正在断言某条路由时，能让轨迹里的 `route` 与它在断言的那条对齐，
 从而把「我探的是哪条路由」也写进审计。不传则用服务级 `route`。
 

@@ -11,8 +11,8 @@
 // 这样协议可以脱离 socket 被单测，server.mjs 也可以换任何传输。
 //
 // 请求头扩展（唯一一个，文档在 README）：
-//   x-fake-gateway-route: <route>   —— 覆盖本次调用的 model.route，
-//   让闸门 3 能把轨迹里的 route 对齐到自己正在断言的那条路由。
+//   x-fake-gateway-provider: <name>   —— 覆盖本次调用记录的供应商名，
+//   让闸门 3 能把轨迹里的 provider 对齐到自己正在断言的那家供应商。
 // ============================================================================
 
 import {
@@ -57,7 +57,7 @@ export function parseChatCompletionRequest(body, headers = {}) {
     messages: body.messages,
     tools: body.tools,
     stream: body.stream,
-    route: headerValue(headers, "x-fake-gateway-route") ?? undefined,
+    provider: headerValue(headers, "x-fake-gateway-provider") ?? undefined,
   };
 }
 
@@ -75,7 +75,7 @@ export function parseChatCompletionRequest(body, headers = {}) {
 export function observabilityMeta(normalized, result) {
   return {
     protocol: PROTOCOL_ID,
-    route: normalized.route,
+    provider: normalized.provider,
     model: normalized.model,
     tools: normalized.tools.length,
     stream: normalized.stream,
@@ -88,7 +88,7 @@ export function observabilityMeta(normalized, result) {
 export function observabilityHeaders(normalized, result) {
   return {
     "x-fake-gateway-protocol": PROTOCOL_ID,
-    "x-fake-gateway-route": normalized.route,
+    "x-fake-gateway-provider": normalized.provider,
     "x-fake-gateway-model": normalized.model,
     "x-fake-gateway-tools": String(normalized.tools.length),
     "x-fake-gateway-stream": String(normalized.stream),

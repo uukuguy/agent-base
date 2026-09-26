@@ -11,10 +11,10 @@
 //
 // ## 解析顺序（固定，唯一实现）
 //
-//   ① `AGENT_ROUTES_FILE=/path/to/routes.yaml`   —— 显式指定（最明确）
-//   ② `AGENT_CATALOG_DIR=/dir`                    —— 目录形式，取 `/dir/routes.yaml`
-//   ③ `<智能体目录>/routes.yaml`                   —— 智能体自带的那份（"就放旁边"，最直觉）
-//   ④ 基座内置 `core/catalog/routes.yaml`          —— 默认，配合自带假网关
+//   ① `AGENT_PROVIDERS_FILE=/path/to/providers.yaml` —— 显式指定（最明确）
+//   ② `AGENT_CATALOG_DIR=/dir`                      —— 目录形式，取 `/dir/providers.yaml`
+//   ③ `<智能体目录>/providers.yaml`                 —— 智能体自带的那份（「就放旁边」，最直觉）
+//   ④ 基座内置 `core/catalog/providers.yaml`        —— 常用供应商，开箱能用
 //
 // **设置了①②却没读到文件 ⇒ 报错，不静默回退到内置** —— 否则"我明明配了"与
 // "系统其实在用内置"会同时成立，是最难查的一类问题。
@@ -34,9 +34,9 @@ export const BUILTIN_PROVIDERS_PATH = path.join(HERE, "providers.yaml");
 // Provider（供应商）—— 比"provider"更通行的说法，且**内置常用供应商**
 //
 // 解析顺序（与provider 目录同一条链，只是多了一层"内置 provider 作为基础层"）：
-//   ① `AGENT_PROVIDERS_FILE` / `AGENT_ROUTES_FILE`（显式文件）
-//   ② `AGENT_CATALOG_DIR` 下的 providers.yaml / routes.yaml
-//   ③ `<智能体目录>/providers.yaml`（或 routes.yaml）
+//   ① `AGENT_PROVIDERS_FILE`（显式文件）
+//   ② `AGENT_CATALOG_DIR` 下的 providers.yaml
+//   ③ `<智能体目录>/providers.yaml`
 //   ④ 基座内置 providers.yaml ← **基础层**：上面各层按 id **合并覆盖**它
 //
 // 于是：智能体写 `model.provider: deepseek` 就够；要改端点/模型名，只在自己的
@@ -93,11 +93,8 @@ export function loadProviders({ env = process.env, agentDir = null } = {}) {
 
   // 覆盖层：显式文件 > 目录 > 智能体自带（与provider 目录同一条链）
   const candidates = [];
-  const explicit = env.AGENT_PROVIDERS_FILE ?? env.AGENT_ROUTES_FILE ?? null;
-  if (explicit) {
-    const what = env.AGENT_PROVIDERS_FILE ? "AGENT_PROVIDERS_FILE" : "AGENT_ROUTES_FILE（旧名，建议改用 AGENT_PROVIDERS_FILE）";
-    candidates.push({ file: path.resolve(explicit), explicit: true, what });
-  }
+  const explicit = env.AGENT_PROVIDERS_FILE ?? null;
+  if (explicit) candidates.push({ file: path.resolve(explicit), explicit: true, what: "AGENT_PROVIDERS_FILE" });
   if (env.AGENT_CATALOG_DIR) {
     const dir = path.resolve(env.AGENT_CATALOG_DIR);
     candidates.push({ file: path.join(dir, "providers.yaml"), what: "AGENT_CATALOG_DIR" });

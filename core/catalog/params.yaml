@@ -154,10 +154,10 @@ forbidden:
   - id: model-provider-selection
     kind: provider-choice
     pattern: "^AGENT_MODEL_.*$"
-    definitionPaths: ["model.route", "model.provider"]
+    definitionPaths: ["model.provider"]
     reason: >
       **选哪家供应商**留在制品层：供应商名决定后面三个引用名（端点 / 凭据 / 模型名），
-      是「这份制品连哪家」的身份，不是环境属性。（`model.route` 是 `model.provider` 的旧名）
+      是「这份制品连哪家」的身份，不是环境属性。
     note: >
       与 `model-name` 的分工 —— 早期这里把 `model.name` 也一并禁掉了，那是**判据用粗了**：
       端点与模型名在实际部署里是绑在一起的（内网网关只服务它有的那几个模型），

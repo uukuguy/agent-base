@@ -27,7 +27,7 @@ import { TraceWriter, digestOf } from "./_trace-emit.mjs";
 
 const DIGEST = process.env.AGENT_EFFECTIVE_CONFIG_DIGEST ?? "";
 const DIGEST_OK = /^sha256:[0-9a-f]{64}$/.test(DIGEST);
-const ROUTE = process.env.AGENT_MODEL_ROUTE ?? undefined;
+const PROVIDER = process.env.AGENT_MODEL_ROUTE ?? undefined;
 const CONTENT_MODE = process.env.AGENT_TRACE_CONTENT === "full" ? "full" : "digest";
 const RUN_MODE = process.env.AGENT_RUN_MODE ?? "oneshot";
 const RUN_ID = process.env.AGENT_RUN_ID ?? `run-${Date.now()}`;
@@ -85,7 +85,7 @@ export default function (pi) {
       tools,
       stream,
       ...(typeof p.model === "string" ? { model: p.model } : {}),
-      ...(ROUTE ? { route: ROUTE } : {}),
+      ...(PROVIDER ? { provider: PROVIDER } : {}),
     });
   }));
 
@@ -102,7 +102,7 @@ export default function (pi) {
       writer.write({
         type: "model.error",
         code: "GATEWAY_REQUEST_ALTERED",
-        route: ROUTE ?? "unknown",
+        provider: PROVIDER ?? "unknown",
         message: `发出 tools=${lastSent.tools} stream=${lastSent.stream}，响应头回显 tools=${echoedTools} stream=${echoedStream}`,
       });
     }

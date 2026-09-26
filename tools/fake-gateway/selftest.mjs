@@ -149,7 +149,7 @@ async function main() {
   {
     const { normalized, result } = handleNormalizedRequest(
       { model: "fake-model", messages: [{ role: "user", content: "ping" }] },
-      { route: "fake-gateway" },
+      { provider: "fake-gateway" },
     );
     const pureBody = JSON.stringify(openai.serializeChatCompletion(normalized, result));
     check("parity/non-stream", pureBody === firstBody,
@@ -157,7 +157,7 @@ async function main() {
 
     const streamed = handleNormalizedRequest(
       { model: "fake-model", messages: [{ role: "user", content: "ping" }], stream: true },
-      { route: "fake-gateway" },
+      { provider: "fake-gateway" },
     );
     const pureStream = openai.serializeChatCompletionStreamText(streamed.normalized, streamed.result);
     check("parity/stream", pureStream === streamTexts[0],

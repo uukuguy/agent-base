@@ -252,4 +252,7 @@
 - 10:55 统一：**routes 概念取消**，只留 provider。一个概念（供应商）· 一个文件（providers.yaml）· 一个字段（model.provider，旧名 route 仍收但不再占参数层引用名）。模块 routes.mjs→providers.mjs、内置 routes.yaml 删除、参数项 route-* 删除、工具与 Makefile 目标 routes-*→providers-*、自检重写为 providers-selftest（19 项）
 - 10:55 覆盖层读不到时**不再把内置列表交给上层**（否则"我以为用自己那份、其实用内置"又是静默回退）
 - 10:55 又两次自己造的回归被门槛抓住：删了 describeSource 但两个渲染器还在 import（渲染全崩）；C1 因为我把 modelApis 塞进 capabilities（那是枚举项，而它是字符串列表）→ 已挪到适配器顶层并写进契约
+- 11:34 用户："route 废除的话就不要再旧名了" → `model.route` 彻底移除（写它会被闸门 1 拦下并给迁移提示），`AGENT_ROUTES_FILE` 一并移除，`in-route-models` 校验名改 `in-provider-models`
+- 11:34 顺着把**轨迹事件字段** route→provider（统一轨迹 schema / 假网关 --provider 与 FAKE_GATEWAY_PROVIDER / x-fake-gateway-provider 头 / 轨迹视图 / 产物清单 modelRoutes→modelProviders），全项目一种说法
+- 11:34 自己造的三次回归都被门槛抓住：假网关改名只做了一半（provider: normalized.route）、DEFAULT_ROUTE 漏改、脚手架与 11 个样例 fixture 还在写 route
 

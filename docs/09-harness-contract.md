@@ -77,7 +77,7 @@ node adapters/<h>/run-local.mjs …   # 由 tools/run-local.mjs 按 --harness �
 ## 五、`doctor` 的七个字段（闸门 2 的输出契约）
 
 `harness` · `version` · `definitionPath` · `skills` · `connectors` · `enhancements` ·
-`modelRoutes` · `effectiveConfigDigest`
+`modelProviders` · `effectiveConfigDigest`
 
 外加**三条硬断言**（不是"报告一下"，是**必须成立**）：
 
