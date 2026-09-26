@@ -1,18 +1,18 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-26 23:5x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-27 00:2x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
 
-1. **阶段一闭合**（§1.1 的第 1 阶段，全部有证据）：**A1 + V2**（`make verify-plan` / `make project-info` / 会话内 `/project plan`，一份逻辑两个出口）· **E1b**（接入缝的钩子事件名也进判据）· **Q1 + Q2**（`make env-check`：本地预检 + 未声明的环境差异 ⇒ 红），并把环境结论并进 `verify --json` 的 `environment`
-2. **下一个具体动作**：阶段二（L3 关键路径）**A2 受控容器验证入口** —— 只接受"项目 + harness + arch"，绑定面由基座生成（项目只读、基座工具链来自镜像、socket/privileged/`-v /` 一律拒绝），复用镜像自带的 agent-only `verify`；紧接着 A3（`image` 摘要 + `covered`）/ A4（失败归因）/ A5（无人值守端到端）
+1. **阶段一闭合 + 阶段二过半**：阶段一 = **A1 + V2**（`make verify-plan` / `make project-info` / `/project plan`）· **E1b**（接入缝事件名）· **Q1 + Q2**（`make env-check`）；阶段二 = **A2 受控容器验证入口**（`make verify-container`：绑定面恰好两处只读、网络 none、根只读、能力全丢、docker 参数不可追加，真跑容器内四道闸门全过）+ **A3 出处与覆盖**
+2. **下一个具体动作**：**A4 失败归因**（真缺陷 / 已声明环境差异 / 容器专有断言失败 / unknown —— 最后一类必须响亮上报），然后 **A5 无人值守端到端判据**、**A6 把受控入口接成需审批的工具**（审批事件进统一轨迹）
 3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**
 
 ## Where things stand
 
-- **全绿**：**17 个自检** · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
-- Makefile **44 个目标**（无 `NOT_YET` 桩）；本轮新增 `project-info` / `verify-plan` / `project-info-selftest` / `env-check` / `env-check-selftest`
+- **全绿**：**18 项回归自检**（17 个 `*-selftest` + `validate`）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
+- Makefile **46 个目标**（无 `NOT_YET` 桩）；新增 `project-info` / `verify-plan` / `env-check` / **`verify-container`** 及各自自检
 - 本轮提交（都在本地，无远端）：`ef9c92d`（A1+V2）· `487ea2f`（E1b）· 环境一致性若干（Q1/Q2）
 - 记忆层可用（`mnemon` 0.2.9 + Memory Space `default` 已激活，满时自动归档）
 

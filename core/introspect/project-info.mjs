@@ -344,8 +344,9 @@ export function verifyPlan(facts, opts = {}) {
       label: c.label,
       why: c.why,
       checks: c.checks,
+      // 受控入口（§30 A2）：绑定面由基座生成 —— 计划里指向它，而不是让人手敲 docker
       cmd: c.id === "in-image-verify"
-        ? `docker run --rm --network none -v ${renderDir}:/opt/agent-base/artifact:ro -e HARNESS=${harness} <镜像> verify`
+        ? `make verify-container AGENT_DIR=${agentDir} HARNESS=${harness}（或先看参数：DRY=1）`
         : `make conformance HARNESS=${harness}`,
     })),
     // 本次**没覆盖**的：在宿主上跑时，上面那些就是没覆盖的（如实列出，不假装通过）

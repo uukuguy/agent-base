@@ -7,7 +7,7 @@
 - Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **L3 阶段二**（§30 A2 受控容器入口 → A3 出处与覆盖 → A4 失败归因 → A5 无人值守判据）；阶段一（A1 + V2 + E1b + Q1 + Q2）已闭合
+- Active work package: **L3 阶段二余项 = A4 失败归因 → A5 无人值守判据 → A6 受控入口接成需审批工具**；已完成：阶段一（A1/V2/E1b/Q1/Q2）+ A2 受控容器入口 + A3 出处与覆盖
 
 ## Current Architecture
 
@@ -76,7 +76,7 @@
 
 `core/`（91 文件）· `adapters/{pi,dsh}/`（24）· `tools/`（23）· `conformance/`（9）· `template/`（6）·
 `docs/`（16 篇 + `design/`、`plans/`、`status/`）；`dist/` 是构建产物（已 gitignore）。
-**Makefile 44 个目标全部已实现**（无 `NOT_YET` 桩；17 个自检目标）。
+**Makefile 46 个目标全部已实现**（无 `NOT_YET` 桩；17 个 `*-selftest` 目标，回归循环里连 `validate` 共 18 项）。
 
 ### 契约与检查（近期收紧，均带负例）
 
@@ -95,7 +95,7 @@
 
 ## Open Problems (theme-level)
 
-- **L3 阶段二未做**：受控容器验证入口（A2）· 结论的 `image` 摘要与 `covered` 清单（A3 余下）· 失败归因三分类（A4）· 无人值守端到端判据（A5）
+- **L3 阶段二**：受控容器验证入口（A2）与出处/覆盖（A3）已完成；**剩失败归因三分类（A4）· 无人值守端到端判据（A5）· 把受控入口接成需审批的工具（A6）**
 - **只有宿主侧的结论**：`verify --json` 已带 `environment.where` 与 `notCoveredHere`，但**交付口径尚未强制"容器内自证为准"**（§28 Q3 = §30 A3）
 - **钩子只能证明"发射路径在工作"**：逐条自证（每个声明的钩子都留痕）未做（§23 E2b）
 - **dsh 侧事件集合未穷举**：`hookEvents.enumerated: false` ⇒ 那边写钩子只能标「未验证」，没有名字层面的判据
@@ -144,6 +144,7 @@
 
 - `Makefile` —— 全部命令的唯一边界（38 个目标，全部已实现）
 - `tools/{validate,probe,smoke,verify}.mjs` —— 闸门 1/3/4 与四道闸门编排
+- `tools/verify-container.mjs` —— **受控容器验证入口**（docker 参数全由基座生成、调用方不能追加：绑定面=当前项目只读、网络 none、根只读、能力全丢；`DRY=1` 可审阅）
 - `tools/project-info.mjs` —— **项目自省的命令行出口**（与会话内 `/project` 共用 `core/introspect/` 的同一份逻辑）；`--plan` 给验证计划
 - `core/introspect/{project-info,_container-only}.mjs` —— 自省与"只能在容器验"的**声明**（后者被自检盯着与 C9 实现一致）
 - `tools/{dev-env,run-local}.mjs` —— 本地开发环境（按 pin 对齐版本；临时 HOME 跑制品；复用前校验定义摘要）

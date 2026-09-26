@@ -113,6 +113,8 @@ report.gates = collected;
     report.environment = {
       where: envDoc.where,
       ok: envDoc.ok,
+      // 本次**覆盖**了什么（宿主侧的四道闸门）；`notCoveredHere` 是本地做不到的（容器专有断言）
+      covered: ["static", "resolution", "probes", "smoke"],
       declared: envDoc.declared ?? [],
       undeclared: envDoc.undeclared ?? [],
       notCoveredHere: (envDoc.notCoveredHere ?? []).map((c) => c.id),

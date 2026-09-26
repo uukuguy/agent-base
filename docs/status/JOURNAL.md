@@ -373,3 +373,7 @@
 - 00:18 **阶段一闭合**（§1.1 第 1 阶段）：A1+V2（`make verify-plan` / `make project-info` / `/project plan`，一份逻辑两个出口）· E1b（接入缝事件名，启动期响亮失败）· Q1+Q2（`make env-check` 本地预检 + 未声明差异 ⇒ 红），并把环境结论并进 `verify --json` 的 `environment{where,ok,declared,undeclared,notCoveredHere,unprecheckable}`
 - 00:18 阶段边界状态对齐（用户要求大阶段边界走 project-state update）：CURRENT-STATE 刷新主题焦点（→ L3 环境与验证权威性）、活跃工作包（→ L3 阶段二）、Makefile 39→44 目标/17 自检；剔除已解决的开放问题（接入缝事件名）；RESUME 重写为活动会话检查点。**注意：`handoff` 需要用户评审，本轮不伪造 —— 会话真结束时再写**
 - 00:18 阶段一回归证据：**17 个自检全绿** · 两侧 conformance **10/10** · `examples-check` · `walkthrough`（20/1/0）
+- 00:30 **A2 受控容器验证入口完成**：`make verify-container AGENT_DIR=… [ARCH=…] [DRY=1] [JSON=1]`。**受控是可验证的**（自检 30+ 项）：旗标表封闭（`--privileged` / `-v /:/host` / `--mount src=/` / `--net host` 全拒，含"单横线旗标混成位置参数"这条）；绑定面**恰好两处只读**、落点固定；网络 none · 根只读 · `/tmp` 才可写 · `--cap-drop ALL` · `no-new-privileges` · 生产变体镜像；符号链接项目 / 无 agent.yaml / `/` / 家目录 / 仓库根一律拒绝
+- 00:30 A2 真跑证据：容器内**闸门 1（agent-only）+ 2 + 3 + 4 全过**，离线零凭据；输出 `where=container` + 镜像摘要 + `covered`/`notCovered`（安全下限/双架构/同源如实标未覆盖）。**A3 随之完成**：宿主侧 `verify --json` 也带 `covered`+`where=host`
+- 00:30 A2 踩的两个真问题：① **macOS `/var`→`/private/var`** 让"realpath ≠ resolve"判定把**所有临时目录**误杀 ⇒ 判据改成"只拦输入路径**本身**是符号链接"，实际挂 realpath；② **单横线旗标（`-v`）会被当成位置参数**混过旗标白名单 ⇒ 多位置参数一律拒（这条正是"受控"的漏口）
+- 00:30 新增 **A6**（A2 的第 ⑤ 条拆出来）：把受控入口接成"需审批的工具"，审批事件进统一轨迹 —— 不因此给 AI 任意 docker 权限。回归：**18 项自检全绿** · 两侧 conformance 10/10 · examples-check 绿；Makefile 44→46 目标
