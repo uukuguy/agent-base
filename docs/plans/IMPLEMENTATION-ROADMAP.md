@@ -951,3 +951,46 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 | V2 | **同一份数据、两个出口**：`make`/CLI 侧也能打印同一份项目自省（CI 与容器里可用），与 V1 **共用同一实现**，不写第二份文案 | 两侧输出同源（改一处两处都变）；不得出现两份平行实现 | V1 | `pending` |
 | V3 | **dsh 侧的等价入口**（dsh 有自己的命令/服务形态；装载方式不同属正常） | dsh 会话里同样能查；做不到就**显式声明做不到**并写进 `exemptions.yaml`（不假装等价） | V1 | `pending` |
 
+
+---
+
+## 27. 开箱可用的编码起步包（2026-09-26 登记，**用户提出**）
+
+> 来源：用户指出 —— 镜像里的 pi/dsh 是"裸的"，而 `run-local` 进交互后其实已经具备**直接做
+> AI Coding** 的条件；如果基座镜像能带上常用的编程相关 skills / plugins / MCP，会非常好用。
+>
+> **先说结论：这件事的机制基座早就有了**（`core/image/preinstall.yaml` 就是"基座的能力目录"，
+> 带 `namedReferences` ⇒ 开发者只写 `ref: git`，不必知道包名/版本/参数；锁文件已装
+> **npm 12 + apt 6**，含 git / ripgrep / jq / filesystem / repomix / playwright /
+> chrome-devtools / inspector / context7 等）。缺的是**三处**，不是从零设计。
+
+### 27.1 三处缺口（实测评据）
+
+| # | 缺口 | 实测证据 | 性质 |
+|---|---|---|---|
+| **D9** | **模板默认子集是空头承诺** | `preinstall.yaml` 注释写着「模板（S3）会默认启用一个开发常用子集，让 `new-agent` 之后立刻能 `verify`（N4 开箱可跑）」，而 `template/connectors.yaml` 实测是 `mcpServers: []`（只有注释示例）⇒ 新智能体拿到的仍是"裸"环境 | **缺陷**（与本轮已收口 8 处同类：文档说有、实现没有） |
+| **C1** | **技能（skills）落盘数 = 0** | 锁文件统计 `npm 12 · apt 6 · 技能 0`；3 条编码技能仍是 `planned`：`skill-code-navigation` / `skill-debugging` / `skill-verification` | **缺口**（用户"裸"的感受主要在轴上） |
+| **C2** | **"插件/扩展"这一轴没有预装类目** | `preinstall.yaml` 分类只有 reference / memory-reasoning / dev-debug / browser / docs-research / skills；**没有 pi packages 或 dsh 插件**这一类 ⇒ 用户提到的 plugins 今天无处声明 | **缺口**（新轴） |
+
+### 27.2 设计后果（必须先定，否则一做就红）
+
+- **基座提供的技能进产物会撞闸门 2**：硬断言 1 是「实际加载的技能集合 == 声明集合」。
+  基座技能若直接塞进产物 `skills/` 而不进"声明"，**每个智能体的闸门 2 都会红**。
+  ⇒ 处理方式应与基座不变量增强一致：基座技能也**进声明**（渲染器合并 seed 技能 ∪ 智能体技能，
+  写进产物清单），闸门 2 的断言才继续有意义。
+- **"装了 ≠ 启用"这条理由仍然成立**：工具描述每次请求都要读，连得越多模型越选不准；
+  闸门 2 的断言集只含 enabled 的连接器 ⇒ 默认全开会让断言失去意义。
+  所以：**预装（能力）与默认启用（选择）是两件事**（P-a 能力/选择分离）。
+
+### 27.3 项
+
+| # | 项 | 判据（什么算做完） | 依赖 | 状态 |
+|---|---|---|---|---|
+| C3 | **兑现模板默认子集（D9）**：`template/connectors.yaml` 默认启用一个"开发常用子集"（不得写死包名/版本 —— 只用 `ref:`），使 `new-agent` → `verify` → `run-local` 立刻具备编码条件 | ① `make new-agent-selftest` 全绿（含四道闸门、且闸门 2 的"已启用连接器集合"断言仍成立）；② `run-local` 进交互后能真的调到一个默认启用的连接器（端点侧工具数变化，非"声明了但没连上"）；③ 子集内容与理由写清（为什么这几个进默认、其余不进） | — | `pending` |
+| C4 | **落盘 3 个编码技能（C1）**，并定"基座技能如何进产物且进声明"（见 27.2） | ① `preinstall.lock.txt` 里技能数 0 → 3，且 `make validate` 的 `preinstall/planned-skill` 与 `lock-sync` 同步变绿；② 闸门 2 的技能集合断言在**每个示例**上仍绿（基座技能已进声明）；③ 每个技能有 `SKILL.md`（含 frontmatter name/description）+ 一条可执行的自检；④ 双架构、运行期离线（构建期装齐） | C3 | `pending` |
+| C5 | **补"插件/扩展"预装类目（C2）**：为 pi（packages）与 dsh（cordis 插件）各定一条"基座预装编码插件"的类目与命名引用 | ① `preinstall.yaml` 有该 category，且 `preinstall/category` 检查通过；② 至少一条真实条目（pin + `verifiedAlive` 实测日期 + 「开发时拿它做什么」）；③ 渲染/启动两条路径都会加载它，且有闸门或自检覆盖（不许静默不加载） | — | `pending` |
+| C6 | **判据纪律（横切）**：新增的每一条预装内容都必须满足 | pin 精确 + `npm view` 存活实测日期 + 双架构可构建 + 运行期离线可用 + 落进 `preinstall.lock.txt` + 至少一条闸门/自检覆盖"真的生效" | — | `pending` |
+
+**暂不做**：第三个镜像变体（`-dev` / coding）。理由：`preinstall.yaml` 自己写了
+「现在拆是过早优化，只会让开发变慢」，且镜像语义是**验证快照**不是生产镜像；
+等真出现"生产档"需求再拆，拆的时候只是 `FROM base` 加一层（debug 变体已示范过这条路径）。

@@ -333,3 +333,7 @@
 - 22:34 /project-state checkpoint：RESUME 更新（D8 修复入账；下一动作 = §26 V2 或 E2b；记忆配置待宿主装 mnemon CLI）
 - 22:40 **记忆配置完成（用户要求）**：装 `mnemon` CLI（官方 macOS 推荐 `brew install --cask mnemon-dev/tap/mnemon`，实测 0.2.9；写 `/opt/homebrew` 被沙箱拒 → 提权后成功）→ 建 Memory Space「agent-base 项目记忆」(id default) → **激活**（不激活则写被拒：catalog=1/writable=0）→ 归档生效
 - 22:40 归档实测：热记忆 15 条/10220 字节 → **11 条/7721 字节**（`mnemon.db` 15 insights · 41 edges）；补写三条：① 环境事实（CLI 装法 + 探活别用 `mnemon status` + MNEMON_CLI_PATH 退路）② D8 教训（复用判据必须覆盖全部输入）③ 用户 DX 偏好（`run-local` 交互调试方便；要会话内斜杠命令、补全即目录）
+- 22:44 用户提出"镜像里的 pi/dsh 是裸的，希望带上常用编程 skills/plugins/MCP" → 调研后记账路线图 **§27**：机制**早就有了**（`preinstall.yaml` = 基座能力目录 + `namedReferences`，锁文件已装 npm 12 + apt 6：git/ripgrep/jq/filesystem/repomix/playwright/chrome-devtools/inspector/context7…），缺的是三处
+- 22:44 §27 登记的新缺陷 **D9**：`preinstall.yaml` 注释承诺"模板会默认启用一个开发常用子集（N4 开箱可跑）"，而 `template/connectors.yaml` 实测 `mcpServers: []` ⇒ **空头承诺**（与本轮已收口的 8 处同类）
+- 22:44 §27 另两处缺口：**C1 技能落盘数 = 0**（3 条编码技能仍是 planned：code-navigation / debugging / verification）；**C2 没有"插件/扩展"预装类目**（pi packages / dsh 插件今天无处声明）
+- 22:44 §27 记下一个必须先定的设计后果：基座提供的技能若直接进产物而不"进声明"，闸门 2 的「实际加载技能集合 == 声明集合」**会让每个智能体都红** ⇒ 须照 seed 增强的做法把基座技能并进声明
