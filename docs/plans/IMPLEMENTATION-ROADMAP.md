@@ -1000,6 +1000,7 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 | C4 | **落盘 3 个编码技能（C1）**，并定"基座技能如何进产物且进声明"（见 27.2） | ① `preinstall.lock.txt` 里技能数 0 → 3，且 `make validate` 的 `preinstall/planned-skill` 与 `lock-sync` 同步变绿；② 闸门 2 的技能集合断言在**每个示例**上仍绿（基座技能已进声明）；③ 每个技能有 `SKILL.md`（含 frontmatter name/description）+ 一条可执行的自检；④ 双架构、运行期离线（构建期装齐） | C3 | `pending` |
 | C5 | **补"插件/扩展"预装类目（C2）**：为 pi（packages）与 dsh（cordis 插件）各定一条"基座预装编码插件"的类目与命名引用 | ① `preinstall.yaml` 有该 category，且 `preinstall/category` 检查通过；② 至少一条真实条目（pin + `verifiedAlive` 实测日期 + 「开发时拿它做什么」）；③ 渲染/启动两条路径都会加载它，且有闸门或自检覆盖（不许静默不加载） | — | `pending` |
 | C6 | **判据纪律（横切）**：新增的每一条预装内容都必须满足 | pin 精确 + `npm view` 存活实测日期 + 双架构可构建 + 运行期离线可用 + 落进 `preinstall.lock.txt` + 至少一条闸门/自检覆盖"真的生效" | — | `pending` |
+| C7 | **「会话的工作区是什么」（用户问出来的相邻缺口）**：`run-local` 故意把 cwd 放在**中立临时目录**（杀掉"沿 cwd 祖先找 `.agents/skills`"这条隐式源），于是**会话里看不见你的仓库**，也没有 `--cwd/--workspace` 开关；`AGENT_WORKSPACE_ROOT` 目前只有 dsh 侧在用。要"进会话就能改代码"，必须先回答：工作区指向哪、仓库的 `AGENTS.md`/`CLAUDE.md` 要不要被吸进来（吸进来就是行为变化，得显式声明） | ① 有一条受支持的方式把会话工作区指向真实仓库（参数层，进 `params.yaml` 与闸门 1 检查）；② 隐式技能源仍然被隔离（`--no-skills` 已在，需实测确认）；③ 仓库指令文件是否被读取**显式声明**并有判据（不许"某个目录下行为不同"而无人知）；④ 与"验证用纯净环境"不冲突（默认仍是中立，编码包启用时才指向工作区） | B1 | `pending` |
 
 **暂不做**：第三个镜像变体（`-dev` / coding）。理由：`preinstall.yaml` 自己写了
 「现在拆是过早优化，只会让开发变慢」，且镜像语义是**验证快照**不是生产镜像；

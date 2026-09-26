@@ -346,3 +346,4 @@
 - 22:57 D10 实测：用 run-local 的**同一套 env 拼装**重建后调 `/project hooks`，会话里真的产出报告（"trace → 6 个事件 / 运行时 39 个 / ✅ 都在集合内"）；两条新自检固化：`local-selftest` 静态比对"entrypoint 提到、本地没给"的变量，`pi-project-info-selftest` 断言本地 env 能读到清单
 - 22:57 又一课（用户问"渲染是什么"引出的）：**渲染清单在产物根，不在暂存的运行目录里** —— 任何"读清单"的能力都必须拿到 `AGENT_ARTIFACT_DIR`（或等价的产物根），去猜 `dirname(配置目录)` 会失败
 - 23:05 /project-state checkpoint：RESUME 更新（D10 入账；新增两条"别这么干"：两条启动路径各拼 env、去猜 dirname 找清单）
+- 23:09 用户问"run-local 后是在容器里跑吗"（看到 /private/var/folders 路径）→ 实测确认：**不是容器**，run-local 零 docker 调用，跑的是宿主 pi/dsh + 文件系统隔离；那串路径是 macOS 每用户临时目录（暂存副本/临时 HOME/中立 cwd/轨迹四处一次性目录）。由此发现相邻缺口并入账 **§27 C7**：cwd 故意中立 ⇒ 会话看不见真实仓库、也没有 --cwd/--workspace 开关，`AGENT_WORKSPACE_ROOT` 只有 dsh 在用 —— "进会话就能改代码"必须先回答工作区与仓库指令文件要不要吸进来
