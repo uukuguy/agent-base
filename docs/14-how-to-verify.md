@@ -128,6 +128,7 @@ docker run --rm --network none \
 | **要验什么、哪些只能容器验** | `make verify-plan AGENT_DIR=…`（`JSON=1` 给 AI）/ 会话内 `/project plan` | 四个身份摘要 + 本地四道闸门的命令与期望 + 容器断言逐条带 `why` + 本次未覆盖清单；`make project-info-selftest` 全绿 |
 | **容器内验证（受控入口）** | `make verify-container AGENT_DIR=…`（`DRY=1` 只看参数、`JSON=1` 给 AI） | 绑定面**恰好两处只读**（项目 + 产物）· 网络 none · 根只读 · 能力全丢 · 容器内闸门 1(agent-only)/2/3/4 全过；**交付结论以它为准**（宿主结论不含安全下限/双架构/同源） |
 | **会话里请求容器验证（需审批）** | 会话内 `/verify-container`（`make local` 之后） | 先摊开将要执行的 docker 参数 → 你放行/拒绝 → 只有放行才跑；决定记进轨迹 `approval.decision`；无应答者时 **fail-closed 不执行**；自检 `make pi-verify-container-selftest` |
+| **同上（另一侧）** | 该运行时会话内 `/verify-container`（同一套判据的另一个落地形态） | 走它的原生审批接缝（四种结果；无应答者/无审批服务 ⇒ **fail-closed 放弃**）；事件同样进轨迹；自检 `make dsh-verify-container-selftest` |
 | **容器挂的时候是不是缺陷** | 同上（失败时自动归因） | 五类：本地可复现（真缺陷）/ 已声明差异（不是缺陷）/ 容器专有断言失败（真缺陷，改镜像）/ 本地没跑到（先修前面那条）/ **未声明的差异（响亮上报，不许猜）** |
 | 声明了但没写对 ⇒ 响亮失败 | 见 §4 | 全部非 0 退出，且报错点明原因 |
 

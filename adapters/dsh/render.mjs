@@ -44,6 +44,10 @@ import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 import { dshRenderInputsDigest } from "./render-inputs.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+/** 仓库根：`core/` 下的共享实现（事件写入器等）要从这里取，注入产物而不是让产物去猜基座目录。 */
+const REPO = path.resolve(HERE, "../..");
+/** 基座种子：基座不变量的声明与插件源码（业务层不许碰）。 */
+const SEED = path.join(HERE, "seed");
 const HARNESS = "dsh";
 const log = (m) => process.stderr.write(m + "\n");
 
@@ -55,7 +59,6 @@ const WORKSPACE_IN_IMAGE = "/workspace";
 const DSH_HOME_IN_IMAGE = "/opt/agent-base/dsh-home";
 /** 实测：headless 模板启用工具/技能/指令行；web 模板把它们全禁用（见 Q3）。 */
 const BUNDLES = ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-headless"];
-
 const readYaml = (f) => YAML.parse(fs.readFileSync(f, "utf8"));
 const writeFile = (f, text) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); };
 /** 稳定 JSON：键排序，保证"同输入同产物"（conformance C2）。 */
@@ -300,10 +303,34 @@ function main() {
   }
   const enabled = servers.filter((s) => s.enabled !== false);
 
-  // ---- 业务级增强 ----
-  const enhFile = path.join(agentDir, "harness", HARNESS, "enhancements.yaml");
-  const enhancements = (fs.existsSync(enhFile) ? readYaml(enhFile).enhancements ?? [] : []).filter((e) => e.id);
+  // ---- 增强：基座不变量（seed）∪ 智能体声明（§4.5），合并后登记 ----
+  // 基座不变量也必须进同一份声明清单：闸门 2 的集合断言是「实际加载的 row 集合 == 声明集合」，
+  // 基座扩展若不在里面，就会成为唯一一个"加载失败也没人知道"的东西。
+  const collectEnhancements = (file) => {
+    if (!fs.existsSync(file)) return [];
+    return (readYaml(file).enhancements ?? []).filter((e) => e.id);
+  };
+  const baseEnh = collectEnhancements(path.join(SEED, "enhancements.yaml"));
+  const agentEnh = collectEnhancements(path.join(agentDir, "harness", HARNESS, "enhancements.yaml"));
+  const enhancements = [...baseEnh, ...agentEnh];
   copyTree(path.join(agentDir, "harness", HARNESS), path.join(outRoot, "harness", HARNESS));
+
+  // ---- 基座种子插件：`./plugins/<id>/…` 形态的声明 ⇒ 从 seed 拷进 profile ----
+  // 本运行时的 row `name` 是**相对 profile 目录**解析的，且**必须指向入口文件**
+  // （指目录会 failed to import —— ESM 没有目录解析；实测见 harness 设计文档 §3.11 实验 H）。
+  // 事件写入器只有一处定义（`core/trace/emit.mjs`），注入到插件同目录供其相对 import。
+  for (const e of enhancements.filter((x) => typeof x.package === "string" && x.package.startsWith("./plugins/"))) {
+    const id = path.basename(path.dirname(e.package));
+    const src = path.join(SEED, "plugins", id);
+    if (!fs.existsSync(src)) {
+      // 基座种子以外的 `./plugins/…` 声明没有落地形态 ⇒ 响亮失败（不许"声明了但什么都没发生"）
+      throw new Error(`增强 ${e.id} 声明了 package=${e.package}，但 seed 里没有对应插件目录`
+        + `（${path.relative(HERE, src)}）—— 基座种子插件必须放在 adapters/${HARNESS}/seed/plugins/<id>/。`);
+    }
+    copyTree(src, path.join(profileDir, "plugins", id));
+    writeFile(path.join(profileDir, "plugins", id, "_trace-emit.mjs"),
+      fs.readFileSync(path.join(REPO, "core/trace/emit.mjs"), "utf8"));
+  }
 
   // ---- profile 四件套 ----
   // 路由必须由基座声明（闸门 1 已校验）；渲染器据此产出 provider 配置
@@ -371,6 +398,9 @@ function main() {
     bundles: BUNDLES,
     declaredSkills,
     declaredEnhancements: enhancements.map((e) => e.id).sort(),
+    // **只含智能体自己的**增强（基座不变量不算：它不是这个智能体引入的不可移植性）。
+    // 与另一个运行时的清单字段同名同义 ⇒ `/project portability` 与闸门 1 的判据同源可比。
+    agentEnhancements: agentEnh.map((e) => e.id).sort(),
     // 哪些声明是钩子：闸门 3 的 probe/hook-fired 靠它判断"要不要断言钩子真的触发"（P4）
     hookEnhancements: [...new Set(enhancements.filter((e) => e.kind === "hook").map((e) => e.id))].sort(),
     connectors: enabled.map((c) => ({ serverName: c.name, transport: c.transport })),

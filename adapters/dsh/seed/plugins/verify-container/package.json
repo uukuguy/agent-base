@@ -1,0 +1,8 @@
+{
+  "name": "agent-base-verify-container",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "description": "基座不变量：会话内受控容器验证入口（/verify-container），走本运行时的审批接缝"
+}

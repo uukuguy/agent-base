@@ -1,0 +1,24 @@
+apiVersion: agent-base/v1
+
+# ============================================================================
+# 基座不变量增强的声明清单（dsh 侧，§4.5）
+#
+# 与另一个运行时的 seed 清单同一条纪律：**基座不给自己开后门** —— 基座扩展也要声明，
+# 因为闸门 2 的集合断言是「实际加载的 row 集合 == 声明集合」。
+#
+# 本运行时的形态是 **cordis 插件 + profile patch 的 insert row**（实测）：
+#   · `package` 就是 row 的 `name`，**必须指向入口文件** —— 指目录会 `failed to import`
+#     （ESM 没有目录解析；实测见 docs/design/2026-09-25-dsh-harness-design.md §3.11 实验 H）
+#   · 以 `./plugins/<id>/…` 声明的条目 = **基座种子插件**：渲染器从
+#     `adapters/dsh/seed/plugins/<id>/` 拷进 profile，并把事件写入器注入同目录
+# ============================================================================
+harness: dsh
+enhancements:
+  - kind: command
+    id: verify-container
+    package: ./plugins/verify-container/index.js
+    description: >
+      基座不变量：注册 `/verify-container` 命令。先给出"将要执行的 docker 参数"（来自受控入口干跑），
+      再走本运行时的审批接缝 `ctx.approval.request`（放行/拒绝/无应答者⇒fail-closed），
+      决定记成 `approval.decision` 事件，只有放行才调用参数表封闭的 `tools/verify-container.mjs`。
+      本插件**不自己拼 docker 参数**。

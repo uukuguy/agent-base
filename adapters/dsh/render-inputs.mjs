@@ -22,7 +22,7 @@ const REPO = path.resolve(HERE, "../..");
 export function dshRenderInputs(agentDir) {
   return [
     { role: "definition", path: path.resolve(agentDir) },
-    { role: "seed", path: path.join(HERE, "seed"), optional: true },   // dsh 目前没有 seed 目录
+    { role: "seed", path: path.join(HERE, "seed") },   // 基座不变量（声明 + 插件源码）也算渲染输入
     { role: "renderer", path: path.join(HERE, "render.mjs"), kind: "file" },
     { role: "adapter-decl", path: path.join(HERE, "adapter.yaml"), kind: "file" },
     { role: "catalog", path: path.join(REPO, "core/catalog") },
