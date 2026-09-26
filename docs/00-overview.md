@@ -94,3 +94,6 @@ docs/          本套文档 + 设计正文 + 调研
 | 要接一个新 harness | **09-harness-contract** |
 | 要写业务级增强 | **11-harness-enhancements** |
 | 想了解为什么这样设计 | `docs/design/2026-09-25-unified-agent-base-design.md` |
+
+> 从基座开始做业务开发？先读 [`13-developer-contract.md`](13-developer-contract.md)：
+> **起点、保证、不约束**（每条保证都指向一条真实判据）。
