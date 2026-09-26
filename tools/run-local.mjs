@@ -82,7 +82,7 @@ const main = async () => {
   // **不能默默用死端口兜底**：早前默认 `http://127.0.0.1:9/v1`，于是用户明明设了
   // `DEEPSEEK_BASE_URL=https://api.deepseek.com`，run-local 又把它覆盖成死端口 ——
   // 表现为"我配了却连不上"，正是本项目一直在治的那类静默覆盖。
-  const endpointParamName = (manifest.runtimeParams ?? []).find((x) => x.backs === "model.route" && !x.secret)?.name;
+  const endpointParamName = (manifest.runtimeParams ?? []).find((x) => (x.backs === "model.provider" || x.backs === "model.route") && !x.secret)?.name;
   const fromEnvEndpoint = endpointParamName ? process.env[endpointParamName] : null;
   const explicitEndpoint = values["--endpoint"] ?? process.env.AGENT_ENDPOINT ?? null;
   const endpoint = explicitEndpoint ?? fromEnvEndpoint;
@@ -101,8 +101,9 @@ const main = async () => {
   const extraEnv = {};
   {
     const params = manifest.runtimeParams ?? [];
-    const byBacks = (b, secret) => params.find((x) => x.backs === b && (secret === undefined || x.secret === secret));
-    const endpointParam = byBacks("model.route", false);
+    // 模型组字段的 backs 有新旧两个名字（model.provider / model.route），两边都要认
+    const isModelGroup = (x) => x.backs === "model.provider" || x.backs === "model.route";
+    const endpointParam = params.find((x) => isModelGroup(x) && !x.secret);
     const secretParam = params.find((x) => x.secret === true);
     const modelParam = params.find((x) => x.validate === "in-route-models");
     const map = [

@@ -45,7 +45,7 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
 
   // 端点由调用方给（探针/冒烟指向零凭据假网关）；其余参数走环境变量或清单里的默认值
   const env = { ...process.env, ...extraEnv };
-  const endpointParam = (manifest.runtimeParams ?? []).find((p) => p.backs === "model.route" && !p.secret);
+  const endpointParam = (manifest.runtimeParams ?? []).find((p) => (p.backs === "model.provider" || p.backs === "model.route") && !p.secret);
   if (endpoint && endpointParam) env[endpointParam.name] = endpoint;
 
   // **零凭据模式**（自证 / 探针 / 冒烟）：用假值把必填项补齐，使这些检查不需要任何真密钥。
@@ -55,7 +55,7 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
     for (const p of manifest.runtimeParams ?? []) {
       if (env[p.name]) continue;
       if (p.secret) env[p.name] = "placeholder-not-a-credential";
-      else if (p.required && p.backs === "model.route" && !env[p.name]) env[p.name] = "http://127.0.0.1:9/v1";
+      else if (p.required && (p.backs === "model.provider" || p.backs === "model.route") && !env[p.name]) env[p.name] = "http://127.0.0.1:9/v1";
     }
   }
 

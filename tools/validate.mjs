@@ -34,7 +34,7 @@
 // ============================================================================
 
 import fs from "node:fs";
-import { describeSource, loadRoutes } from "../core/catalog/routes.mjs";
+import { findProvider, loadProviders } from "../core/catalog/routes.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
@@ -267,14 +267,14 @@ function checkBase(report, agentDir = process.cwd()) {
 
   // A5b 路由目录自洽：引用名必须符合约定，且被参数层允许清单覆盖
   {
-    const loaded = loadRoutes({ agentDir });
-    if (loaded.error) {
-      report.fail(GATE, "routes/present", `${loaded.error} —— model.route 的合法取值将无人校验`);
+    const loaded = loadProviders({ agentDir });
+    if (loaded.errors?.length) {
+      report.fail(GATE, "providers/present", `${loaded.errors.join("；")} —— model.provider 的合法取值将无人校验`);
     } else {
-      report.pass(GATE, "routes/source", `路由目录来自 ${describeSource(loaded)}`);
-      const list = loaded.routes;
-      if (!list.length) report.fail(GATE, "routes/present", "routes.yaml 里没有声明任何路由");
-      else report.pass(GATE, "routes/present", `${list.length} 个路由已声明（${list.map((r) => r.id).join(", ")}）`);
+      report.pass(GATE, "providers/source", `provider 目录来自 ${loaded.sources.join(" + ") || "（无）"}`);
+      const list = loaded.providers;
+      if (!list.length) report.fail(GATE, "providers/present", "provider 目录里没有声明任何条目");
+      else report.pass(GATE, "providers/present", `${list.length} 个 provider 已声明（${list.map((r) => r.id).join(", ")}）`);
 
       const prefixOf = (id) => String(id).toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
       const badId = list.filter((r) => !/^[a-z][a-z0-9-]{1,30}$/.test(r.id ?? "")).map((r) => r.id ?? "(缺 id)");
@@ -305,12 +305,12 @@ function checkBase(report, agentDir = process.cwd()) {
           notAllowed.push(`${r.id}.${k}=${n}（不匹配任何支撑模型组字段的参数项：${routePats.map((p) => p.id).join(", ")}）`);
         }
       }
-      if (badId.length) report.fail(GATE, "routes/id", `路由名不合法（^[a-z][a-z0-9-]{1,30}$）：${badId.join(", ")}`);
-      else report.pass(GATE, "routes/id", "路由名全部合法");
-      if (badNames.length) report.fail(GATE, "routes/param-convention", `引用名不符合约定：${badNames.join("；")}`);
-      else report.pass(GATE, "routes/param-convention", "端点/凭据/模型名引用名全部符合 <PREFIX>_BASE_URL / _API_KEY / _MODEL 约定");
-      if (notAllowed.length) report.fail(GATE, "routes/param-allowed", `引用名未被参数层允许清单覆盖：${notAllowed.join("；")}`);
-      else report.pass(GATE, "routes/param-allowed", `路由引用名都匹配支撑模型组字段的参数项（${routePats.map((p) => p.id).join(", ")}）`);
+      if (badId.length) report.fail(GATE, "providers/id", `provider 名不合法（^[a-z][a-z0-9-]{1,30}$）：${badId.join(", ")}`);
+      else report.pass(GATE, "providers/id", "provider 名全部合法");
+      if (badNames.length) report.fail(GATE, "providers/param-convention", `引用名不符合约定：${badNames.join("；")}`);
+      else report.pass(GATE, "providers/param-convention", "端点/凭据/模型名引用名全部符合 <PREFIX>_BASE_URL / _API_KEY / _MODEL 约定");
+      if (notAllowed.length) report.fail(GATE, "providers/param-allowed", `引用名未被参数层允许清单覆盖：${notAllowed.join("；")}`);
+      else report.pass(GATE, "providers/param-allowed", `路由引用名都匹配支撑模型组字段的参数项（${routePats.map((p) => p.id).join(", ")}）`);
     }
   }
 
@@ -351,10 +351,10 @@ function checkBase(report, agentDir = process.cwd()) {
     try { preinstall = loadPreinstall(); } catch { preinstall = null; }
   }
 
-  // 模型路由目录：`model.route` 必须是这里声明过的路由。
-  // **可被部署层覆盖**（AGENT_ROUTES_FILE / AGENT_CATALOG_DIR）—— 基座内置那份只是默认，
-  // 真实使用时业务不该为了换个端点/模型去改基座代码。
-  const routeCatalog = loadRoutes({ agentDir });
+  // Provider 目录：`model.provider` 必须是这里声明过的供应商。
+  // **内置常用供应商**（deepseek / openai / corp-gateway …）+ 部署层/智能体自带那份按 id 合并覆盖 ——
+  // 于是"换个供应商"通常一行都不用写，"换个内部端点"也只需覆盖同名条目。
+  const routeCatalog = loadProviders({ agentDir });
 
   return { ajv, agentSchema, connectorsSchema, caps, params, preinstall, routeCatalog };
 }
@@ -642,28 +642,32 @@ function checkAgent(report, ctx, agentDir) {
   // route 必须由基座声明（P-a：能力在基座、选择在智能体）。此前不校验 ⇒ 写错路由名渲染照样成功，
   // 等到运行时才炸，且报错看不懂。这里当场拦住并给出可用取值。
   {
-    const cat = ctx.routeCatalog ?? { routes: [], error: "未加载路由目录" };
-    const routes = cat.routes ?? [];
+    const cat = ctx.routeCatalog ?? { providers: [], errors: ["未加载 provider 目录"] };
+    const routes = cat.providers ?? [];
     const declared = new Set(routes.map((r) => r.id));
-    const route = agent.model?.route;
-    if (!routes.length) report.fail(GATE, "route/declared", `${cat.error ?? "路由目录为空"} —— 无法校验 model.route`);
-    else if (!route) report.fail(GATE, "route/declared", "缺 model.route");
-    else if (!declared.has(route)) report.fail(GATE, "route/declared", `model.route「${route}」不是基座声明的路由。可用：${[...declared].sort().join(", ")}`);
-    else report.pass(GATE, "route/declared", `model.route「${route}」是基座声明的路由（${routes.find((r) => r.id === route).api}）`);
+    const providerId = agent.model?.provider ?? agent.model?.route;
+    const fieldName = agent.model?.provider ? "model.provider" : "model.route";
+    if (!routes.length) report.fail(GATE, "provider/declared", `${cat.errors?.join("；") ?? "provider 目录为空"} —— 无法校验 ${fieldName}`);
+    else if (!providerId) report.fail(GATE, "provider/declared", "缺 model.provider（或旧名 model.route）");
+    else if (!declared.has(providerId)) report.fail(GATE, "provider/declared", `${fieldName}「${providerId}」不在 provider 目录里。可用：${[...declared].sort().join(", ")}`);
+    else {
+      const p = routes.find((r) => r.id === providerId);
+      report.pass(GATE, "provider/declared", `${fieldName}「${providerId}」已声明（${p.api}${p.baseUrl ? `，端点 ${p.baseUrl}` : `，端点由 ${p.baseUrlParam} 给`}）`);
+    }
 
     // 默认模型名必须在该路由声明的模型名单内（名单为空 = 该路由不声明目录，跳过）。
     // 这条把"写错模型名"从"运行时端点返回一句看不懂的错"提前到"定义校验期"。
-    const r = routes.find((x) => x.id === route);
+    const r = providerId ? routes.find((x) => x.id === providerId) : null;
     const allowedModels = r?.models ?? [];
     if (r && allowedModels.length) {
       if (allowedModels.includes(agent.model?.name)) {
-        report.pass(GATE, "model/declared-in-route", `model.name「${agent.model.name}」在路由 ${route} 声明的模型名单内`);
+        report.pass(GATE, "model/declared-in-provider", `model.name「${agent.model.name}」在 provider ${providerId} 的模型名单内`);
       } else {
-        report.fail(GATE, "model/declared-in-route",
-          `model.name「${agent.model?.name}」不在路由 ${route} 声明的模型名单内。该路由提供：${allowedModels.join(", ")}`);
+        report.fail(GATE, "model/declared-in-provider",
+          `model.name「${agent.model?.name}」不在 provider ${providerId} 的模型名单内。它提供：${allowedModels.join(", ")}`);
       }
     } else if (r) {
-      report.pass(GATE, "model/declared-in-route", `路由 ${route} 未声明模型名单，跳过成员资格校验（名字非空由 schema 保证）`);
+      report.pass(GATE, "model/declared-in-provider", `provider ${providerId} 未声明模型名单，跳过成员资格校验（名字非空由 schema 保证）`);
     }
   }
 

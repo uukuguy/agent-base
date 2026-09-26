@@ -68,42 +68,41 @@ make verify JSON=1 > verify-report.json
 
 ## 接一个真实端点（以 DeepSeek 为例）
 
-手里有密钥、想用它真跑一次，四步：
+**两步，不用建任何配置文件。** 基座内置了常用供应商（`deepseek` / `openai` / `corp-gateway` …），
+`model.provider` 写名字即可 —— 端点、凭据名、模型名单都来自内置目录。
 
 ```bash
-# 1) 问端点有哪些模型，写成一份路由目录（不用手记模型名）
+# 1) 把密钥放进环境或一个变量文件里（真环境变量优先；文件只是兜底）
+#    通行名字就是 DEEPSEEK_API_KEY —— 不用照着 provider 名去推一个变量名
+echo 'DEEPSEEK_API_KEY=sk-你平台的key' >> .env      # 或者 export DEEPSEEK_API_KEY=…
+```
+
+```yaml
+# 2) agent.yaml 里写这个
+model:
+  provider: deepseek          # 供应商名（不是 URL）。旧名 model.route 等价
+  name: deepseek-flash        # 该供应商的模型名；写错时闸门 1 会列出可用取值
+```
+
+```bash
 make new-agent NAME=my-ds-agent DESCRIPTION="用 DeepSeek 的验证智能体"
-make routes-init ENDPOINT=https://api.deepseek.com API_KEY=sk-你平台的key \
-     ROUTE=deepseek OUT=../my-ds-agent/routes.yaml
-#   → 输出会列出端点实际提供的模型（例如 deepseek-flash / deepseek-v4-pro）
-
-# 2) 改 agent.yaml：route 用 deepseek，name 用上一步列出来的某一个
 cd ../my-ds-agent
-#   model:
-#     route: deepseek
-#     name: deepseek-flash        # ← 上一步打印出来的名字
-
-# 3) 四道闸门（默认走自带零凭据假网关，**不需要**你的密钥）
-make verify                     # → 可用：四道闸门全过
-
-# 4) 真跑一次（这时才用到密钥）
-make run-local ENDPOINT=https://api.deepseek.com API_KEY=sk-你平台的key PROMPT="说一句话"
+#   把上面那两处改进去
+make verify                                          # 四道闸门（走自带假网关，不需要真密钥）
+make run-local PROMPT="说一句话"                      # 真跑：端点用内置的 api.deepseek.com
 ```
 
 要点：
 
-- `routes.yaml` 放**智能体旁边**就会自动生效（生成的 Makefile 认它）——不必改基座、不必记环境变量。
-- 参数名由**路由名**推导：路由叫 `deepseek` ⇒ `DEEPSEEK_BASE_URL` / `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL`。
-  所以第 4 步也可以写成 `DEEPSEEK_BASE_URL=https://api.deepseek.com DEEPSEEK_API_KEY=… make run-local`。
-- 真实端点要求运行环境**能出网到该端点**。若运行环境封闭，就把 `ENDPOINT` 换成你们的内部端点。
-- 装进容器跑：把第 3 步渲染出的产物挂进去，参数用环境变量给：
-
-```bash
-docker run --rm -e HARNESS=pi \
-  -e DEEPSEEK_BASE_URL=https://api.deepseek.com -e DEEPSEEK_API_KEY=… \
-  -v "$PWD/dist/pi/my-ds-agent:/opt/agent-base/artifact:ro" \
-  agent-base:0.1.0-arm64
-```
+- **端点**：内置 provider 已带公开端点，不必给；要换成镜像/代理，就设 `DEEPSEEK_BASE_URL=…`
+  （或写自己的 `providers.yaml` 覆盖同名条目 —— 那也是 `AGENT_PROVIDERS_FILE` 指一下的事）。
+- **模型名单**：内置目录里写的是常用名字；要确认端点实际提供哪些，用
+  `make routes-init ENDPOINT=https://api.deepseek.com API_KEY=sk-… --route deepseek` 问一次。
+- **换成别的供应商**：`model.provider` 改成 `openai` 就用 `OPENAI_API_KEY`，其余照旧。
+- **内部网关**：在 `providers.yaml` 里加一条（`baseUrlParam: CORP_GATEWAY_BASE_URL` 表示端点由部署给），
+  或直接用内置的 `corp-gateway` 并设 `CORP_GATEWAY_BASE_URL`。
+- **装进容器**：`docker run -e HARNESS=pi -e DEEPSEEK_API_KEY=… -e DEEPSEEK_BASE_URL=… \
+   -v "$PWD/dist/pi/my-ds-agent:/opt/agent-base/artifact:ro" agent-base:0.1.0-arm64`
 
 ## 常用变体
 

@@ -241,4 +241,8 @@
 - 09:14 修法：解析链加一级 `agent-local`（<智能体目录>/routes.yaml，环境变量仍优先）；模板 Makefile 加 `run-local` / `routes-init` 并导出**绝对路径**；run-local 没端点时明确报错并列出三种给法
 - 09:14 又两次踩到同一类 bug：**相对路径跨 cwd 边界**（AGENT_ROUTES_FILE 相对路径让 `validate` 过而 `verify` 挂；run-local 把 `.` 原样转发给 cwd 在仓库的渲染器）→ 转发出去的路径一律先 resolve
 - 09:14 新增 quickstart 的"接一个真实端点（以 DeepSeek 为例）"配方；routes-selftest 扩到 12 项（含 agent-local 一级与模板目标）
+- 10:09 🔴 用户指出四件事：**密钥就在 .env 里但基座不读它**；examples/ 下没有 Makefile（我给的步骤在那儿不成立）；"靠推导环境变量的模型配置很难用"，应该有**方便标准的 providers**；pi/dsh 的统一模型配置要**完整**
+- 10:09 交付：`core/config/dotenv.mjs`（变量文件，真环境变量优先，**永不打印值**）；**内置 provider 目录**（deepseek/openai/corp-gateway，写名字即用、密钥名就是通行写法）；`model.provider`（旧名 route 等价）；provider 覆盖按 id 字段合并；模型列表**完整**进两侧配置；示例补 Makefile
+- 10:09 ✅ 实测：`model.provider: deepseek` 的智能体（未建任何文件）在两个运行时都四道闸门全过；只给 `DEEPSEEK_API_KEY` 就真跑通（端点为顶替端点）
+- 10:09 又踩两次同类 bug：`backs` 从 model.route 改成 model.provider 后多处按它筛端点参数（已统一判断）；渲染器里 providerId 在 buildPatch/buildExpresses 作用域外（已按作用域传参）
 

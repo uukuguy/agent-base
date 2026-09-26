@@ -1,0 +1,114 @@
+{
+  "agent": "contract-review",
+  "artifactsDigest": "sha256:2ef9434bdecd2eeb039b72390e16375c0226edf69ee1b12a98927b728e5fce1e",
+  "connectorPackages": [
+    "@modelcontextprotocol/server-filesystem@2026.8.31"
+  ],
+  "connectors": [
+    {
+      "serverName": "filesystem",
+      "transport": "stdio"
+    }
+  ],
+  "connectorsNote": "pi 原生无 MCP 客户端；连接器经基座种子扩展（pi-mcp-adapter，构建期装好）渲染成 agent-dir/mcp.json",
+  "declaredEnhancements": [
+    "trace"
+  ],
+  "declaredSkills": [
+    "citation-anchoring",
+    "clause-extraction",
+    "risk-grading"
+  ],
+  "definitionDigest": "sha256:ca195089f94799f7fed1556293309643fa1f11d13432108d9e69557790516d69",
+  "effectiveConfigDigest": "sha256:26f034f43b0d0bab177f47e49d86073495d70625390344cc41a8b6ebf9449985",
+  "expresses": {
+    "enhancements": {
+      "at": "agent-dir/enhancements.yaml",
+      "contains": [
+        "trace"
+      ]
+    },
+    "model.name": {
+      "at": "render-manifest.json",
+      "contains": [
+        "corp-think",
+        "CORP_GATEWAY_MODEL"
+      ]
+    },
+    "model.route": {
+      "at": "agent-dir/models.json.tmpl",
+      "contains": "corp-gateway"
+    },
+    "persona.instructions": {
+      "at": "agent-dir/AGENTS.md",
+      "contains": "你是合同条款审阅助手。用户给你一份合同（通常放在"
+    },
+    "skills": {
+      "at": "agent-dir/skills"
+    },
+    "tools.deny": {
+      "at": "render-manifest.json",
+      "contains": "excludeTools"
+    }
+  },
+  "harness": "pi",
+  "harnessVersion": "0.87.1",
+  "labelsProvided": true,
+  "mcpAdapterInImage": "/usr/local/lib/node_modules/pi-mcp-adapter",
+  "mcpClient": "extension",
+  "modelRouteApi": "openai-completions",
+  "modelRouteModels": [
+    "corp-think"
+  ],
+  "modelRoutes": [
+    "corp-gateway"
+  ],
+  "paramNames": [],
+  "rendersParams": true,
+  "runArgs": {
+    "excludeTools": [
+      "bash",
+      "write",
+      "edit"
+    ],
+    "skills": [
+      "skills/citation-anchoring",
+      "skills/clause-extraction",
+      "skills/risk-grading"
+    ]
+  },
+  "runtimeParams": [
+    {
+      "backs": "model.provider",
+      "name": "CORP_GATEWAY_BASE_URL",
+      "required": true,
+      "secret": false
+    },
+    {
+      "backs": "model.provider",
+      "name": "CORP_GATEWAY_API_KEY",
+      "required": true,
+      "secret": true
+    },
+    {
+      "backs": "model.name",
+      "default": "corp-think",
+      "name": "CORP_GATEWAY_MODEL",
+      "required": false,
+      "secret": false,
+      "validate": "in-route-models"
+    }
+  ],
+  "runtimePlan": {
+    "argvPrefix": [],
+    "copy": [
+      "agent-dir"
+    ],
+    "cwd": null,
+    "env": {
+      "PI_CODING_AGENT_DIR": "agent-dir"
+    },
+    "pathRewrites": []
+  },
+  "skillsInProduct": "agent-dir/skills"
+}

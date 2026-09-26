@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@2026.8.31"
+      ],
+      "command": "npx"
+    }
+  },
+  "settings": {
+    "allowInstall": false,
+    "hostConfigDiscovery": "off",
+    "scriptMode": false
+  }
+}

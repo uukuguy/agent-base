@@ -25,7 +25,7 @@ import YAML from "yaml";
 import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 // 路由目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/routes.mjs
-import { describeSource, loadRoutes } from "../../core/catalog/routes.mjs";
+import { describeSource, findProvider, loadProviders } from "../../core/catalog/routes.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -93,10 +93,11 @@ export function envPrefixFor(route) {
  *
  * @returns {Record<string, {at: string, contains?: string|string[]} | {exempt: string}>}
  */
-function buildExpresses({ agent, declaredEnhancements, modelParamName, skillsInProduct, profileOrSettings, modelFile, enhancementsFile }) {
+function buildExpresses({ agent, declaredEnhancements, modelParamName, providerName, skillsInProduct, profileOrSettings, modelFile, enhancementsFile }) {
   const e = {
     "persona.instructions": { at: "agent-dir/AGENTS.md", contains: String(agent.persona?.instructions ?? "").trim().slice(0, 24) },
-    "model.route": { at: modelFile, contains: agent.model.route },
+    // provider 名（或旧名 route）—— 落点仍是模型配置模板
+    "model.route": { at: modelFile, contains: providerName },
     // model.name 现在是**默认值**（环境属性、运行期可覆盖）⇒ 它的落点是**清单**：
     // 默认值记在 runtimeParams[].default，产物里则是 `${…_MODEL}` 占位。
     // 不能继续声明成"值出现在 models.json.tmpl 里" —— 那里现在是占位符。
@@ -171,17 +172,19 @@ function main() {
   const mcpServersCopied = copyTree(path.join(agentDir, "mcp-servers"), path.join(agentOut, "mcp-servers"));
 
   // ---- 4. 模型 → models.json.tmpl（参数下放）----
-  if (!agent.model?.route || !agent.model?.name) {
-    log("❌ model.route / model.name 缺失（渲染需要它们推导端点引用名）");
+  if (!(agent.model?.provider ?? agent.model?.route) || !agent.model?.name) {
+    log("❌ model.provider / model.name 缺失（渲染需要它们推导端点引用名）");
     process.exit(EXIT_CODES.static);
   }
-  const prefix = envPrefixFor(agent.model.route);
+  const prefix = envPrefixFor(agent.model.provider ?? agent.model.route);
   // 路由必须由基座声明（闸门 1 已校验）；渲染器据此取协议形状并记录到清单
-  const catalog = loadRoutes({ agentDir });
-  const activeRoute = (catalog.routes ?? []).find((r) => r.id === agent.model?.route);
+  // 选 provider：`model.provider` 是通行写法，`model.route` 是它的旧名（同一个东西）
+  const catalog = loadProviders({ agentDir });
+  const providerId = agent.model?.provider ?? agent.model?.route;
+  const activeRoute = findProvider(catalog, providerId);
   if (!activeRoute) {
-    log(`❌ model.route「${agent.model?.route}」不在路由目录里（${describeSource(catalog)}）。`);
-    log(`   路由目录里的可用路由：${(catalog.routes ?? []).map((r) => r.id).join(", ") || "(空)"} —— 用 AGENT_ROUTES_FILE 指到你自己的那份，或改这里列出的路由名。`);
+    log(`❌ model.provider「${providerId}」不在 provider 目录里（来源：${(catalog.sources ?? []).join(" + ") || "无"}）。`);
+    log(`   可用 provider：${(catalog.providers ?? []).map((r) => r.id).join(", ") || "(空)"} —— 用 AGENT_PROVIDERS_FILE 指到你自己的那份，或改这里列出的名字。`);
     process.exit(EXIT_CODES.static);
   }
   const routeApi = activeRoute.api;
@@ -189,13 +192,16 @@ function main() {
   // 运行期参数写成 `${NAME}` 占位：**入口脚本在启动期解析**（本 harness 的 models.json 不做 baseUrl 插值）。
   // 模型名同样是占位 —— 它是环境属性（同一份制品在不同环境常要指向不同模型名）；
   // 没被覆盖时用定义里的默认值，默认值记在清单的 params 里，启动期据此兜底。
+  // 模型列表：**把 provider 声明的都带出来**（默认用的那个排第一）——
+  // 这样两个运行时里都能切换模型，而不是只认一个名字。
+  const declaredModels = [...new Set([agent.model.name, ...(activeRoute.models ?? [])])];
   const modelsTmpl = {
     providers: {
-      [agent.model.route]: {
-        baseUrl: `\${${prefix}_BASE_URL}`,
-        api: routeApi,   // 协议形状取自路由真源（core/catalog/routes.yaml），不硬编码
-        apiKey: `\${${prefix}_API_KEY}`,
-        models: [{ id: `\${${prefix}_MODEL}` }],
+      [providerId]: {
+        baseUrl: `\${${activeRoute.baseUrlParam}}`,
+        api: routeApi,   // 协议形状取自 provider 目录，不硬编码
+        apiKey: `\${${activeRoute.credentialParam}}`,
+        models: declaredModels.map((m) => ({ id: m === agent.model.name ? `\${${activeRoute.modelParam}}` : m })),
       },
     },
   };
@@ -207,7 +213,7 @@ function main() {
     : {};
   const settings = {
     ...seedSettings,
-    defaultProvider: agent.model.route,
+    defaultProvider: providerId,
     // 同样是占位：启动期解析成 <PREFIX>_MODEL（未覆盖时回落到定义里的默认值）
     defaultModel: `\${${prefix}_MODEL}`,
   };
@@ -315,10 +321,11 @@ function main() {
   const runArgs = { excludeTools: agent.tools?.deny ?? [], skills: declaredSkills.map((s) => `skills/${s}`) };
   // 运行期参数契约（只声明一次，清单与生效配置摘要共用 —— 两处各写一份就会漂移）
   const runtimeParams = [
-    { name: `${prefix}_BASE_URL`, secret: false, required: true, backs: "model.route" },
-    { name: `${prefix}_API_KEY`, secret: true, required: true, backs: "model.route" },
+    // 端点：provider 给了字面 baseUrl 就**不强制**从环境给（覆盖仍然可以）
+    { name: activeRoute.baseUrlParam, secret: false, required: !activeRoute.baseUrl, ...(activeRoute.baseUrl ? { default: activeRoute.baseUrl } : {}), backs: "model.provider" },
+    { name: activeRoute.credentialParam, secret: true, required: true, backs: "model.provider" },
     {
-      name: `${prefix}_MODEL`, secret: false, required: false,
+      name: activeRoute.modelParam, secret: false, required: false,
       default: agent.model.name, backs: "model.name", validate: "in-route-models",
     },
   ];
@@ -335,7 +342,7 @@ function main() {
     mcpAdapterInImage: MCP_ADAPTER_IN_IMAGE,
     paramNames: connParamNames,
     runArgs,
-    modelRoutes: [agent.model.route],
+    modelRoutes: [providerId],
     modelRouteApi: routeApi,   // 两个运行时都记录：比对时要求协议形状一致
     // 该路由声明的模型名单：启动期校验运行期覆盖的模型名用
     modelRouteModels: activeRoute.models ?? [],
@@ -365,7 +372,7 @@ function main() {
     skillsInProduct: "agent-dir/skills",
     // **定义字段 → 产物位置的声明**（conformance C3 只验证这份声明，不再认死文件名）。
     // 契约形状：{ at: 产物内相对路径, contains?: 字符串或字符串数组 }，或 { exempt: 非平凡理由 }。
-    expresses: buildExpresses({ agent, declaredEnhancements, modelParamName: `${prefix}_MODEL`, skillsInProduct: "agent-dir/skills", profileOrSettings: "agent-dir/settings.json", modelFile: "agent-dir/models.json.tmpl", enhancementsFile: "agent-dir/enhancements.yaml" }),
+    expresses: buildExpresses({ agent, declaredEnhancements, modelParamName: `${prefix}_MODEL`, providerName: providerId, skillsInProduct: "agent-dir/skills", profileOrSettings: "agent-dir/settings.json", modelFile: "agent-dir/models.json.tmpl", enhancementsFile: "agent-dir/enhancements.yaml" }),
     mcpClient: readYaml(path.join(HERE, "adapter.yaml")).capabilities?.mcpClient ?? "unknown",
     labelsProvided,
     definitionDigest: digestDirectory(agentDir),

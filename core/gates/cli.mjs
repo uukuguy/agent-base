@@ -15,6 +15,10 @@
 // **凡是"取值旗标"必须显式声明**，解析器按"旗标吃掉它的值"推进，位置参数永远不会被误吞。
 // ============================================================================
 
+// 环境文件（如 .env）在这里补一次：所有 CLI 都从本模块拿 parseArgs，
+// 于是"用户把密钥放进一个文件"这件事只需在一处支持。
+import { loadEnvFiles } from "../config/dotenv.mjs";
+
 /**
  * @param {string[]} argv
  * @param {{valueFlags?: string[], boolFlags?: string[]}} [spec]
@@ -23,6 +27,8 @@
  * @returns {{values: Record<string,string>, flags: Set<string>, positionals: string[], errors: string[]}}
  */
 export function parseArgs(argv, { valueFlags = [], boolFlags = [] } = {}) {
+  // 幂等：**真环境变量优先**，文件只作兜底
+  loadEnvFiles();
   const values = {};
   const flags = new Set();
   const positionals = [];

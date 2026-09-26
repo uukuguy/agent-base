@@ -58,8 +58,8 @@
 | 中性定义契约 | `core/spec/{agent,connectors}.schema.json` | 闸门 1、两个渲染器 |
 | 能力目录（字段/层/支持度） | `core/catalog/capabilities.yaml` | 闸门 1、文档 03 |
 | 参数层允许/禁止 | `core/catalog/params.yaml` | 闸门 1、conformance C8 |
-| **模型路由**（默认） | `core/catalog/routes.yaml` | 闸门 1、两个渲染器 |
-| **模型路由**（部署层覆盖） | `AGENT_ROUTES_FILE=<你的 routes.yaml>` · `AGENT_CATALOG_DIR=<目录>` · **`<智能体目录>/routes.yaml`** | 同上（优先级：环境变量文件 > 环境变量目录 > 智能体自带 > 基座内置） |
+| **供应商（provider）内置** | `core/catalog/providers.yaml` | 闸门 1、两个渲染器 |
+| **供应商覆盖**（部署层/智能体） | `AGENT_PROVIDERS_FILE=<你的 providers.yaml>` · `AGENT_CATALOG_DIR=<目录>` · **`<智能体目录>/providers.yaml`**（`routes.yaml` 仍被接受） | 同上（优先级：环境变量文件 > 环境变量目录 > 智能体自带 > 基座内置；同名 id 按字段合并） |
 | 预装清单 | `core/image/preinstall.yaml` | 镜像构建（经 `preinstall.lock.txt`）、连接器 `ref` |
 | 运行时版本 pin | `adapters/<h>/adapter.yaml` | 镜像构建、`make dev-env` |
 | 运行时能力声明 | 同上 `capabilities:` 段 | conformance C1、文档 10 |
@@ -86,7 +86,7 @@
 | 声明的 ≠ 实际加载的 | conformance **C4**（三条集合断言） |
 | 静默失败必须被检出 | conformance **C5**（每条失败模式配一个注入用例） |
 
-## 六之二、路由目录是**部署输入**，不是基座代码
+## 六之二、供应商（provider）是**配置**，不是基座代码
 
 `core/catalog/routes.yaml` 写的是"这次部署连哪个端点、端点服务哪些模型"—— 那是**环境属性**。
 它放在 `core/` 只是**内置默认**（配合自带零凭据假网关，开箱能跑）；真实使用时由部署层提供自己的那份：

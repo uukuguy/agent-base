@@ -40,7 +40,7 @@ import YAML from "yaml";
 import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 // 路由目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/routes.mjs
-import { describeSource, loadRoutes } from "../../core/catalog/routes.mjs";
+import { describeSource, findProvider, loadProviders } from "../../core/catalog/routes.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HARNESS = "dsh";
@@ -152,7 +152,7 @@ function buildPatch({ agent, connectors, enhancements, route }) {
   // 模型名是**环境属性**（同一份制品在不同环境常要指向不同模型名），因此本体写成 `!!js` 表达式：
   // 没被覆盖时回落到定义里的默认值。本 harness 原生支持表达式求值 ⇒ **不需要启动期渲染**。
   const modelExpr = () => new JsExpr(`(process.env.${route.modelParam} ?? ${JSON.stringify(agent.model.name)})`);
-  p.push({ id: "agent-default-model", config: { provider: agent.model.route, model: modelExpr() } });
+  p.push({ id: "agent-default-model", config: { provider: route.id, model: modelExpr() } });
 
   // ①b **把路由本身配出来** —— 这一步不能省。
   //     只写 `agent-default-model.provider: <route>` 只是"选了哪个路由"；路由**存不存在**由
@@ -169,8 +169,13 @@ function buildPatch({ agent, connectors, enhancements, route }) {
             displayName: route.id,
             api: route.api,                              // 协议形状（与 pi 的 models.json.api 同名）
             apiKeyEnv: route.credentialParam,            // **只写引用名**，真值由部署期注入
-            baseURL: new JsExpr(`process.env.${route.baseUrlParam}`),   // 参数下放，不写死端点
-            models: [{ id: modelExpr(), name: modelExpr() }],
+            // 端点：provider 给了字面值就用它兜底，环境变量仍可覆盖（部署层照旧能改）
+            baseURL: route.baseUrl
+              ? new JsExpr(`(process.env.${route.baseUrlParam} ?? ${JSON.stringify(route.baseUrl)})`)
+              : new JsExpr(`process.env.${route.baseUrlParam}`),
+            // 模型列表**全带**（默认那个排第一）：两个运行时里都能切换模型，而不是只认一个名字
+            models: [...new Set([agent.model.name, ...(route.models ?? [])])]
+              .map((m) => (m === agent.model.name ? { id: modelExpr(), name: modelExpr() } : { id: m, name: m })),
           },
         },
       },
@@ -288,11 +293,13 @@ function main() {
 
   // ---- profile 四件套 ----
   // 路由必须由基座声明（闸门 1 已校验）；渲染器据此产出 provider 配置
-  const catalog = loadRoutes({ agentDir });
-  const route = (catalog.routes ?? []).find((r) => r.id === agent.model?.route) ?? null;
+  // 选 provider：`model.provider` 是通行写法，`model.route` 是旧名（同一个东西）
+  const catalog = loadProviders({ agentDir });
+  const providerId = agent.model?.provider ?? agent.model?.route;
+  const route = findProvider(catalog, providerId);
   if (!route) {
-    log(`❌ model.route「${agent.model?.route}」不在路由目录里（${describeSource(catalog)}）。`);
-    log(`   路由目录里的可用路由：${(catalog.routes ?? []).map((r) => r.id).join(", ") || "(空)"} —— 用 AGENT_ROUTES_FILE 指到你自己的那份，或改这里列出的路由名。`);
+    log(`❌ model.provider「${providerId}」不在 provider 目录里（来源：${(catalog.sources ?? []).join(" + ") || "无"}）。`);
+    log(`   可用 provider：${(catalog.providers ?? []).map((r) => r.id).join(", ") || "(空)"} —— 用 AGENT_PROVIDERS_FILE 指到你自己的那份，或改这里列出的名字。`);
     process.exit(EXIT_CODES.static);
   }
 
@@ -346,7 +353,7 @@ function main() {
     denyTools: agent.tools?.deny ?? [],
     denyRows,
     denyNote: "工具粒度不同：中性的 read/write/edit 在这边是同一个 tool-fs row，禁用其一即禁用三者（见 exemptions.yaml）",
-    modelRoutes: [agent.model.route],
+    modelRoutes: [providerId],
     modelRouteApi: route.api,
     // 该路由声明的模型名单：启动期校验运行期覆盖的模型名用
     modelRouteModels: route.models ?? [],
@@ -375,8 +382,8 @@ function main() {
       ],
     },
     runtimeParams: [
-      { name: route.baseUrlParam, secret: false, required: true, backs: "model.route" },
-      { name: route.credentialParam, secret: true, required: true, backs: "model.route" },
+      { name: route.baseUrlParam, secret: false, required: !route.baseUrl, ...(route.baseUrl ? { default: route.baseUrl } : {}), backs: "model.provider" },
+      { name: route.credentialParam, secret: true, required: true, backs: "model.provider" },
       {
         name: route.modelParam, secret: false, required: false,
         default: agent.model.name, backs: "model.name", validate: "in-route-models",
@@ -393,7 +400,7 @@ function main() {
       const patchRel = `dsh-home/profiles/${agent.name}/cordis.patch.yml`;
       const e = {
         "persona.instructions": { at: "workspace/AGENTS.md", contains: persona.slice(0, 24) },
-        "model.route": { at: patchRel, contains: `provider: ${agent.model.route}` },
+        "model.route": { at: patchRel, contains: `provider: ${providerId}` },
         // model.name 是默认值（运行期可覆盖）⇒ 落点是清单（默认值 + 引用名），
         // 产物里是 `!!js (process.env.<引用名> ?? "<默认值>")` 表达式。
         "model.name": { at: "render-manifest.json", contains: [agent.model.name, route.modelParam] },

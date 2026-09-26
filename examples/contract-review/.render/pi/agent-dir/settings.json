@@ -1,0 +1,18 @@
+{
+  "defaultModel": "${CORP_GATEWAY_MODEL}",
+  "defaultProjectTrust": "never",
+  "defaultProvider": "corp-gateway",
+  "enableAnalytics": false,
+  "enableInstallTelemetry": false,
+  "extensions": [
+    "extensions/trace.ts"
+  ],
+  "packages": [
+    {
+      "prompts": [],
+      "skills": [],
+      "source": "/usr/local/lib/node_modules/pi-mcp-adapter"
+    }
+  ],
+  "quietStartup": true
+}

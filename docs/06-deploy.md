@@ -47,7 +47,8 @@
 | `<PREFIX>_MODEL` | 定义里的 `model.name` | **模型名的运行期覆盖**。同一份制品在不同环境常要指向不同模型名；取值须在该路由声明的模型名单内 |
 | `<任意引用名>_FILE` | 无 | **从文件读**该值。文件结尾的换行会被去掉 |
 | `AGENT_SECRETS_DIR` | 无 | **凭据目录**：读 `<目录>/<引用名>` 作为该参数的值（一次挂一整套凭据时省事）。优先级低于环境变量与 `_FILE` |
-| `AGENT_ROUTES_FILE` / `AGENT_CATALOG_DIR` | 基座内置路由目录 | **路由目录**（连哪个端点、端点服务哪些模型）。构建/校验期用；运行期不需要（名单已记进产物清单） |
+| `AGENT_PROVIDERS_FILE` / `AGENT_CATALOG_DIR` | 基座内置 provider 目录 | **供应商目录**（连哪个端点、端点服务哪些模型）。构建/校验期用；运行期不需要（名单已记进产物清单）。旧名 `AGENT_ROUTES_FILE` 仍被接受 |
+| `AGENT_ENV_FILE` | 无 | **变量文件**路径（`.env` 这类）。工具链会读它补环境变量；**真环境变量优先**。容器里挂一份进去也可以 |
 | `AGENT_ARTIFACT_DIR` | `/opt/agent-base/artifact` | 产物根挂载点 |
 | `AGENT_RUN_DIR` | `/run/agent-base`（不可写时退回 `/tmp/agent-base-run`） | 暂存可写副本的位置 |
 | `<连接器引用名>` | 无 | 连接器的端点/凭据（如 `AGENT_JIRA_ENDPOINT_PROD`、`JIRA_TOKEN`） |

@@ -27,8 +27,10 @@ import YAML from "yaml";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-/** 基座内置的路由目录路径。 */
+/** 基座内置的路由目录路径（老名字，仍支持）。 */
 export const BUILTIN_ROUTES_PATH = path.join(HERE, "routes.yaml");
+/** 基座**内置的常用 provider**：让"只写一个通行名字就能用"成立（不必建任何文件）。 */
+export const BUILTIN_PROVIDERS_PATH = path.join(HERE, "providers.yaml");
 
 /**
  * 解析"这次该读哪份路由目录"。
@@ -80,4 +82,105 @@ export function loadRoutes({ env = process.env, agentDir = null } = {}) {
 /** 方便调用方拼提示语：说明这份目录是从哪来的。 */
 export function describeSource(loaded) {
   return loaded.builtin ? `基座内置（${loaded.path}）` : `${loaded.source}（${loaded.path}）`;
+}
+
+// ============================================================================
+// Provider（供应商）—— 比"路由"更通行的说法，且**内置常用供应商**
+//
+// 解析顺序（与路由目录同一条链，只是多了一层"内置 provider 作为基础层"）：
+//   ① `AGENT_PROVIDERS_FILE` / `AGENT_ROUTES_FILE`（显式文件）
+//   ② `AGENT_CATALOG_DIR` 下的 providers.yaml / routes.yaml
+//   ③ `<智能体目录>/providers.yaml`（或 routes.yaml）
+//   ④ 基座内置 providers.yaml ← **基础层**：上面各层按 id **合并覆盖**它
+//
+// 于是：智能体写 `model.provider: deepseek` 就够；要改端点/模型名，只在自己的
+// providers.yaml 里写要改的字段即可 —— 改基座代码是**不需要**的。
+// ============================================================================
+
+const prefixOf = (id) => String(id).toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+function readProvidersFile(file) {
+  if (!fs.existsSync(file)) return null;
+  try {
+    const doc = YAML.parse(fs.readFileSync(file, "utf8"));
+    const list = doc?.providers ?? doc?.routes ?? [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return null;
+  }
+}
+
+/** 把一条 provider 补全成渲染器与闸门要用的形状（引用名、默认端点、凭据名、模型名参数）。 */
+export function normalizeProvider(entry) {
+  const id = String(entry.id ?? "");
+  const prefix = prefixOf(id);
+  return {
+    id,
+    displayName: entry.displayName ?? id,
+    api: entry.api ?? "openai-completions",
+    // 端点：写死用 baseUrl；不写死就用引用名（内部网关那种每环境不同的）
+    baseUrl: entry.baseUrl ?? null,
+    baseUrlParam: entry.baseUrlParam ?? `${prefix}_BASE_URL`,
+    // 凭据引用名：默认按通行约定 `<ID>_API_KEY`（DeepSeek 即 DEEPSEEK_API_KEY）
+    credentialParam: entry.credentialEnv ?? entry.credentialParam ?? `${prefix}_API_KEY`,
+    modelParam: entry.modelParam ?? `${prefix}_MODEL`,
+    models: Array.isArray(entry.models) ? entry.models : [],
+    note: entry.note ?? null,
+    builtin: entry.builtin === true,
+  };
+}
+
+/**
+ * 读"有效 provider 列表"：内置为基础层，部署层按 id 合并覆盖。
+ * @returns {{providers: object[], sources: string[], errors: string[]}}
+ */
+export function loadProviders({ env = process.env, agentDir = null } = {}) {
+  const sources = [];
+  const errors = [];
+
+  // 基础层：内置
+  const builtin = readProvidersFile(BUILTIN_PROVIDERS_PATH);
+  if (builtin === null) errors.push(`基座内置的 providers.yaml 读不到：${BUILTIN_PROVIDERS_PATH}`);
+  const byId = new Map();
+  for (const e of builtin ?? []) byId.set(e.id, { ...e, builtin: true });
+  if (builtin?.length) sources.push(`基座内置（${BUILTIN_PROVIDERS_PATH}）`);
+
+  // 覆盖层：显式文件 > 目录 > 智能体自带（与路由目录同一条链）
+  const candidates = [];
+  const explicit = env.AGENT_PROVIDERS_FILE ?? env.AGENT_ROUTES_FILE ?? null;
+  if (explicit) candidates.push({ file: path.resolve(explicit), explicit: true, what: "AGENT_PROVIDERS_FILE/AGENT_ROUTES_FILE" });
+  if (env.AGENT_CATALOG_DIR) {
+    const dir = path.resolve(env.AGENT_CATALOG_DIR);
+    candidates.push({ file: path.join(dir, "providers.yaml"), what: "AGENT_CATALOG_DIR" });
+    candidates.push({ file: path.join(dir, "routes.yaml"), what: "AGENT_CATALOG_DIR" });
+  }
+  if (agentDir) {
+    const d = path.resolve(agentDir);
+    candidates.push({ file: path.join(d, "providers.yaml"), what: "agent-local" });
+    candidates.push({ file: path.join(d, "routes.yaml"), what: "agent-local" });
+  }
+
+  for (const c of candidates) {
+    if (!fs.existsSync(c.file)) {
+      // "显式指定却读不到"要报错；其它层级缺文件是正常的
+      if (c.explicit) errors.push(`${c.what} 指向的文件不存在：${c.file}（设置了却读不到 ⇒ 直接失败，不静默回退）`);
+      continue;
+    }
+    const list = readProvidersFile(c.file);
+    if (list === null) { errors.push(`${c.file} 解析失败`); continue; }
+    for (const e of list) {
+      const prev = byId.get(e.id) ?? {};
+      // 按字段合并：覆盖层只写要改的，其余继承内置
+      byId.set(e.id, { ...prev, ...e, builtin: prev.builtin === true && e.builtin !== false });
+    }
+    sources.push(`${c.what}（${c.file}）`);
+    break;   // 只取**第一个存在**的覆盖层，避免多层无声叠加
+  }
+
+  return { providers: [...byId.values()].map(normalizeProvider), sources, errors };
+}
+
+/** 取某个 provider；找不到时给出可用取值。 */
+export function findProvider(loaded, id) {
+  return (loaded.providers ?? []).find((p) => p.id === id) ?? null;
 }

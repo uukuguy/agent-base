@@ -109,6 +109,20 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 > 已改为按「值是否随部署环境而变」判定 —— 模型名是环境属性，进参数层；`model.route` 仍是制品层
 > （它决定后面三个引用名）。
 
+### 模型配置：内置 provider，写名字就能用
+
+- 新增**内置 provider 目录**（`core/catalog/providers.yaml`）：`deepseek` / `openai` / `corp-gateway`。
+  智能体只写 `model.provider: deepseek` + `model.name: …`，**不必建任何文件**，
+  也不必照着 provider 名去推 `XXX_BASE_URL` / `XXX_API_KEY` —— 内置条目直接给出通行名字
+  （`DEEPSEEK_API_KEY` 等）与公开端点
+- `model.provider` 是新写法，`model.route` 仍等价可用
+- 要改端点/模型名单：写自己的 `providers.yaml`（智能体旁边 / `AGENT_PROVIDERS_FILE` / `AGENT_CATALOG_DIR`），
+  同名 id **按字段合并**覆盖内置；`provider.baseUrl` 给了字面端点时，端点不再是必填参数
+- **工具链会读变量文件**（`.env` 这类）：`AGENT_ENV_FILE` 显式指定，或放智能体目录/当前目录/仓库根；
+  **真环境变量优先**
+- 模型列表**完整**进入两个运行时的配置（不只是默认那一个），两边都能切换模型
+- `examples/` 每个示例都带上了 Makefile：`cd examples/idea-to-proof && make verify` 直接能跑
+
 ### 模型路由目录可以被部署层覆盖（不再需要改基座）
 
 - 路由目录（连哪个端点、端点服务哪些模型）是**部署输入**：`AGENT_ROUTES_FILE` / `AGENT_CATALOG_DIR`

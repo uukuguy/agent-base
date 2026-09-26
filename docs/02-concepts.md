@@ -8,11 +8,13 @@
 | 概念 | 中性定义字段 | 含义 |
 |---|---|---|
 | **它是谁** | `agent.yaml` → `persona.instructions` | 人设与边界。写得越具体，行为越可预测 |
-| **用哪个模型** | `agent.yaml` → `model.{route,name,reasoningEffort}` | `route` = **路由目录里声明的路由名**（不是 URL、不是 provider，属制品层）；`name` = **默认模型名**（属环境属性，运行期可用 `<路由前缀>_MODEL` 覆盖） |
+| **用哪个模型** | `agent.yaml` → `model.{provider,name,reasoningEffort}` | `provider` = **供应商名**（`deepseek` / `openai` / 内部网关 …，不是 URL；旧名 `route` 等价）；`name` = **默认模型名**（属环境属性，运行期可用 `<PROVIDER>_MODEL` 覆盖） |
 
-**"有哪些模型可用"问路由目录** —— 默认看 `core/catalog/routes.yaml`，部署层可用
-`AGENT_ROUTES_FILE` 换成自己那份（派生智能体放个 `routes.yaml` 在旁边即自动生效）。
-名单别手填：`make routes-init ENDPOINT=<baseUrl>` 会去问端点 `GET <baseUrl>/models`，把实测结果写成目录。
+**"有哪些模型可用"看 provider 目录** —— 基座**内置**常用供应商（`core/catalog/providers.yaml`：
+`deepseek` / `openai` / `corp-gateway`），所以只写名字就能用；
+要改端点/模型名单，写自己的 `providers.yaml`（放智能体旁边，或 `AGENT_PROVIDERS_FILE` 指过去），
+同名条目**按字段合并**覆盖。
+名单别靠记：`make routes-init ENDPOINT=<baseUrl>` 会问端点 `GET <baseUrl>/models`，把实测结果写成目录。
 | **它会什么** | `skills/<名字>/SKILL.md`（+ 可选 `scripts/`） | 技能；技能可以带业务代码，只进智能体镜像 |
 | **它能连什么** | `connectors.yaml` → `mcpServers[]` | MCP 连接器。推荐按名引用基座预装条目 |
 

@@ -134,6 +134,22 @@ groups:
     label: 「它用哪个模型」
     businessConcept: true
     fields:
+      # 通行写法是 model.provider；model.route 是旧名（等价，schema 两者都收）
+      - path: model.provider
+        source: agent.yaml
+        type: string
+        required: true
+        layer: artifact
+        valueRef: parameter
+        harnesses:
+          pi: { support: supported, verified: true }
+          dsh: { support: supported, verified: true }
+        doc: >
+          模型供应商名。基座**内置**了常用供应商（deepseek / openai / corp-gateway …），
+          智能体只写名字；端点、凭据引用名、模型名单都来自那份内置目录，
+          要改就用 `providers.yaml`（放智能体旁边或用 AGENT_PROVIDERS_FILE）覆盖同名条目。
+        degradation: 供应商不在目录里 → 渲染期直接失败并列出可用名字。
+
       - path: model.route
         source: agent.yaml
         type: string

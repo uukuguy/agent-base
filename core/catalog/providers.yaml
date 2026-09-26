@@ -1,0 +1,55 @@
+apiVersion: agent-base/v1
+
+# ============================================================================
+# 内置 provider 目录（基座自带，**开箱就用**）
+#
+# ## 为什么要有它
+#
+# 之前"用哪个模型"要先写一份路由目录、再照着路由名推导出 `XXX_BASE_URL` / `XXX_API_KEY`。
+# 换个模型供应商就得自定义一套引用名 —— 对"快速验证"来说这是纯摩擦。
+#
+# 这里把**常用供应商**按通行名字内置：智能体只写 `model.provider: deepseek`，
+# 密钥用通行名字（`DEEPSEEK_API_KEY`）放进环境或 .env 即可 —— **一个文件都不用建**。
+#
+# ## 字段
+#
+#   id            通行名字（`model.provider` 写的就是它）
+#   api           协议形状（openai-completions / anthropic-messages …）
+#   baseUrl       端点（内置直连的公网端点；也可换成 baseUrlParam 表示"由部署给"）
+#   baseUrlParam  可选：不写死端点，改用这个引用名（内部网关那种每环境不同的用它）
+#   models        该供应商提供的模型名（可被部署层覆盖）
+#   credentialEnv 凭据的引用名；不写则按 `<ID 大写>_API_KEY` 约定
+#
+# ## 覆盖方式（都不改基座代码）
+#
+#   · 部署层：`AGENT_PROVIDERS_FILE=/path/providers.yaml` 或 `AGENT_CATALOG_DIR=/dir`
+#   · 智能体自带：把 `providers.yaml` 放在 agent.yaml 旁边
+#   · 同名 id **合并覆盖**（你只需写要改的字段），新 id 追加
+#
+# 模型名会随供应商更新：`make routes-init ENDPOINT=… ` 可以问出真实名单，
+# 或直接在本文件/你的 providers.yaml 里改 `models`。
+# ============================================================================
+
+providers:
+  # ---- 内置的默认端点：本仓库自带的零凭据假网关（门 3/4 用它，不需要任何密钥）----
+  - id: corp-gateway
+    displayName: 内网网关（自带假网关是它的零凭据等价物）
+    api: openai-completions
+    baseUrlParam: CORP_GATEWAY_BASE_URL
+    credentialEnv: CORP_GATEWAY_API_KEY
+    models: [corp-think]
+
+  # ---- DeepSeek 开放平台：OpenAI 兼容，密钥名就是通行写法 DEEPSEEK_API_KEY ----
+  # 官方：https://api-docs.deepseek.com/quick_start/pricing
+  - id: deepseek
+    displayName: DeepSeek
+    api: openai-completions
+    baseUrl: https://api.deepseek.com
+    models: [deepseek-flash, deepseek-v4-pro]
+
+  # ---- OpenAI 官方 ----
+  - id: openai
+    displayName: OpenAI
+    api: openai-completions
+    baseUrl: https://api.openai.com/v1
+    models: [gpt-4o, gpt-4o-mini]

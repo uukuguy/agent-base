@@ -48,6 +48,27 @@ allowed:
       归纳出 v1 命名约定，使 validate 能判定 credentialRef 是否落在允许清单内。
       **这是本清单里唯一由示例归纳、而非表格原文列出的条目**——若约定不合适，改这里即可。
 
+  - id: provider-credential
+    kind: model-provider-credential
+    pattern: "^[A-Z][A-Z0-9_]*_API_KEY$"
+    secret: true
+    backs: ["model.provider"]
+    design: "§2.3（内置 provider 让引用名就是通行写法：DEEPSEEK_API_KEY 等）"
+    note: >
+      供应商凭据。内置 provider 目录里给出了每家的**通行名字**
+      （DeepSeek → DEEPSEEK_API_KEY、OpenAI → OPENAI_API_KEY），
+      所以用户不需要"照着 provider 名推一个变量名"。
+
+  - id: provider-endpoint
+    kind: model-provider-endpoint
+    pattern: "^[A-Z][A-Z0-9_]*_BASE_URL$"
+    secret: false
+    backs: ["model.provider"]
+    design: "§2.3"
+    note: >
+      端点覆盖。内置 provider 多数已带公开端点（此时不必给）；内部网关那种每环境不同的，
+      在 provider 条目里写 baseUrlParam 表示"由部署给"。
+
   - id: route-api-key
     kind: model-route-credential
     pattern: "^[A-Z][A-Z0-9_]*_API_KEY$"
@@ -149,7 +170,7 @@ forbidden:
   - id: model-route-selection
     kind: route-choice
     pattern: "^AGENT_MODEL_.*$"
-    definitionPaths: ["model.route"]
+    definitionPaths: ["model.route", "model.provider"]
     reason: >
       **路由选择**留在制品层：路由名决定后面三个引用名（端点 / 凭据 / 模型名），
       是「这份制品跑在哪条路由上」的身份，不是环境属性。

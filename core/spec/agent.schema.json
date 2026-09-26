@@ -5,7 +5,13 @@
   "description": "统一设计 §4.2 的唯一真源。刻意保持小：中性格式只表达两个 harness 的可移植核心（交集），表达力由 harness/<h>/ 业务级增强承接（§4.5）。因此本 schema 不预留任何未来字段。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "name", "description", "persona", "model"],
+  "required": [
+    "apiVersion",
+    "name",
+    "description",
+    "persona",
+    "model"
+  ],
   "properties": {
     "apiVersion": {
       "const": "agent-base/v1",
@@ -38,20 +44,35 @@
         }
       },
       "oneOf": [
-        { "required": ["instructions"] },
-        { "required": ["instructionsFile"] }
+        {
+          "required": [
+            "instructions"
+          ]
+        },
+        {
+          "required": [
+            "instructionsFile"
+          ]
+        }
       ]
     },
     "model": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["route", "name"],
-      "description": "「它用哪个模型」。route 是基座声明的路由名，不是 URL（§2.6 P-a：能力在基座、选择在智能体）。",
+      "required": [
+        "name"
+      ],
+      "description": "「它用哪个模型」。provider 是供应商名（不是 URL）；name 是**默认**模型名，属环境属性、运行期可用 `<PROVIDER>_MODEL` 覆盖。",
       "properties": {
+        "provider": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,30}$",
+          "description": "模型供应商（provider）名。基座内置了常用供应商（deepseek / openai / corp-gateway …），写名字即可，不必建任何文件；要改端点或模型名单，用自己的 providers.yaml 覆盖同名条目。不是 URL。"
+        },
         "route": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]{1,30}$",
-          "description": "基座声明的模型路由名（§11.4 / §10.2 的适配器路由目录）。不是 URL，不是 provider。"
+          "description": "`provider` 的旧名（等价）。新定义请写 provider。"
         },
         "name": {
           "type": "string",
@@ -60,10 +81,26 @@
         },
         "reasoningEffort": {
           "type": "string",
-          "enum": ["low", "medium", "high"],
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
           "description": "可选。harness 不支持时按 exemptions.yaml 处理（§5.4），不得静默忽略。"
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "provider"
+          ]
+        },
+        {
+          "required": [
+            "route"
+          ]
+        }
+      ]
     },
     "tools": {
       "type": "object",
@@ -72,7 +109,10 @@
       "properties": {
         "deny": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
           "uniqueItems": true,
           "description": "工具黑名单。语义见 §4.3 的降级规则。"
         }
