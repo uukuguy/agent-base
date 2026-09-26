@@ -38,7 +38,7 @@
 
 | 保证 | 判据（怎么验） | 现状 |
 |---|---|---|
-| 定义合法、引用存在、命名与分层合规 | 闸门 1（基座自洽 **27** 项；带定义 **39–42** 项）+ **12** 个负例 fixture | ✅ |
+| 定义合法、引用存在、命名与分层合规 | 闸门 1（基座自洽 **29** 项；带定义 **43–44** 项）+ **13** 个负例 fixture | ✅ |
 | 渲染**确定性**（同一定义渲两次结果相同） | `artifactsDigest` 复算一致（`make walkthrough` 实测） | ✅ |
 | 产物**只读**、运行期只改暂存副本 | 跑完 `artifactsDigest` 不变（`make walkthrough` 实测） | ✅ |
 | 运行期参数**四种给法**与优先级 | `make startup-selftest` + `make walkthrough`（逐条打印 `source`） | ✅ |
@@ -46,6 +46,7 @@
 | 工具边界**真的生效** | 闸门 4 `smoke/no-denied-tools`（实测只调到允许的工具） | ✅ |
 | 连接器**真的挂上** | 闸门 3 端点侧工具数变化（实测 4 → 7/36） | ✅ |
 | 增强声明 **== 进产物** | 闸门 2（pi 集合断言 / dsh 组合树；**负例**：丢一个未被任何声明认领的接入件 ⇒ 渲染期即失败） | ✅（D2 已修，2026-09-26） |
+| 钩子订阅的**事件名真的存在** | 闸门 1 `enhance/events`：`enhancements[].events` 逐个对 `adapters/<h>/adapter.yaml` 的 `hookEvents`（pi 39 个，含复算命令）**负例**：`tool_calls` ⇒ 红 | ✅（pi 侧，2026-09-26）⚠️ dsh 侧事件集合未穷举 ⇒ 声明标「未验证」 |
 | 跨运行时**等价性**、差异必须声明 | `make compare`（三组集合 + exemptions） | ✅ |
 | 轨迹**可审计**、schema 稳定 | 统一轨迹 **9** 类事件全部过 schema + `make trace-selftest` | ✅ |
 | 镜像与源码**同源** | C9 `images-same-source`（LABEL 复算） | ✅ |
@@ -53,7 +54,7 @@
 | 升级**可回归** | **13** 个自检 + conformance **C1–C10** + `make examples-check` | ✅ |
 | 工具边界**真的生效**（本地与容器同一条契约） | 清单声明 `runtimePlan.prependArgs`，两条启动路径都执行；实测 `probe/model.tools` = 1（deny 三个只剩 read） | ✅ |
 | **钩子确实在工作** | `probe/hook-fired`：轨迹事件带 `emitter`；声明了钩子就必须有钩子当场发出的事件 | ✅ ⚠️ 证明的是发射路径；业务钩子要自证需自己留痕 |
-| 声明写错**响亮失败** | 渲染期：未声明接入件 / 缺 `package`；启动期：overlay 不匹配 / 缺清单；校验期：`enhance/schema`（负例 11/12） | ✅ |
+| 声明写错**响亮失败** | 渲染期：未声明接入件 / 缺 `package`；启动期：overlay 不匹配 / 缺清单；校验期：`enhance/schema`（负例 11/12）+ `enhance/events`（负例 13） | ✅ |
 | 契约**跨版本稳定**（见 §3） | 见 §3 的稳定性清单 | ✅（本轮首次明确） |
 
 ---
@@ -63,6 +64,7 @@
 | 接口 | 承诺 |
 |---|---|
 | `agent.yaml` / `connectors.yaml` 的 `apiVersion` + schema `$id` | 同 `apiVersion` 内**不破坏**；破坏性变更必须升版并写 CHANGELOG |
+| `enhancements.schema.json`（**harness 层**：`harness/<h>/enhancements.yaml`） | **不**在 `apiVersion` 承诺内（该层本就不可移植）：随**基座版本**演进；改名/收窄必须写 CHANGELOG 并给迁移写法（例：`event:` → `events: []`），且必须**响亮失败**而不是静默忽略 —— 见 D-0017 |
 | 统一轨迹 schema（`$id`）与 9 类事件 | 只增不改；新增事件不改变既有字段语义 |
 | 容器入口的环境变量合同（`AGENT_ARTIFACT_DIR`/`AGENT_RUN_DIR`/`HARNESS`/`AGENT_HARNESS_ARGS`/参数四法） | 名字与语义不变；新增走文档 |
 | 产物清单字段（`runtimeParams`/`runtimePlan`/`modelProvider*`/`artifactsDigest`） | 只增不改；字段重命名必须一次到位并升版（本项目已因此吃过教训） |

@@ -56,7 +56,7 @@
 
 | 闸门 | 实现 | 退出码 |
 |---|---|---|
-| 1 静态校验 | `tools/validate.mjs`（基座自洽 27 项；带定义 39–42 项） | 10 |
+| 1 静态校验 | `tools/validate.mjs`（基座自洽 29 项；带定义 43–44 项） | 10 |
 | 2 解析自证 | `adapters/<h>/doctor.mjs`（零凭据真跑 harness） | 20 |
 | 3 集成探针 | `tools/probe.mjs`（默认零凭据假网关） | 30 |
 | 4 端到端冒烟 | `tools/smoke.mjs` | 40 |
@@ -80,7 +80,9 @@
 
 ### 契约与检查（近期收紧，均带负例）
 
-- `core/spec/enhancements.schema.json`：`kind` 枚举、`kind=hook` 必填 `event`、`entry`/`package` 至少一个
+- `core/spec/enhancements.schema.json`：`kind` 枚举、`kind=hook` 必填 `events`（**数组**：基座轨迹扩展自己就订阅 6 个）、`entry`/`package` 至少一个
+- 钩子事件名的**契约面**：`adapters/<h>/adapter.yaml` 的 `hookEvents`（pi 39 个已穷举 + 复算命令；dsh 未穷举 ⇒ 如实标 `enumerated: false`）；闸门 1 `enhance/events` 逐个对名字，`hook/events-decl` 盯声明自洽（count 见证值），`catalog/enum-sync` 盯能力目录与 schema 的枚举一致
+- 闸门 1 现在**也校验基座自己的** `adapters/<h>/seed/enhancements.yaml`（此前它是唯一没人查的增强声明 —— 基座不给自己开后门）
 - 渲染期：未声明的接入件、非法的 dsh 增强声明 ⇒ **响亮失败**（不静默跳过/静默加载）
 - 参数层：`AGENT_PERMISSION_MODE` / `AGENT_WORKSPACE_ROOT` 已登记（适配器不许读未登记的名字）
 - 工具边界：**清单声明**（`runtimePlan.prependArgs`），本地与容器**两条启动路径都执行**（实测 `tools=1`）
@@ -89,8 +91,9 @@
 
 ## Open Problems (theme-level)
 
-- **钩子声明未校验事件名**：`event` 只要求"必须给"，未校验是否属于该运行时可订阅集合（某运行时有 39 个）
 - **钩子只能证明"发射路径在工作"**：逐条自证（每个声明的钩子都留痕）未做
+- **接入缝（overlay）里的钩子事件名未进判据**：事件名校验只覆盖定义层与基座 seed；把集合写进产物清单后由启动期/闸门 2 同判（路线图 §23 E1b）
+- **dsh 侧事件集合未穷举**：`hookEvents.enumerated: false` ⇒ 那边写钩子只能标「未验证」，没有名字层面的判据
 - **L3 loop 定制与 L4 服务形态无声明面与判据**：长驻会话、多会话并发、审批通道、成本/网关
 - **dsh 侧接入缝未实现**：overlay 只支持"扩展目录 + settings 登记"这一种装载形态，其余响亮失败
 - **多语言共享业务代码未实现**（D-0012/D-0013 已登记）：语言中立的描述符 + 进程边界执行 + 通用桥
@@ -115,7 +118,7 @@
 - `docs/status/CURRENT-STATE.md` —— 本文件
 - `docs/status/INDEX.md` —— `docs/status/` 发现入口（含外部锚点表）
 - `docs/status/JOURNAL.md` —— 只追加事件日志
-- `docs/status/DECISIONS.md` —— D-0001–D-0016（D-0012/13 登记未实现；D-0014 两层模型；D-0015 保证/允许/不管；D-0016 开发者契约）
+- `docs/status/DECISIONS.md` —— D-0001–D-0017（D-0012/13 登记未实现；D-0014 两层模型；D-0015 保证/允许/不管；D-0016 开发者契约；D-0017 harness 层契约随基座版本演进）
 
 ### Design truth source
 

@@ -22,6 +22,57 @@ renders:
 # 闸门 1 会当场拦住（providers/model-api），而不是渲染出一份适配器不认的配置。
 modelApis: [anthropic-messages, azure-openai-responses, bedrock-converse-stream, google-generative-ai, google-vertex, openai-completions, openai-responses]
 
+# 可订阅的**生命周期事件集合**（L2 钩子的契约面，路线图 §23 E1）。
+# 为什么要有它：`enhancements.yaml` 里 kind=hook 的 `events` 写错名字，以前**不会红**
+# （schema 只要求"给了名字"）—— 于是"配了但没生效"没有任何人发现。闸门 1 现在逐个对名字。
+# 集合与上面的 `version` **同文件**，所以不另立版本字段（同一事实不设两个真源）。
+hookEvents:
+  enumerated: true
+  count: 39                 # 手抄数字的见证值：与 events 长度不符 ⇒ 闸门 1 红（hook/events-decl）
+  source: "dist/core/extensions/types.d.ts:979-1017（39 个 `on(event: …)` 重载逐行数；两份二手报告给过 24/32，都对不上）"
+  reproduce: |
+    grep -oE 'on\(event: "[a-z_]+"' <pi 包>/dist/core/extensions/types.d.ts | cut -d'"' -f2 | wc -l
+  events:
+    - project_trust
+    - resources_discover
+    - session_start
+    - session_info_changed
+    - session_before_switch
+    - session_before_fork
+    - session_before_compact
+    - session_compact
+    - session_compact_failed
+    - session_shutdown
+    - session_before_tree
+    - session_tree
+    - context
+    - context_with_system
+    - cache_warming_decision
+    - before_provider_request
+    - before_provider_headers
+    - after_provider_response
+    - before_agent_start
+    - agent_start
+    - agent_end
+    - agent_before_settle
+    - agent_settled
+    - ui_prompt_start
+    - ui_prompt_end
+    - turn_start
+    - turn_end
+    - message_start
+    - message_update
+    - message_end
+    - tool_execution_start
+    - tool_execution_update
+    - tool_execution_end
+    - model_select
+    - thinking_level_select
+    - tool_call
+    - tool_result
+    - user_bash
+    - input
+
 # 运行时自己的**凭据/配置目录**用哪个环境变量指（登录态在那里，如 pi 的 auth.json）。
 # 基座用 `AGENT_HARNESS_HOME` 统一表达"把登录态目录给我"，由适配器映射成它自己的变量名。
 credentialDirEnv: PI_CODING_AGENT_DIR

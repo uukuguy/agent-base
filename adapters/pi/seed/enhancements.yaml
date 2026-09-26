@@ -15,6 +15,15 @@ enhancements:
   - kind: hook
     id: trace
     entry: extensions/trace.ts
+    # 订阅哪 6 个事件：与 extensions/trace.ts 的 `pi.on(...)` 逐条对应（闸门 1 会拿
+    # adapters/pi/adapter.yaml 的 hookEvents.events 对名字 —— 基座不给自己开后门）。
+    events:
+      - session_start
+      - before_provider_request
+      - after_provider_response
+      - tool_call
+      - tool_result
+      - session_shutdown
     description: >
       基座不变量：订阅 loop 回调，把实际发生的事映射成统一轨迹事件。
       只订阅、不返回值、绝不抛异常（业务扩展也会叠加同一批回调）。

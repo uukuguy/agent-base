@@ -250,6 +250,21 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
   全项目一种说法；统一轨迹 schema、假网关（含 `--provider` / `FAKE_GATEWAY_PROVIDER` 与
   `x-fake-gateway-provider` 头）、轨迹视图、产物清单字段（`modelRoutes`→`modelProviders` 等）同步改名
 
+### 破坏性：增强声明的事件字段改为 `events`（数组）；钩子事件名**开始对名字**
+
+- `enhancements.yaml` 里 `kind: hook` 现在要求 **`events: [...]`**，不再是 `event: <字符串>`。
+  迁移：`event: tool_call` → `events: [tool_call]`。旧写法会在闸门 1 失败（`enhance/schema`），
+  不会静默当成"没声明"
+- **为什么现在改**：单个字符串**表达不了基座自己的轨迹扩展**（它订阅 6 个事件）；
+  而旧写法"事件名写错也不报错"—— 又一处"看起来有、其实没有"。0.1.0 未发布，改动只影响仓内文件（已全部更新）
+- **新增判据**：`enhance/events`（声明的每个事件名必须属于 `adapters/<h>/adapter.yaml` 的 `hookEvents`：
+  pi **39 个**已穷举并附 `reproduce` 复算命令；dsh 未穷举 ⇒ 如实标 `enumerated: false`、声明按「未验证」处理）、
+  `hook/events-decl`（集合声明自洽，`count` 是手抄见证值）、`catalog/enum-sync`（能力目录与 schema 的枚举必须一致）
+- **顺手堵上一个后门**：闸门 1 此前**不校验基座自己的** `adapters/<h>/seed/enhancements.yaml` ——
+  它那份 `kind: hook` 连事件名都没写却一直"全绿"。现在两个来源都走同一套 schema 与事件名核对
+- **契约边界（D-0017）**：`enhancements.schema.json` 是 **harness 层**契约，随**基座版本**演进，
+  不属于 `apiVersion` 所承诺的中性定义契约（中性定义仍是 `agent-base/v1`，一个字没改）
+
 ### 模型协议形状：声明 + 校验（`providers/model-api`）
 
 - 两个适配器各自声明**支持的协议形状**（`adapters/<h>/adapter.yaml` 的 `capabilities.modelApis`，

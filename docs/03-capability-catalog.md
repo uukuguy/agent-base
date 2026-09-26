@@ -77,9 +77,12 @@
 | 字段 | 类型 | 所属层 | 必填 | 取值 | dsh | pi | 说明 |
 |---|---|---|---|---|---|---|---|
 | `harness/<h>/enhancements.yaml#enhancements[].id` | string | artifact | 是 | — | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 增强的唯一 id。声明即契约。 |
-| `harness/<h>/enhancements.yaml#enhancements[].kind` | enum | artifact | 是 | `tool` / `hook` / `middleware` / `plugin` / `subagent` / `command` | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 增强类型。 |
-| `harness/<h>/enhancements.yaml#enhancements[].entry` | relativePath | artifact | 是 | — | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 增强入口文件（相对路径）。随制品烤进智能体镜像薄层，参与 digest。 |
-| `harness/<h>/enhancements.yaml#enhancements[].event` | string | artifact | 是 | — | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 钩子事件名。 |
+| `harness/<h>/enhancements.yaml#enhancements[].kind` | enum | artifact | 是 | `tool` / `hook` / `command` / `middleware` / `subagent` / `provider` / `other` | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 增强类型。取值与 enhancements.schema.json 的枚举**必须一致**（闸门 1 的 catalog/enum-sync 盯着）。 |
+| `harness/<h>/enhancements.yaml#enhancements[].entry` | relativePath | artifact | 是 | — | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 增强入口文件（相对路径，文件形态的运行时用）。随制品烤进智能体镜像薄层，参与 digest。 |
+| `harness/<h>/enhancements.yaml#enhancements[].package` | string | artifact | 是 | — | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 插件包名或相对路径（包形态的运行时用）。与 entry 二选一。 |
+| `harness/<h>/enhancements.yaml#enhancements[].events` | string[] | artifact | 是 | — | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 钩子订阅哪些生命周期事件（**数组**，基座自己的轨迹扩展就订阅 6 个）。名字必须属于 adapters/<h>/adapter.yaml 声明的可订阅集合。 |
+| `harness/<h>/enhancements.yaml#enhancements[].config` | object | artifact | 否 | — | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 传给该增强的配置（原样透传进产物；基座不解释业务键 —— 保证/允许/不管的"允许"段）。 |
+| `harness/<h>/enhancements.yaml#enhancements[].description` | string | artifact | 否 | — | ⚠️ 有限制（未实测） | ⚠️ 有限制（未实测） | 这个增强是干什么的（给人看的；不进判据）。 |
 
 <sub>来源：harness/<h>/enhancements.yaml</sub>
 

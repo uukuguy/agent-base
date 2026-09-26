@@ -1,6 +1,6 @@
 apiVersion: agent-base/v1
-name: enhance-hook-no-event
-description: 负例：hook 漏 events
+name: enhance-hook-bad-event
+description: 负例：hook 事件名不属于该运行时可订阅集合
 persona: { instructions: 负例。 }
 model: { provider: corp-gateway, name: corp-think }
 connectorsFile: connectors.yaml

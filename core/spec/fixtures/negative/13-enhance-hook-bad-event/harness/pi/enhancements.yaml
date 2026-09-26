@@ -1,0 +1,11 @@
+apiVersion: agent-base/v1
+harness: pi
+enhancements:
+  - id: hook-bad-event
+    kind: hook
+    entry: extensions/x.ts
+    # 故意写错一个**不存在**的事件名：`tool_calls`（正确是 `tool_call`）。
+    # 这个负例就是 E1 要防的事：以前 schema 只要求"给了名字"，写错名字照样全绿 ——
+    # 于是"配了但永远不会触发"的钩子能一路飘到交付。
+    events:
+      - tool_calls

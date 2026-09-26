@@ -23,6 +23,21 @@ renders:
 # 闸门 1 会当场拦住（providers/model-api），而不是渲染出一份适配器不认的配置。
 modelApis: [anthropic-messages, azure-openai-responses, bedrock-converse-stream, openai-completions, openai-responses]
 
+# 可订阅的**生命周期事件集合**（L2 钩子的契约面，路线图 §23 E1）。
+# dsh **没有统一钩子总线**：它的 L2 是 Cordis 服务 seam + waterfall 拦截
+# （`agent/pre-step`、`tools/pre-execute`、`agent/turn-stopping` …），名字是插件树的实现细节，
+# 还没有一份权威可数的清单（设计文档 §5.1 记的是"~30 个服务 seam"，不是确数）。
+# 所以这里**如实标 enumerated: false**：闸门 1 不拿它校验名字，但会把 dsh 的钩子声明标成
+# 「未验证」并列出来（D-0015 的"允许但不保证"）—— 不假装验过，也不因此拦着不让写。
+hookEvents:
+  enumerated: false
+  count: 0
+  source: "docs/design/2026-09-26-harness-customization.md §5.1（~30 个服务 seam + waterfall）"
+  note: >
+    要让名字也进判据，得先把 seam 名字穷举出来并给个复算命令（与 pi 侧同一件工作）。
+    在那之前：dsh 的 kind=hook 声明一律按「未验证」处理，且这份声明本身也要能被人工复核。
+  events: []
+
 # 运行时自己的**凭据/配置目录**用哪个环境变量指（登录态在那里，如 pi 的 auth.json）。
 # 基座用 `AGENT_HARNESS_HOME` 统一表达"把登录态目录给我"，由适配器映射成它自己的变量名。
 credentialDirEnv: DSH_HOME

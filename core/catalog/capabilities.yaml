@@ -350,32 +350,63 @@ groups:
         source: harness/<h>/enhancements.yaml
         type: enum
         required: true
-        values: { enum: [tool, hook, middleware, plugin, subagent, command] }
+        values: { enum: [tool, hook, command, middleware, subagent, provider, other] }
         layer: artifact
         harnesses:
           pi: { support: partial, verified: false, note: "事件钩子 / 自定义工具 / agents/ 子智能体 / prompts/ 命令 / packages" }
-          dsh: { support: partial, verified: false, note: "cordis 插件；一切皆插件" }
-        doc: 增强类型。
+          dsh: { support: partial, verified: false, note: "cordis 插件；一切皆插件（按「这个增强是什么」选 kind，而不是按它的打包形态）" }
+        doc: 增强类型。取值与 enhancements.schema.json 的枚举**必须一致**（闸门 1 的 catalog/enum-sync 盯着）。
 
       - path: harness/<h>/enhancements.yaml#enhancements[].entry
         source: harness/<h>/enhancements.yaml
         type: relativePath
-        required: true
+        required: "oneOf(entry, package)"
         layer: artifact
         harnesses:
           pi: { support: partial, verified: false }
           dsh: { support: partial, verified: false }
-        doc: 增强入口文件（相对路径）。随制品烤进智能体镜像薄层，参与 digest。
+        doc: 增强入口文件（相对路径，文件形态的运行时用）。随制品烤进智能体镜像薄层，参与 digest。
 
-      - path: harness/<h>/enhancements.yaml#enhancements[].event
+      - path: harness/<h>/enhancements.yaml#enhancements[].package
         source: harness/<h>/enhancements.yaml
         type: string
+        required: "oneOf(entry, package)"
+        layer: artifact
+        harnesses:
+          pi: { support: partial, verified: false, note: "扩展也可以是 npm 包，但登记路径仍走 entry" }
+          dsh: { support: partial, verified: false, note: "cordis 插件包名，或以 . 开头的相对路径（基准是 profile 配置目录）" }
+        doc: 插件包名或相对路径（包形态的运行时用）。与 entry 二选一。
+
+      - path: harness/<h>/enhancements.yaml#enhancements[].events
+        source: harness/<h>/enhancements.yaml
+        type: string[]
         required: "kind=hook 时必填"
         layer: artifact
         harnesses:
-          pi: { support: partial, verified: false, note: "如 tool_call" }
-          dsh: { support: partial, verified: false, note: 钩子 row }
-        doc: 钩子事件名。
+          pi: { support: partial, verified: false, note: "39 个可订阅事件（adapters/pi/adapter.yaml 的 hookEvents.events 是权威清单，闸门 1 逐个对名字）" }
+          dsh: { support: partial, verified: false, note: "无统一钩子总线；事件集合尚未穷举 ⇒ 声明按「未验证」处理（adapter.yaml 的 hookEvents.enumerated=false）" }
+        doc: 钩子订阅哪些生命周期事件（**数组**，基座自己的轨迹扩展就订阅 6 个）。名字必须属于 adapters/<h>/adapter.yaml 声明的可订阅集合。
+        degradation: 写错事件名 ⇒ 闸门 1 的 enhance/events 当场红。该运行时未穷举集合时**不做假校验**，而是把声明标成「未验证」。
+
+      - path: harness/<h>/enhancements.yaml#enhancements[].config
+        source: harness/<h>/enhancements.yaml
+        type: object
+        required: false
+        layer: artifact
+        harnesses:
+          pi: { support: partial, verified: false }
+          dsh: { support: partial, verified: false }
+        doc: 传给该增强的配置（原样透传进产物；基座不解释业务键 —— 保证/允许/不管的"允许"段）。
+
+      - path: harness/<h>/enhancements.yaml#enhancements[].description
+        source: harness/<h>/enhancements.yaml
+        type: string
+        required: false
+        layer: artifact
+        harnesses:
+          pi: { support: partial, verified: false }
+          dsh: { support: partial, verified: false }
+        doc: 这个增强是干什么的（给人看的；不进判据）。
 
 # ============================================================================
 # 三个 harness 无关的要求（不进 groups，但 validate 必须强制）

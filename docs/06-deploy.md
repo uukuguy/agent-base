@@ -219,7 +219,7 @@ enhancements:
   - kind: hook
     id: corp-audit
     entry: extensions/corp-audit.ts
-    event: tool_call        # 业务钩子：工具调用前审计/脱敏/策略
+    events: [tool_call]     # 业务钩子：工具调用前审计/脱敏/策略（名字必须在 adapter.yaml 的 hookEvents 里）
 ```
 
 **一条命令构建并自证**：

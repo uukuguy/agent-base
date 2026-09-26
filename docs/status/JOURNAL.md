@@ -307,3 +307,12 @@
 ## 2026-09-26
 - 20:50 /project-state update：CURRENT-STATE 结构层重写（两层产品形态、定制分层 L0–L4、接入缝与镜像内自证、已解决项移出开放问题、去掉会过期的镜像 ID 表）；RESUME 落后 5 个提交 → 同时做活动会话 checkpoint
 - 20:58 /project-state handoff：写入终稿（# Next-Session Handoff，取代 20:30 活动检查点）；下一个动作 = E1 钩子事件名校验
+- 21:02 /project-state check 抓到记账漂移 → 已对齐：§25 P4 勾 done（`probe/hook-fired` 实测在树里）、§23 E3/E4 勾 done 并注明「即 §25 P3/P2，勿重复做」、E2 标 done 却依赖 pending 的 E1 是**假依赖**已改正、§23/§25 标题去掉"未实现"
+- 21:02 docs/13 §2 与实现对齐（现场复核）：D2 行 ⚠️→✅、闸门 1 带定义 38–40→**39–42**（六个示例实测区间）、负例 fixture 10→**12**；INDEX 外部锚点补 4 条（13/14 契约与两份 09-26 设计稿）[7afeaeb]
+- 21:02 教训：**包闭合时只勾了 §25，§23 里同一件事仍标 pending** ⇒ 同一能力被两张表各记一遍就会不一致；§23 E3/E4 加交叉引用后不会再重复做
+- 21:09 用户实测反馈（原话要点）：`make local` 进交互 pi 调试**很方便**；但"接下来要验什么、有哪些 skills"得翻文档 → 要求新增一条命令列出该项目要验证的目标/skills/钩子事件。登记为路线图 **§26 V1/V2**（判据：从产物与 adapter.yaml 真源现算，不许第二份手写文案；与 docs/14 的表不打架）
+- 21:18 **E1 完成**（钩子声明契约）：`adapters/<h>/adapter.yaml` 新增 `hookEvents`（pi **39 个已穷举**，附 `reproduce` 复算命令；dsh `enumerated: false` 如实标未穷举）；schema 的 `event`（单串）→ **`events`（数组）**——单个字符串表达不了基座自己的轨迹扩展（它订阅 6 个）；闸门 1 新增 `enhance/events`（逐个对名字）+ `hook/events-decl`（count 见证值）+ `catalog/enum-sync`；负例 `13-enhance-hook-bad-event`（`tool_calls`）**只因该原因**红
+- 21:18 E1 顺手堵后门：闸门 1 此前**不校验基座自己的** `adapters/<h>/seed/enhancements.yaml` —— 它那份 `kind: hook` 连事件名都没写却一直"全绿"。现在 seed 与智能体声明走同一套校验
+- 21:18 契约面变更记账：CHANGELOG 立「破坏性：`event` → `events`」+ 迁移写法；**D-0017** 裁定 harness 层契约（`enhancements.schema.json`）随**基座版本**演进、不进 `apiVersion`（`apiVersion` 窄化为只承诺中性定义；被否方案=升 v2 让 6 示例+模板+fixtures 全动）
+- 21:18 数字实测刷新：闸门 1 基座 27→**29** 项、带定义 39–42→**43–44** 项、负例 12→**13** 个；能力目录补齐 enhancements 组（package/events/config/description，kind 枚举 `plugin`→与 schema 对齐）
+- 21:18 全量回归全绿：14 个自检 · 两侧 conformance **10/10** · `examples-check` · `walkthrough`（20 通过 / 1 跳过 / 0 失败）

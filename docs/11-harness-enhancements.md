@@ -35,8 +35,20 @@ harness: pi
 enhancements:
   - kind: hook              # 扩展种类（该运行时自己的说法）
     id: risk-score          # 唯一 id —— 闸门 2 用它做集合断言
+    events: [tool_call]     # 订阅哪些事件（**数组**）。名字必须属于该运行时可订阅集合：
+                            # adapters/<h>/adapter.yaml 的 hookEvents.events（pi 有 39 个）
     entry: extensions/risk-score.ts    # pi：产物里的扩展文件
 ```
+
+> **钩子事件名写错会当场红**（闸门 1 的 `enhance/events`）。以前不会：schema 只要求"给了名字"，
+> 于是"配了但永远不会触发"的钩子能一路飘到交付。先看该运行时有哪些事件可订阅：
+>
+> ```bash
+> grep -A60 '^hookEvents:' adapters/pi/adapter.yaml        # 权威清单 + 复算命令（hookEvents.reproduce）
+> ```
+>
+> 基座自己的轨迹扩展就是 `kind: hook` + 6 个事件（`adapters/pi/seed/enhancements.yaml`）——
+> 它是**唯一**一个必须写对事件名的基座声明，可以直接照抄写法。
 
 dsh 的形态不同（增强是 npm 包）：
 
@@ -44,24 +56,27 @@ dsh 的形态不同（增强是 npm 包）：
 apiVersion: agent-base/v1
 harness: dsh
 enhancements:
-  - kind: plugin
+  - kind: tool               # 按「这个增强是什么」选 kind，不按它怎么打包（dsh 一律是 cordis 插件）
     id: risk-score
     package: "@your-org/agent-risk-score"    # 包名
     config: { threshold: 0.7 }               # 可选
 ```
 
 **形态由适配器决定**（`adapter.yaml` 的 `enhancementShape: file | package`）——
-用例助手与检查都照它来，所以你不必去猜哪种写法对。
+用例助手与检查都照它来，所以你不必去猜哪种写法对。`kind` 的合法取值是
+`tool | hook | command | middleware | subagent | provider | other`（真源：
+`core/spec/enhancements.schema.json`；能力目录里那份由闸门 1 的 `catalog/enum-sync` 盯着）。
 
-## 四、三条硬约束（违反会被机器拦）
+## 四、四条硬约束（违反会被机器拦）
 
 | 约束 | 为什么 | 谁拦 |
 |---|---|---|
 | **声明的必须有实体** | 声明了却找不到文件 = 你以为增强了、其实没有 | `resolution/enhancement-entries` |
 | **加载的必须等于声明的** | 扩展可能**静默没加载**（抛错被忽略） | 闸门 2 第三条硬断言 |
+| **钩子事件名必须真的存在** | 事件名写错 ⇒ 钩子永远不触发，且以前无人报错 | 闸门 1 `enhance/events`（对照 `adapter.yaml` 的 `hookEvents`） |
 | **增强不得重复表达中性定义已表达的字段** | 否则同一件事有两个真源，改一处漏一处 | `enhance/single-source` |
 
-第三条最容易踩：你要改人设、改工具边界、改模型选择，**改中性定义**，不要在增强里再写一遍。
+第四条最容易踩：你要改人设、改工具边界、改模型选择，**改中性定义**，不要在增强里再写一遍。
 
 ## 五、现成的参考实现：基座自己的轨迹扩展
 

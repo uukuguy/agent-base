@@ -170,11 +170,18 @@ function checkBase(report, agentDir = process.cwd()) {
   }
 
   // A2 能力目录覆盖 schema 全部字段
+  // 增强 schema 也在覆盖范围内：它的条目以前没人对，于是 `event` 改名 `events` 后，
+  // 目录里那份会**留下来**（"文档说有、实现没有"的同一类：两处真源漂移）。
+  const enhSchemaRaw = JSON.parse(fs.readFileSync(path.join(SPEC, "enhancements.schema.json"), "utf8"));
+  const ENH_SOURCE = "harness/<h>/enhancements.yaml";
+  const enhFieldPaths = Object.keys(enhSchemaRaw.properties.enhancements.items.properties)
+    .map((f) => `${ENH_SOURCE}#enhancements[].${f}`);
   const capsFields = caps.groups.flatMap((g) => g.fields ?? []);
   const capsPaths = new Set(capsFields.map((f) => f.path));
   const schemaPaths = [
     ...deriveSchemaPaths(agentSchema).map((p) => ({ p, src: "agent.yaml" })),
     ...deriveSchemaPaths(connectorsSchema).filter((p) => p !== "apiVersion").map((p) => ({ p, src: "connectors.yaml" })),
+    ...enhFieldPaths.map((p) => ({ p, src: ENH_SOURCE })),
   ];
   const missing = schemaPaths.filter(({ p }) => !capsPaths.has(p));
   if (missing.length) {
@@ -184,12 +191,27 @@ function checkBase(report, agentDir = process.cwd()) {
     report.pass(GATE, "catalog/missing-field", `能力目录覆盖 schema 全部 ${schemaPaths.length} 个字段路径`);
   }
   const stale = capsFields
-    .filter((f) => /^(agent|connectors)\.yaml/.test(f.source ?? ""))
+    .filter((f) => /^(agent|connectors)\.yaml/.test(f.source ?? "") || f.source === ENH_SOURCE)
     .filter((f) => !schemaPaths.some(({ p }) => p === f.path));
   if (stale.length) {
     report.fail(GATE, "catalog/stale-field", `能力目录有字段但 schema 里不存在：${stale.map((f) => f.path).join(", ")}`);
   } else {
     report.pass(GATE, "catalog/stale-field", "能力目录没有指向已删除字段的残留条目");
+  }
+
+  // A2b 枚举值也必须与 schema 一致：目录里留着 `plugin`、schema 里没有 ⇒
+  // 文档正在教人写一个**必红**的 kind（比字段名拼错更难发现，因为两边都"看起来对"）。
+  {
+    const schemaKind = enhSchemaRaw.properties.enhancements.items.properties.kind.enum ?? [];
+    const capKind = capsFields.find((f) => f.path === `${ENH_SOURCE}#enhancements[].kind`)?.values?.enum ?? [];
+    const same = schemaKind.length === capKind.length && schemaKind.every((v) => capKind.includes(v));
+    if (!same) {
+      report.fail(GATE, "catalog/enum-sync",
+        `增强 kind 的枚举与 enhancements.schema.json 不一致（两处真源）：`
+        + `catalog=[${capKind.join(", ")}] schema=[${schemaKind.join(", ")}]`);
+    } else {
+      report.pass(GATE, "catalog/enum-sync", `增强 kind 枚举与 schema 一致（${schemaKind.length} 个取值）`);
+    }
   }
 
   // A3 params.allowed.backs ↔ capabilities.valueRef === parameter（双向）
@@ -263,6 +285,37 @@ function checkBase(report, agentDir = process.cwd()) {
     for (const d of ["core", "tools", "adapters", "conformance"]) scanDir(path.join(REPO, d));
     if (offenders.length) report.fail(GATE, "cli/no-naive-flag-skip", `手写旗标值跳过（会吞掉位置参数，已出错三次）：${offenders.join(", ")} —— 改用 core/gates/cli.mjs 的 parseArgs`);
     else report.pass(GATE, "cli/no-naive-flag-skip", "没有手写「跳过旗标值」的索引过滤（统一用 parseArgs）");
+  }
+
+  // A4c 钩子事件集合的**声明自洽**（E1 的一半；另一半是拿它对增强声明里的名字）
+  // 事件名是从运行时包里手抄的（类型定义的 on() 重载），手抄就会漏 ——
+  // 所以要求一个见证值 count：它与 events 长度不符 ⇒ 当场红，而不是等写错名字的人来踩。
+  {
+    const problems = [];
+    const summary = [];
+    for (const h of HARNESS_NAMES) {
+      let a;
+      try { a = loadYaml(path.join(REPO, "adapters", h, "adapter.yaml")); }
+      catch (e) { problems.push(`adapters/${h}/adapter.yaml 读不出来：${e.message}`); continue; }
+      const he = a.hookEvents;
+      if (!he) { problems.push(`adapters/${h}/adapter.yaml 未声明 hookEvents ⇒ 该运行时的钩子事件名无处校验`); continue; }
+      const events = he.events ?? [];
+      if (he.enumerated === true) {
+        if (!events.length) problems.push(`adapters/${h}: enumerated=true 但 events 为空`);
+        else if (new Set(events).size !== events.length) problems.push(`adapters/${h}: events 有重复项`);
+        if (he.count !== events.length) problems.push(`adapters/${h}: count=${he.count} 与 events 长度 ${events.length} 不符（手抄漏项？）`);
+        if (!he.source) problems.push(`adapters/${h}: 没写 source（这个集合是从哪儿数出来的）`);
+        summary.push(`${h}: ${events.length} 个已穷举`);
+      } else if (he.enumerated === false) {
+        if (events.length) problems.push(`adapters/${h}: enumerated=false 却给了 ${events.length} 个名字 —— 要么穷举并置 true，要么别给`);
+        else if (!he.note) problems.push(`adapters/${h}: enumerated=false 必须写 note 说明为什么没穷举`);
+        else summary.push(`${h}: 未穷举（如实标注 ⇒ 声明按「未验证」处理）`);
+      } else {
+        problems.push(`adapters/${h}: hookEvents.enumerated 必须是 true 或 false（不许含糊）`);
+      }
+    }
+    if (problems.length) report.fail(GATE, "hook/events-decl", `钩子事件集合声明不自洽：${problems.join("；")}`);
+    else report.pass(GATE, "hook/events-decl", `各运行时可订阅事件集合已声明（${summary.join(" · ")}）`);
   }
 
   // A5b 路由目录自洽：引用名必须符合约定，且被参数层允许清单覆盖
@@ -663,36 +716,79 @@ function checkAgent(report, ctx, agentDir) {
     else if (skillFiles.length) report.pass(GATE, "skill/frontmatter", `${skillFiles.length} 个技能的 frontmatter 合法`);
   }
 
-  // B6 单一真源 + **schema 校验**（缺陷 D1：此前只在文档里写要求，写错都能过）
+  // B6 单一真源 + **schema 校验** + **钩子事件名逐个对名字**（缺陷 D1 + 路线图 §23 E1）
+  // 两个来源都要查：智能体自己的声明，以及**基座自己的**声明（`adapters/<h>/seed/`）。
+  // 基座不给自己开后门：seed 的 enhancements.yaml 以前根本没人校验 —— 它自己那份 kind=hook
+  // 连事件名都没写，却一直是"全绿"。要验的规矩，基座第一个先过。
   const dupes = [];
+  const schemaPassed = [];
+  const eventProblems = [];
+  const eventVerified = [];
+  const eventUnverified = [];
   for (const h of HARNESS_NAMES) {
-    const enhFile = path.join(agentDir, "harness", h, "enhancements.yaml");
-    if (!fs.existsSync(enhFile)) continue;
-    let enh;
-    try { enh = loadYaml(enhFile); } catch (e) {
-      report.fail(GATE, "enhance/yaml", `harness/${h}/enhancements.yaml 不是合法 YAML：${e.message}`);
-      continue;
-    }
-    // schema：kind 枚举、hook 必填 event、entry/package 至少一个、id 形状
-    if (enhSchema) {
-      const ok = enhSchema(enh);
-      if (!ok) {
-        const first = (enhSchema.errors ?? [])[0] ?? {};
-        const at = (first.instancePath || "(根)").replace(/^\//, "");
-        report.fail(GATE, "enhance/schema",
-          `harness/${h}/enhancements.yaml 不符合 core/spec/enhancements.schema.json：`
-          + `${at} ${first.message ?? "校验失败"}`
-          + `（kind 必须合法；kind=hook 必须给 event；entry 与 package 至少给一个）`);
-      } else {
-        report.pass(GATE, "enhance/schema", `harness/${h}/enhancements.yaml 符合增强 schema`);
+    let adapter = null;
+    try { adapter = loadYaml(path.join(REPO, "adapters", h, "adapter.yaml")); } catch { /* 基座自洽那一段会报 */ }
+    const hookSet = adapter?.hookEvents;
+    const sources = [
+      { label: `harness/${h}/enhancements.yaml`, file: path.join(agentDir, "harness", h, "enhancements.yaml") },
+      { label: `adapters/${h}/seed/enhancements.yaml`, file: path.join(REPO, "adapters", h, "seed", "enhancements.yaml") },
+    ];
+    for (const src of sources) {
+      if (!fs.existsSync(src.file)) continue;
+      let enh;
+      try { enh = loadYaml(src.file); } catch (e) {
+        report.fail(GATE, "enhance/yaml", `${src.label} 不是合法 YAML：${e.message}`);
+        continue;
       }
-    }
-    for (const key of Object.keys(enh ?? {})) {
-      if (NEUTRAL_KEYS_FORBIDDEN_IN_ENHANCEMENTS.includes(key)) dupes.push(`harness/${h}/enhancements.yaml:${key}`);
+      // schema：kind 枚举、hook 必填 events、entry/package 至少一个、id 形状
+      if (enhSchema) {
+        if (enhSchema(enh)) schemaPassed.push(src.label);
+        else {
+          const first = (enhSchema.errors ?? [])[0] ?? {};
+          const at = (first.instancePath || "(根)").replace(/^\//, "");
+          report.fail(GATE, "enhance/schema",
+            `${src.label} 不符合 core/spec/enhancements.schema.json：`
+            + `${at} ${first.message ?? "校验失败"}`
+            + `（kind 必须合法；kind=hook 必须给 events **数组**；entry 与 package 至少给一个）`);
+        }
+      }
+      for (const key of Object.keys(enh ?? {})) {
+        if (NEUTRAL_KEYS_FORBIDDEN_IN_ENHANCEMENTS.includes(key)) dupes.push(`${src.label}:${key}`);
+      }
+      // 钩子事件名：逐个对适配器声明的"该运行时能订阅哪些事件"
+      for (const e of (enh?.enhancements ?? []).filter((x) => x?.kind === "hook")) {
+        const names = Array.isArray(e.events) ? e.events : [];
+        if (!hookSet) {
+          eventProblems.push(`${src.label}:${e.id} 声明了钩子，但 adapters/${h}/adapter.yaml 没有 hookEvents ⇒ 事件名无从核对`);
+          continue;
+        }
+        if (hookSet.enumerated === true) {
+          const known = hookSet.events ?? [];
+          const bad = names.filter((n) => !known.includes(n));
+          if (bad.length) {
+            eventProblems.push(`${src.label}:${e.id} 订阅了该运行时不存在的 ${bad.length} 个事件：${bad.join(", ")}`
+              + `（adapters/${h}/adapter.yaml 声明的 ${known.length} 个可订阅事件里没有；复算命令见该文件的 hookEvents.reproduce）`);
+          } else {
+            eventVerified.push(`${src.label}:${e.id}（${names.length} 个事件）`);
+          }
+        } else {
+          eventUnverified.push(`${src.label}:${e.id} → ${names.join(", ") || "（未给）"}`);
+        }
+      }
     }
   }
   if (dupes.length) report.fail(GATE, "enhance/single-source", `增强重复表达了中性定义字段（两个真源）：${dupes.join(", ")}`);
   else report.pass(GATE, "enhance/single-source", "业务级增强没有重复表达中性定义字段");
+  if (schemaPassed.length) report.pass(GATE, "enhance/schema", `${schemaPassed.join(" · ")} 符合增强 schema`);
+  if (eventProblems.length) {
+    report.fail(GATE, "enhance/events", `钩子订阅了不存在的生命周期事件：${eventProblems.join("；")}`);
+  } else {
+    report.pass(GATE, "enhance/events",
+      `钩子事件名与适配器声明的可订阅集合一致（${eventVerified.join(" · ") || "无已穷举运行时的钩子声明"}）`
+      + (eventUnverified.length
+        ? `；另有 ${eventUnverified.length} 条按「未验证」处理（该运行时未穷举事件集合）：${eventUnverified.join(" · ")}`
+        : ""));
+  }
 
   // B6b 共享业务代码必须与运行时无关
   {

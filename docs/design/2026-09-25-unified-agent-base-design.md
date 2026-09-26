@@ -548,13 +548,13 @@ harness/
 apiVersion: agent-base/v1
 harness: pi
 enhancements:
-  - kind: tool                # tool | hook | middleware | plugin | subagent | command
+  - kind: tool                # tool | hook | command | middleware | subagent | provider | other
     id: corp-risk-score       # 唯一 id；闸门 2 用集合断言"真的加载了"
     entry: extensions/corp-risk-score.ts
     description: 企业风险评分工具
   - kind: hook
     id: audit-enrich
-    event: tool_call
+    events: [tool_call]
     entry: extensions/audit-enrich.ts
 ```
 

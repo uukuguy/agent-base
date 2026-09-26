@@ -239,7 +239,7 @@ check("config-check 不留运行目录", !fs.existsSync(freshWork) || fs.readdir
     "  - kind: hook",
     "    id: corp-audit",
     "    entry: extensions/corp-audit.ext",
-    "    event: tool_call",
+    "    events: [tool_call]",
     "",
   ].join("\n"));
 

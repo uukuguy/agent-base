@@ -199,3 +199,35 @@ JavaScript/Node 世界里成立。业务团队的语言未必是我们的运行�
 
 **可逆性**：契约是**文档层承诺**，不改行为；若某条承诺站不住，撤掉该行或降级标注即可。
 
+## D-0017 harness 层契约（`enhancements.schema.json`）随**基座版本**演进，不进 `apiVersion`
+
+**背景**：路线图 §23 E1 要给钩子声明立"事件名集合"的判据。落地时发现 schema 里的 `event: <字符串>`
+**表达不了基座自己的轨迹扩展**（`adapters/pi/seed/extensions/trace.ts` 订阅 6 个事件），于是改成
+`events: [...]`（数组）—— 这是**改字段名**，按 CHANGELOG §1.2 属于"定义契约破坏性变更"，字面上要求
+`apiVersion` 升版。
+
+**问题**：`apiVersion` 是 `agent.yaml` / `connectors.yaml` / `enhancements.yaml` **共用**的一个 token，
+而 `harness/<h>/enhancements.yaml` 在 D-0014/D-0015 里已被明确划为**harness 层、本就不在可移植性承诺内**
+（两套扩展机制根本不同）。为一个 harness 层字段改名去升中性定义的 `apiVersion`，会迫使**所有**定义连
+`agent.yaml`、`connectors.yaml` 一起动 —— 代价与收益不相称，而且会把两个变化节奏不同的契约绑死。
+
+**决定**：
+
+1. **`apiVersion` 只承诺中性定义**（`agent.yaml` / `connectors.yaml` + `skills/`）——与 CHANGELOG §1.1 的原话一致，
+   中性定义这次**一个字都没改**。
+2. **`enhancements.schema.json` 随基座版本（`package.json` 的 `version`）演进**：改名/收窄/删字段必须
+   ①写 CHANGELOG（含一句迁移写法）②**响亮失败**（旧写法在闸门 1 红，不许静默忽略/静默跳过）。
+3. 本次改动按此办理：CHANGELOG 0.1.0 下立"破坏性：`event` → `events`"条目 + 迁移写法；
+   仓内唯一的使用者（基座 seed）当场更新。
+
+**被否的方案**：把 `apiVersion` 升到 `agent-base/v2` 并让基座同时支持两个版本。
+代价：6 个示例 + 模板 + fixtures 全部要动；且要新增"按 apiVersion 分派 schema"的机制 ——
+为一个尚未发布、且属于 harness 层的字段，不成比例。
+
+**代价/边界**：`apiVersion` 的语义**窄化**为"中性定义契约版本"（此前含糊地覆盖所有带该字段的文件）——
+这条要靠 CHANGELOG §1.1 与 `docs/13` §3 的表述保持；将来若 harness 层契约真要独立版本号，
+应当**新立**一个字段（如 `enhancementsVersion`），而不是复用 `apiVersion`。
+
+**可逆性**：高。若判定应当升 `apiVersion`，本次改动可在 CHANGELOG 补条目 + 批量改 `apiVersion` 完成，
+schema 与判据不用动（判据只看字段形状，不看版本号）。
+

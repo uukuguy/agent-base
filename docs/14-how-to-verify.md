@@ -78,7 +78,7 @@ enhancements:
   - kind: hook
     id: corp-audit
     entry: extensions/corp-audit.ts
-    event: tool_call
+    events: [tool_call]
 ```
 ```
 my-overlay/extensions/corp-audit.ts   # 业务钩子（工具调用前审计/脱敏/策略）
@@ -110,13 +110,14 @@ docker run --rm --network none \
 
 | 要证明的事 | 命令 | 期望 / 判据 |
 |---|---|---|
-| 定义合法、引用存在、分层合规 | `make validate AGENT_DIR=…` | 闸门 1 全绿（带定义 39–42 项） |
-| 非法定义会被拦 | `make validate-selftest` | 13 个负例样本，每个**只因目标原因**变红 |
+| 定义合法、引用存在、分层合规 | `make validate AGENT_DIR=…` | 闸门 1 全绿（带定义 43–44 项） |
+| 非法定义会被拦 | `make validate-selftest` | 13 个负例样本 + 1 个合法样本，每个**只因目标原因**变红 |
 | 渲染确定、跨运行时差异有声明 | `make compare AGENT_DIR=…` | 「集合两侧一致（差异均有声明）」 |
 | 工具边界**真的**生效 | `make verify AGENT_DIR=examples/idea-to-proof` | `probe/model.tools` 显示 `tools=1`（deny 了 bash/write/edit 只剩 read）⚠️ 这条以前是坏的：旧写法下是 4 |
 | 端点真的收到带工具的流式请求 | 同上 | `probe/model.reachable` + `model.tools` + `model.stream` |
 | **钩子确实在工作** | 同上 | `probe/hook-fired`：「钩子发射路径确实在工作：轨迹里有 N 条钩子当场发出的事件」⚠️ 证明的是发射路径；业务钩子要自证需自己留痕 |
 | 另一个运行时的钩子 | `make verify … HARNESS=dsh` | 如实报「事后映射 ⇒ 该断言在此运行时不适用」（**不算通过**） |
+| 钩子订阅的**事件名真的存在** | `make validate AGENT_DIR=…` | `enhance/events`：声明的每个事件名都在 `adapters/<h>/adapter.yaml` 的 `hookEvents` 里（pi 39 个，逐个对名字）⚠️ dsh 侧事件集合**未穷举** ⇒ 如实标「未验证」，不做假校验 |
 | 被禁的工具真的调不到 | `make smoke AGENT_DIR=…` | `smoke/no-denied-tools` |
 | 轨迹合法可回放 | `make trace-selftest` + `make trace-view TRACE=…` | 9 类事件全过 schema；视图能按 run 回放 |
 | 镜像与源码同源 | `make conformance HARNESS=pi`（C9） | 四个镜像 + 归档的 LABEL 等于源码指纹 |
@@ -134,7 +135,8 @@ docker run --rm --network none \
 | 故意做错 | 期望 |
 |---|---|
 | 增强声明 `kind: 乱写` | 闸门 1 `enhance/schema` 红（负例 `11-enhance-bad-kind`） |
-| `kind: hook` 但漏 `event` | 闸门 1 `enhance/schema` 红（负例 `12-enhance-hook-no-event`） |
+| `kind: hook` 但漏 `events` | 闸门 1 `enhance/schema` 红（负例 `12-enhance-hook-no-event`） |
+| `kind: hook` 但事件名写错（如 `tool_calls`） | 闸门 1 `enhance/events` 红，并列出该名字不属于那 39 个（负例 `13-enhance-hook-bad-event`） |
 | 往 `extensions/` 丢一个未声明的文件 | **渲染期**响亮失败（该运行时会加载它，等于"偷偷加载"） |
 | 另一个运行时的增强不给 `package` | **渲染期**响亮失败（不静默跳过） |
 | overlay 声明的 harness 与当前不符 | `prepare` 失败并点明不匹配（不猜） |
@@ -152,7 +154,9 @@ docker run --rm --network none \
    · 它证明的是「**钩子发射路径在工作**」（基座轨迹自己就是一个钩子，实测 5 条事件）；
    · 断言用的是**烤进产物的**声明（`hookEnhancements`）；**接入缝（overlay）新加的钩子**由闸门 2 验"已进产物且集合相等"，
      但"我这条是否触发"要**它自己留痕**（用 `core/trace/emit.mjs` 写事件即会被计入）；
-   · 想逐条证明"每个声明都跑了"，需要钩子自证 + 更细的断言 —— 见路线图 §23 的 E1（事件名集合校验尚未实现）。
+   · **接入缝里的钩子事件名还没进判据**：事件名校验目前只覆盖定义层与基座 seed（闸门 1 `enhance/events`），
+     overlay 声明的事件名无人对 —— 缺口记在路线图 §23 的 **E1b**（把集合写进产物清单，启动期/闸门 2 用同一份判）。
+   · 想逐条证明"每个声明都跑了"，需要钩子自证 + 更细的断言 —— 见路线图 §23 的 **E2b**（逐条自证）。
 4. **深度定制不跨运行时等价**：钩子的失败语义在两侧甚至相反（一处阻断、一处不阻断）——
    差异写进 `exemptions.yaml`，不假装等价。
 5. **dsh 侧的接入缝还是"未实现"**（overlay 只支持扩展目录 + settings 的装载形态）；

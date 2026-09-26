@@ -59,10 +59,14 @@
             "minLength": 1,
             "description": "插件包名或相对路径（包形态的运行时用它）"
           },
-          "event": {
-            "type": "string",
-            "minLength": 1,
-            "description": "kind=hook 时必填：订阅哪个事件"
+          "events": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "kind=hook 时必填：订阅哪些事件。**数组**而不是单个字符串 —— 基座自己的轨迹扩展就订阅 6 个事件（路线图 §23 E1）。每个名字必须属于 adapters/<harness>/adapter.yaml 的 hookEvents.events（闸门 1 的 enhance/events 逐个对名字）。"
           },
           "config": {
             "type": "object"
@@ -85,7 +89,7 @@
             },
             "then": {
               "required": [
-                "event"
+                "events"
               ]
             }
           },

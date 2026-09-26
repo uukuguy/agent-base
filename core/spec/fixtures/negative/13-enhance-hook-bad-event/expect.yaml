@@ -1,0 +1,3 @@
+# 这个负例**只应**因为增强声明不合法而红（其余检查必须全绿）
+# schema 会先过（events 给了数组），红的是**名字对不上** —— 正是 E1 新增的那一步。
+expectFailure: enhance/events
