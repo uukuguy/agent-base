@@ -306,3 +306,4 @@
 
 ## 2026-09-26
 - 20:50 /project-state update：CURRENT-STATE 结构层重写（两层产品形态、定制分层 L0–L4、接入缝与镜像内自证、已解决项移出开放问题、去掉会过期的镜像 ID 表）；RESUME 落后 5 个提交 → 同时做活动会话 checkpoint
+- 20:58 /project-state handoff：写入终稿（# Next-Session Handoff，取代 20:30 活动检查点）；下一个动作 = E1 钩子事件名校验
