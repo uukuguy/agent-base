@@ -854,3 +854,38 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 **为什么先登记不急着做**：两条都会**改动公开契约**（能力描述的形状、接入方式），
 而当前示例刚好是验证它们的最小载体。先把契约定清楚再动手，比先写桥再改契约便宜。
 
+---
+
+## 23. harness 业务定制：实证缺陷与演进项（2026-09-26 登记，**未实现**）
+
+> 来源：`docs/design/2026-09-26-harness-customization.md`（四路实测调研）。**都是待办，不是已完成能力。**
+> 缺陷编号 D1–D7 与设计文档 §7 一一对应；演进项 E1–E9 对应 §8。
+
+### 23.1 缺陷（"文档说有、实现没有"，全部带证据）
+
+| # | 缺陷 | 证据 | 修好的判据 | 风险 | 状态 |
+|---|---|---|---|---|---|
+| D1 | `enhancements.yaml` **没有 schema**：`kind`/`event`/`entry` 要求只写在 `capabilities.yaml`（文档生成器的目录） | `tools/validate.mjs` B6 段；无 `core/spec/enhancements.schema.json` | 立 schema 并接进闸门 1；两个负例（未知 kind、hook 漏 event）变红 | 低 | `pending` |
+| D2 | pi 侧"硬断言 3"**不是集合相等**：比的是"声明 ∩ entry 存在"的数量，而渲染器把 `extensions/` 下每个文件都登记为扩展 | `adapters/pi/doctor.mjs`；`adapters/pi/render.mjs` | 未声明的 extensions 文件判失败；"已加载"另立可观测口径 | 中 | `pending` |
+| D3 | `compare` **不比增强**（只比 skills/connectors/routes） | `tools/compare.mjs` | 增强进比对：要么进集合，要么显式声明为单边差异 | 低 | `pending` |
+| D4 | dsh 渲染**静默跳过**非 `package` 声明；profile `dependencies: {}` 写死、无安装步骤 | `adapters/dsh/render.mjs` | 非法声明响亮失败；npm 包形态有实测或被标"未验证" | 低 | `pending` |
+| D5 | **参数层纪律被适配器绕过**：直接读 `AGENT_PERMISSION_MODE` / `AGENT_WORKSPACE_ROOT`，不在 allowed 清单 | `adapters/dsh/render.mjs`；`core/catalog/params.yaml` | 要么进参数层清单，要么改走 `runtimeParams`，没有例外 | 低 | `pending` |
+| D6 | **`tools.deny` 在交付入口不生效**：只有本地运行器传 `--exclude-tools` | `adapters/pi/run.mjs`；`core/image/entrypoint.sh` | 容器入口实测"被禁工具真的调不到"；走 `runtimePlan` 契约而非 case | 中 | `pending` |
+| D7 | `CURRENT-STATE.md` **已过期**（称 C3 按 pi 形状写死、dsh run 待做） | `docs/status/CURRENT-STATE.md` vs conformance 与 dsh run | 文档与实现一致（本轮已修） | 低 | `done` |
+
+### 23.2 演进项（按改动面从小到大）
+
+| # | 项 | 判据 | 依赖 | 状态 |
+|---|---|---|---|---|
+| E1 | 钩子声明契约：`adapter.yaml` 声明**可订阅事件集合**（版本 pin），`enhancements.yaml` 的 `event` 必须属于它 | 错事件名变红；事件名有 pin 与豁免口径 | D1 | `pending` |
+| E2 | 新增闸门：**钩子确实触发**（假网关触发 `tool_call`，断言钩子留痕/拦截生效） | 新闸门绿 + 负例红 | E1 | `pending` |
+| E3 | 上层镜像**接入缝**：镜像内可加钩子（运行时覆盖目录 或 镜像内渲染，二者选一并声明） | 上层镜像里钩子生效有证据 | D-0014 | `pending` |
+| E4 | 上层镜像**自证能力**：携带闸门工具（或 slim 验证器）+ 一条容器内跑四闸门的实测 | 上层镜像内 `verify` 全绿 | D-0014 | `pending` |
+| E5 | 服务形态契约（L4）：会话生命周期/并发上限/状态外置/审批通道的声明面 | 多会话并发与审批留痕各一条实测 | 主运行时选型 | `pending` |
+| E6 | loop 策略声明（L3）：最大轮次 / 时长预算 / 终止条件 / 委派深度 | 越界可断言、续跑可留痕 | 主运行时选型 | `pending` |
+| E7 | 隔离与故障边界：每租户一容器/进程；钩子失败语义（阻断 vs 记录）显式声明 | 一个插件崩溃不影响其它会话有实测 | E5 | `pending` |
+| E8 | 成本与审计面：token/成本归因、脱敏外发（dsh OTel 已有，pi 无） | 成本可归因到会话/人；脱敏可验证 | 主运行时选型 | `pending` |
+| E9 | 多语言业务代码（D-0012 的落地） | 非 JS 业务零胶水注册并被闸门 3/4 调用 | D-0012 | `pending` |
+
+**前置待决**：业务层主运行时（dsh / pi / 两侧都做）—— 决定 E5–E8 的落点，见设计文档 §7.1。
+

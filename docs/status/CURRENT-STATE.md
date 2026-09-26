@@ -56,7 +56,6 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 ## Open Problems (theme-level)
 
 - **dsh 适配器：`render` + `doctor` 已交付并验证**；conformance **10/10 全绿**。C5 与 C4 的「按 pi 形状写死」问题已在检查侧治本修复（声明式注入 + 适配器声明增强形态）
-- **C3 是最后一个「按 pi 产物形状写死」的检查**（认死 `AGENTS.md`/`settings.json`/`extensions`）→ 需要泛化成「以 manifest 为映射」的中性契约；不改的话第二个 harness 永远过不了
 - **`tools/probe.mjs` / `smoke.mjs` 目前只走 pi**（依赖 `adapters/pi/run.mjs`）→ dsh 的 C6 要等 `adapters/dsh/run.mjs`
 - **G1 只剩一半**：回调能看到「harness 发了几个工具」，看不到「网关收到后有没有吞」。三条互补路径已定（链路观测 / 响应侧不一致检测 / 响应头回显对照，后者已实现但仅在网关回显时生效）
 - **G3 的真值需要「做决策的扩展」自己上报**：轨迹扩展观测不到别的 handler 是否阻断，因此 `tool.call.decision` 目前恒为 `unobserved`（诚实近似，不是等价）
@@ -98,12 +97,12 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 - `Makefile` —— 全部命令的唯一边界（22 个目标，实现 17 / 未实现 5）
 - `tools/{validate,probe,smoke,verify}.mjs` —— 闸门 1/3/4 与四道闸门编排
 - `tools/{dev-env,run-local}.mjs` —— 本地开发环境（按 pin 对齐版本；临时 HOME 跑制品）
-- `examples/` —— 示例智能体（**不是基座的一部分，可整体删除**）：`idea-to-proof` 已走通；`contract-review` 待做
+- `examples/` —— 示例项目（**不是基座的一部分，可整体删除**）：**6 个示例全部两侧"可用"**（纯技能 / MCP 连接器 / 本地模型 / 多环境参数 / 只读+观测 / harness 业务增强），`make examples-check` 全绿
 - `tools/examples-check.mjs` —— 示例校验（结构 + 四道闸门 + 技能脚本自检 + 不变量 N5）
 - `tools/new-agent.mjs` + `template/` —— 派生入口与派生源（`new-agent-selftest` 验证「开箱可跑」）
 - `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用的运行器）
 - `adapters/pi/seed/` —— 基座不变量：`settings.json` 安全姿态 + `enhancements.yaml` 声明 + `extensions/trace.ts` 轨迹扩展
-- `adapters/dsh/` —— 声明已交付；`render`/`doctor`/`trace` 待做（预检结论与待定项见路线图 §7）
+- `adapters/dsh/` —— **`render`/`doctor`/`run`/`trace` 已交付**，conformance 10/10；核心/容器/等价性均已验证
 - `core/gates/` —— 四闸门框架：编排 / 断言语言（12 种）/ §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / 统一 CLI 解析
 - `core/trace/` —— 统一轨迹：`schema.json`（真源）· `emit.mjs`（会被拷进产物，故自包含）· 业务级 logger · 两份自检 · `README.md` 分层与协议
 - `core/spec/` —— 中性定义 schema（**public contract**，`additionalProperties: false`）+ fixtures（1 合法 + 10 注入式非法）
