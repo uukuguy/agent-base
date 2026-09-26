@@ -136,6 +136,9 @@
         },
         {
           "$ref": "#/$defs/skillUse"
+        },
+        {
+          "$ref": "#/$defs/approvalDecision"
         }
       ]
     },
@@ -450,6 +453,42 @@
             "native"
           ],
           "description": "`path-pattern` = 从工具入参的路径推导（当前唯一实现）；`native` = 该 harness 原生上报了技能事件（目前没有）。**不许**省略：看轨迹的人有权知道这条是观测还是推导。"
+        }
+      }
+    },
+    "approvalDecision": {
+      "type": "object",
+      "description": "一次**审批决定**（人在环）：谁、对哪个动作、放行还是拒绝。它让「谁放行了这次容器验证」这类问题可回答，而不是只有一句 allow。",
+      "required": [
+        "type",
+        "decision",
+        "subject",
+        "answerer"
+      ],
+      "properties": {
+        "type": {
+          "const": "approval.decision"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "denied",
+            "unavailable"
+          ],
+          "description": "granted=放行；denied=明确拒绝；unavailable=**没有可用的应答者**（非交互会话等）—— 此时按 fail-closed 处理，调用方必须放弃，不许默默继续。"
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "description": "被审批的动作（如 verify-container）与可归因的身份（摘要等）。"
+        },
+        "answerer": {
+          "type": "string",
+          "description": "谁答的：human | policy | none。"
+        },
+        "detail": {
+          "type": "string"
         }
       }
     }

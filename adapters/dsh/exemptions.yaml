@@ -13,8 +13,10 @@
   scope: trajectory.tool.call.decision
   reason: >
     本 harness 有原生审批事件（approval/policy），可回答"谁放行了这次调用"；
-    另一个 harness 没有，只能记 allow（缺口 G3）。因此 decision 字段在两边的**可信度不同**，
-    跨 harness 比对时不得把它当作等价。
+    另一个 harness 没有**逐次调用**的审批字段（缺口 G3），那边只能记 `unobserved`（不写 allow）。
+    因此 `tool.call.decision` 在两边的**可信度不同**，跨 harness 比对时不得当作等价。
+    ⚠️ 已收窄：基座现在提供第一类 `approval.decision` 事件（谁、对哪个动作、放行/拒绝/无应答者），
+    **走审批门的动作**（如容器验证）两边都有可回答的落点；本条剩下的只是"逐次工具调用"这一层。
   reviewBy: 2027-06-30
 
 - id: tool-naming

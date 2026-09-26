@@ -65,7 +65,7 @@
 |---|---|
 | `agent.yaml` / `connectors.yaml` 的 `apiVersion` + schema `$id` | 同 `apiVersion` 内**不破坏**；破坏性变更必须升版并写 CHANGELOG |
 | `enhancements.schema.json`（**harness 层**：`harness/<h>/enhancements.yaml`） | **不**在 `apiVersion` 承诺内（该层本就不可移植）：随**基座版本**演进；改名/收窄必须写 CHANGELOG 并给迁移写法（例：`event:` → `events: []`），且必须**响亮失败**而不是静默忽略 —— 见 D-0017 |
-| 统一轨迹 schema（`$id`）与 9 类事件 | 只增不改；新增事件不改变既有字段语义 |
+| 统一轨迹 schema（`$id`）与 10 类事件 | 只增不改；新增事件不改变既有字段语义 |
 | 容器入口的环境变量合同（`AGENT_ARTIFACT_DIR`/`AGENT_RUN_DIR`/`HARNESS`/`AGENT_HARNESS_ARGS`/参数四法） | 名字与语义不变；新增走文档 |
 | 产物清单字段（`runtimeParams`/`runtimePlan`/`modelProvider*`/`artifactsDigest`） | 只增不改；字段重命名必须一次到位并升版（本项目已因此吃过教训） |
 | 镜像 LABEL（`agent-base.inputs-digest` / `agent-base.variant`） | 语义不变（用于同源校验） |

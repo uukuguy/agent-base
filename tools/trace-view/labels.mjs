@@ -126,6 +126,15 @@ export function describeEvent(event, labels = {}) {
       return { kind: "skill", source: "mechanical", label: `使用技能 ${event.skill}${how}` };
     }
 
+    // 审批决定（人在环）：让"谁放行了这次调用"在轨迹里看得见。
+    // `unavailable` 要写得醒目 —— 它意味着**没有应答者**，此时调用方必须按 fail-closed 放弃。
+    case "approval.decision": {
+      const who = event.answerer ?? "?";
+      if (event.decision === "granted") return { kind: "approval", source: "mechanical", label: `放行 ${event.subject}（应答者 ${who}）` };
+      if (event.decision === "denied") return { kind: "approval", source: "mechanical", label: `**拒绝** ${event.subject}（应答者 ${who}）` };
+      return { kind: "approval", source: "mechanical", label: `⚠️ 无人应答 ${event.subject} ⇒ 按 fail-closed 放弃` };
+    }
+
     case "tool.call": {
       const mcp = parseMcpToolName(event.tool);
       const custom = lookup(labels, [

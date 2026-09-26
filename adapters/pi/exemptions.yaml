@@ -39,9 +39,11 @@
 - id: tool-decision-approximation
   scope: trajectory.tool.call.decision
   reason: >
-    原生事件流里没有审批字段（缺口 G3），因此 `tool.call.decision` 目前恒记 `allow`
-    （执行了即放行）。这是**诚实近似，不是等价** —— 在补上审批语义之前，
-    不得用该字段回答"谁放行了这次调用"。
+    原生事件流里没有**逐次工具调用**的审批字段（缺口 G3），因此 `tool.call.decision` 记
+    `unobserved` —— **不写 `allow`**：写 allow 会把"没记录"误读成"放行了"（见 trace 扩展的纪律）。
+    注意与 `approval.decision` 区分：后者是基座提供的**第一类**事件，回答"谁放行了**被审批的动作**"
+    （如 `/verify-container` 的容器验证），对走审批门的动作是可信的；
+    而 `tool.call.decision` 仍**不得**用来回答"谁放行了这次工具调用"。
   reviewBy: 2027-06-30
 
 - id: native-tools-count-not-wire-level

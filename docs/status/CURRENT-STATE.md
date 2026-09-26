@@ -7,7 +7,7 @@
 - Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **L3 收尾 = A6 把受控容器入口接成需审批的工具**；已完成：阶段一（A1/V2/E1b/Q1/Q2）+ A2 受控容器入口 + A3 出处与覆盖 + A4 失败归因 + A5 无人值守端到端判据
+- Active work package: **L3 收尾 = A6b（另一个运行时的审批门）**；A6 主运行时侧已完成；已完成：阶段一（A1/V2/E1b/Q1/Q2）+ A2 受控容器入口 + A3 出处与覆盖 + A4 失败归因 + A5 无人值守端到端判据
 
 ## Current Architecture
 
@@ -65,7 +65,7 @@
 
 ### 轨迹：双来源、同一 schema
 
-- 统一轨迹 `core/trace/schema.json`：**9 类事件**，每条带 `emitter: hook | post-hoc`
+- 统一轨迹 `core/trace/schema.json`：**10 类事件**（含 `approval.decision`：谁、对哪个动作、放行/拒绝/无应答者），每条带 `emitter: hook | post-hoc`
 - **回调式（主路径）**：扩展订阅 loop 回调，能拿到实际请求体（tools 数组、stream 标志）⇒ `emitter=hook`
 - **事后映射（兜底）**：解析原生事件流/会话文件 ⇒ `emitter=post-hoc`（离线可复盘，拿不到请求体）
 - 闸门 3 的 `probe/hook-fired`：声明了 `kind: hook` ⇒ 必须有钩子当场发出的事件；
@@ -95,7 +95,7 @@
 
 ## Open Problems (theme-level)
 
-- **L3 收尾**：A2–A5 已完成（受控入口 / 出处与覆盖 / 失败归因 / 无人值守判据）；**剩 A6：把受控入口接成需审批的工具，让审批事件进统一轨迹**（不因此给 AI 任意 docker 权限）
+- **L3 收尾**：A2–A5 已完成；A6 的**主运行时侧**已完成（会话内 `/verify-container`：摊开参数 → `ctx.ui.confirm` → 记 `approval.decision` → 只走受控入口，fail-closed）；**剩 A6b：另一个运行时的等价入口（必须先量 `approval/request` 用法再写）**
 - **只有宿主侧的结论**：`verify --json` 已带 `environment.where` 与 `notCoveredHere`，但**交付口径尚未强制"容器内自证为准"**（§28 Q3 = §30 A3）
 - **钩子只能证明"发射路径在工作"**：逐条自证（每个声明的钩子都留痕）未做（§23 E2b）
 - **dsh 侧事件集合未穷举**：`hookEvents.enumerated: false` ⇒ 那边写钩子只能标「未验证」，没有名字层面的判据
@@ -156,7 +156,7 @@
 - `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用运行器）
 - `adapters/{pi,dsh}/seed/` 与 `enhancements.yaml` —— 基座不变量：安全姿态 + 两条增强（轨迹扩展 `trace.ts`、会话内自省命令 `project-info.ts`）
 - `core/gates/` —— 四闸门框架：编排 / 断言语言 / §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / CLI 解析
-- `core/trace/` —— 统一轨迹：`schema.json`（真源，9 类事件 + `emitter`）· `emit.mjs` · 业务级 logger · 自检
+- `core/trace/` —— 统一轨迹：`schema.json`（真源，10 类事件 + `emitter`）· `emit.mjs` · 业务级 logger · 自检
 - `core/spec/` —— 中性定义 schema（**public contract**）+ **增强 schema** + fixtures（1 合法 + **12** 注入式非法）
 - `core/catalog/{capabilities,params,providers}.yaml` —— 三个执法点：字段所属层 · 参数层清单 · provider 目录
 - `core/image/` —— 基座镜像与调试变体 + `verify-in-image.mjs`（镜像内自证）+ `derived/Dockerfile`（派生骨架）

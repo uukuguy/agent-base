@@ -29,7 +29,7 @@ make verify-all               # 全部示例 × 两个运行时，四道闸门
 | **渲染** | 确定性产物：同一定义渲两次结果相同，产可复算摘要 | `make compare AGENT_DIR=…` |
 | **本地跑** | 零凭据假网关 / 真实端点 / 本地模型，三种跑法 | `make run-local …`、`LIVE=1` |
 | **闸门** | 四道闸门回答"可用/不可用"，且带证据（端点侧取证） | `make verify AGENT_DIR=…` |
-| **轨迹** | 统一轨迹：9 类事件、可回放、业务可扩展 | `make trace-view TRACE=…` |
+| **轨迹** | 统一轨迹：10 类事件、可回放、业务可扩展 | `make trace-view TRACE=…` |
 | **容器** | 基座镜像：产物挂载或**烤进镜像**都能跑；缺配置 fail-fast | `docker run … config-check` |
 | **自证** | **镜像内**跑闸门（离线、零凭据） | `docker run <镜像> verify` |
 | **接入缝** | 上层镜像在**运行期**加业务代码与钩子（不动产物） | `make image-derived … OVERLAY_DIR=…` |
@@ -119,7 +119,7 @@ docker run --rm --network none \
 | 另一个运行时的钩子 | `make verify … HARNESS=dsh` | 如实报「事后映射 ⇒ 该断言在此运行时不适用」（**不算通过**） |
 | 钩子订阅的**事件名真的存在** | `make validate AGENT_DIR=…` | `enhance/events`：声明的每个事件名都在 `adapters/<h>/adapter.yaml` 的 `hookEvents` 里（pi 39 个，逐个对名字）⚠️ dsh 侧事件集合**未穷举** ⇒ 如实标「未验证」，不做假校验 |
 | 被禁的工具真的调不到 | `make smoke AGENT_DIR=…` | `smoke/no-denied-tools` |
-| 轨迹合法可回放 | `make trace-selftest` + `make trace-view TRACE=…` | 9 类事件全过 schema；视图能按 run 回放 |
+| 轨迹合法可回放 | `make trace-selftest` + `make trace-view TRACE=…` | 10 类事件全过 schema；视图能按 run 回放 |
 | 镜像与源码同源 | `make conformance HARNESS=pi`（C9） | 四个镜像 + 归档的 LABEL 等于源码指纹 |
 | 容器安全下限 | 同上 | C9 十六项（非 root、只读根、能力全丢、断网可用…） |
 | **镜像内**能自证 | `docker run <镜像> verify` | 闸门 2/3/4（有定义连闸门 1）—— 离线、零凭据 |
@@ -127,6 +127,7 @@ docker run --rm --network none \
 | **会话里能问到项目真相** | `make local` 然后 `/project`（或 `make pi-project-info-selftest`） | 命令真的注册（source=extension）· 输出每项指到产物来源 · 补全项随项目变 · 事件名写错标 ❌ |
 | **要验什么、哪些只能容器验** | `make verify-plan AGENT_DIR=…`（`JSON=1` 给 AI）/ 会话内 `/project plan` | 四个身份摘要 + 本地四道闸门的命令与期望 + 容器断言逐条带 `why` + 本次未覆盖清单；`make project-info-selftest` 全绿 |
 | **容器内验证（受控入口）** | `make verify-container AGENT_DIR=…`（`DRY=1` 只看参数、`JSON=1` 给 AI） | 绑定面**恰好两处只读**（项目 + 产物）· 网络 none · 根只读 · 能力全丢 · 容器内闸门 1(agent-only)/2/3/4 全过；**交付结论以它为准**（宿主结论不含安全下限/双架构/同源） |
+| **会话里请求容器验证（需审批）** | 会话内 `/verify-container`（`make local` 之后） | 先摊开将要执行的 docker 参数 → 你放行/拒绝 → 只有放行才跑；决定记进轨迹 `approval.decision`；无应答者时 **fail-closed 不执行**；自检 `make pi-verify-container-selftest` |
 | **容器挂的时候是不是缺陷** | 同上（失败时自动归因） | 五类：本地可复现（真缺陷）/ 已声明差异（不是缺陷）/ 容器专有断言失败（真缺陷，改镜像）/ 本地没跑到（先修前面那条）/ **未声明的差异（响亮上报，不许猜）** |
 | 声明了但没写对 ⇒ 响亮失败 | 见 §4 | 全部非 0 退出，且报错点明原因 |
 

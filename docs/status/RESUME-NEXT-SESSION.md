@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 01:2x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-27 02:0x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
@@ -11,7 +11,7 @@
 
 ## Where things stand
 
-- **全绿**：**19 项回归自检**（18 个 `*-selftest` + `validate`）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
+- **全绿**：**20 项回归自检**（19 个 `*-selftest` + `validate`）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
 - Makefile **47 个目标**（无 `NOT_YET` 桩）；新增 `project-info` / `verify-plan` / `env-check` / **`verify-container`** 及各自自检
 - 本轮提交（都在本地，无远端）：`ef9c92d`（A1+V2）· `487ea2f`（E1b）· 环境一致性若干（Q1/Q2）
 - 记忆层可用（`mnemon` 0.2.9 + Memory Space `default` 已激活，满时自动归档）

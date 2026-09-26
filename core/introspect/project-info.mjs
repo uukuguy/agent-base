@@ -126,7 +126,7 @@ function traceFacts({ gatesDir, productDir, manifest }) {
     if (!schema) continue;
     facts.schemaFrom = file;
     // 事件类型 = `$defs` 里那些声明了 `properties.type.const` 的定义。
-    // 这就是"9 类事件"的数法 —— 从 schema 现算，不写死数字（写死就会过期）。
+    // 这就是"多少类事件"的数法 —— 从 schema 现算，不写死数字（写死就会过期）。
     const types = Object.values(schema.$defs ?? {})
       .map((d) => d?.properties?.type?.const)
       .filter((c) => typeof c === "string");

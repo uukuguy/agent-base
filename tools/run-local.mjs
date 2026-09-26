@@ -184,7 +184,7 @@ const main = async () => {
     // ── 平台级变量：与容器入口同一套（单一定义在 core/image/platform-env.mjs）。
     //    其中 `AGENT_ARTIFACT_DIR` 是**产物根**：渲染清单在那里，而暂存副本里没有 ——
     //    少了它，会话内 `/project`、任何"读清单"的能力都会失败（实测踩中）。
-    ...localPlatformEnv({ renderDir, runDir: stagedRunDir ?? path.dirname(staging) }),
+    ...localPlatformEnv({ renderDir, runDir: stagedRunDir ?? path.dirname(staging), definitionDir: agentDir }),
     // ── 本地的人机工程（只在本机有意义）
     HOME: home,
     AGENT_NAME: manifest.agent ?? null,

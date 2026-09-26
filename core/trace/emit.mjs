@@ -59,6 +59,28 @@ export function logEvent(namespace, level, message, data = {}) {
   return { event: { type: "biz.event", namespace, level, message, ...(Object.keys(data).length ? { data } : {}) }, problems: [] };
 }
 
+/**
+ * 构造一条**审批决定**事件（人在环）。纯函数，便于先构造再决定要不要落盘。
+ *
+ * 为什么要有专门的事件类型：只记一句 `allow` 回答不了"**谁**放行了这次调用"。
+ * 有的运行时有原生审批事件、另一个原先没有对应物 —— 这正是既有的不对称
+ * （见各适配器 `exemptions.yaml` 里那条 `approval-trace-available`）；本事件给两边一个共同落点。
+ *
+ * `unavailable` = **没有可用的应答者**（非交互会话等）。它按 **fail-closed** 语义处理：
+ * 调用方必须放弃这次动作，不许默默继续。
+ */
+export function approvalEvent({ decision, subject, answerer, detail } = {}) {
+  const problems = [];
+  if (!["granted", "denied", "unavailable"].includes(decision)) {
+    problems.push(`decision 必须是 granted | denied | unavailable，收到：${JSON.stringify(decision)}`);
+  }
+  if (typeof subject !== "string" || !subject.trim()) problems.push("subject 必须是非空字符串（被审批的动作 + 可归因身份）");
+  if (typeof answerer !== "string" || !answerer.trim()) problems.push("answerer 必须是非空字符串（human | policy | none）");
+  if (detail !== undefined && typeof detail !== "string") problems.push("detail 必须是字符串");
+  if (problems.length) return { event: null, problems };
+  return { event: { type: "approval.decision", decision, subject, answerer, ...(detail ? { detail } : {}) }, problems: [] };
+}
+
 /** 无依赖的形状自检（不引 ajv：业务代码要在任何环境里都能跑）。权威校验仍是 schema.json。 */
 export function validateShape(rec) {
   const problems = [];

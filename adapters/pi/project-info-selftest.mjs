@@ -124,9 +124,10 @@ check("增强补全含基座不变量（trace 与自省命令本身都在产物�
 const modelText = render("model", facts);
 check("模型信息只给引用名，不打印值", modelText.includes("${") && !/\bsk-/.test(modelText), modelText);
 
-// 轨迹：事件类型从 schema 现算
+// 轨迹：事件类型从 schema 现算（**不写死数字** —— 写死就会在加类型时过期，本轮加了 approval.decision）
 const traceText = render("trace", facts);
-check("轨迹报出 9 类事件（从 core/trace/schema.json 现算）", /9 类/.test(traceText), traceText);
+const schemaEventTypes = Object.keys(JSON.parse(fs.readFileSync(path.join(REPO, "core/trace/schema.json"), "utf8")).$defs.typed.oneOf).length;
+check(`轨迹报出 ${schemaEventTypes} 类事件（从 core/trace/schema.json 现算）`, new RegExp(`${schemaEventTypes} 类`).test(traceText), traceText);
 
 // 钩子事件名核对：正确的事件名 ✅
 const good = renderAgent({
@@ -218,6 +219,14 @@ if (integration.skipped) {
     typeof mine[0]?.description === "string" && mine[0].description.length > 0, String(mine[0]?.description));
   const helper = integration.cmds.filter((c) => c.name.includes("_project-info"));
   check("助手文件 `_project-info.mjs` **没有**被当成扩展登记", helper.length === 0, helper.map((c) => c.name).join(","));
+
+  // 受控容器验证命令（§30 A6）：它是**审批门**，所以只在真运行时里确认"确实注册进来了"
+  // （审批走向由 `verify-container-ext-selftest` 覆盖；这里只防"声明了但没加载"）。
+  const vc = integration.cmds.filter((c) => c.name === "verify-container");
+  check("会话里有 `verify-container` 命令（审批门）", vc.length === 1, integration.cmds.map((c) => c.name).join(", "));
+  check("它的 source 也是 extension 且带 description",
+    vc[0]?.source === "extension" && typeof vc[0]?.description === "string" && vc[0].description.length > 0,
+    JSON.stringify(vc[0] ?? null));
 }
 
 console.log("");

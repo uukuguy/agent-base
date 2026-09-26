@@ -25,6 +25,9 @@ export const PLATFORM_ENV_NAMES = [
   "AGENT_RUN_MODE",
   "AGENT_HARNESS_ARGS",
   "AGENT_TRACE_DEST",
+  // 定义目录只在"项目所在处"存在：本地入口由 run-local 给（会话内需要它才能请求容器验证）；
+  // 容器里**不挂定义**（产物是烤进去的），所以它由调用方按需 `-e` 给（镜像内自证就跑闸门 1）。
+  "AGENT_DEFINITION_DIR",
 ];
 
 /** **镜像专有**：本地没有对应物（或本地另有实现），对照检查时豁免。 */
@@ -42,11 +45,13 @@ export const IMAGE_ONLY_ENV_NAMES = [
  * 注意暂存副本里**只有运行目录那一份**，没有清单 —— 所以任何"读清单"的能力
  * （会话内 `/project`、闸门 2 等）都必须拿到这个变量，而不是去猜 `dirname(配置目录)`。
  */
-export function localPlatformEnv({ renderDir, runDir }) {
+export function localPlatformEnv({ renderDir, runDir, definitionDir }) {
   return {
     AGENT_ARTIFACT_DIR: path.resolve(renderDir),
     // 本地对应物 = 仓库根（容器里是 /opt/agent-base/gates：core/ + tools/ + adapters/ 都在它下面）
     AGENT_GATES_DIR: REPO,
     ...(runDir ? { AGENT_RUN_DIR: path.resolve(runDir) } : {}),
+    // 会话内的"请求容器验证"要知道项目在哪（§30 A6）。容器里没有对应物 ⇒ 那边会如实报 unavailable。
+    ...(definitionDir ? { AGENT_DEFINITION_DIR: path.resolve(definitionDir) } : {}),
   };
 }
