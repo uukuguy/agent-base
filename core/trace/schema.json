@@ -125,6 +125,9 @@
         },
         {
           "$ref": "#/$defs/nativeRaw"
+        },
+        {
+          "$ref": "#/$defs/skillUse"
         }
       ]
     },
@@ -401,6 +404,44 @@
         "raw": {
           "type": "object",
           "description": "原生事件载荷，原样保留。"
+        }
+      }
+    },
+    "skillUse": {
+      "type": "object",
+      "description": "一次技能使用。**推导**而来：原生轨迹没有「技能」这个概念，基座从「某次工具调用读了 `skills/<名>/SKILL.md`」推导出技能名，因此必须带 `derivation`。推导规则写死在这里，不许按 harness 分叉 —— 与统一轨迹的其它事件同一条纪律。",
+      "required": [
+        "type",
+        "skill",
+        "callId",
+        "via"
+      ],
+      "properties": {
+        "type": {
+          "const": "skill.use"
+        },
+        "skill": {
+          "type": "string",
+          "minLength": 1,
+          "description": "技能名（`skills/<名>/SKILL.md` 里的 <名>）"
+        },
+        "callId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "观测到它的那次工具调用 id（与 tool.call/tool.result 配对）"
+        },
+        "via": {
+          "type": "string",
+          "minLength": 1,
+          "description": "经由哪个工具观测到（通常是 read）"
+        },
+        "derivation": {
+          "type": "string",
+          "enum": [
+            "path-pattern",
+            "native"
+          ],
+          "description": "`path-pattern` = 从工具入参的路径推导（当前唯一实现）；`native` = 该 harness 原生上报了技能事件（目前没有）。**不许**省略：看轨迹的人有权知道这条是观测还是推导。"
         }
       }
     }

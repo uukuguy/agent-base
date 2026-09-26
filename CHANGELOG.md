@@ -109,6 +109,25 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 > 已改为按「值是否随部署环境而变」判定 —— 模型名是环境属性，进参数层；`model.route` 仍是制品层
 > （它决定后面三个引用名）。
 
+### 业务增强：**业务代码共享，接入方式各写各的**
+
+- `harness/shared/**` 是**可共享的业务代码**（零依赖、纯逻辑），渲染器把它拷进两个产物
+  （pi → `agent-dir/business/`，dsh → `<产物>/harness/business/`），两侧接入件用**同一个相对路径**引用它
+- 闸门 1 新增 `enhance/shared-agnostic`：扫描共享代码的**代码**（剥掉注释再扫），
+  出现运行时 SDK 导入或运行时 API 调用就变红 —— "可共享"变成可执行判据
+- `examples/change-risk-review/` 改成共享形态：一份业务模块 + 两个薄接入件。
+  **两侧实测都生效**：pi 工具数 3→4、dsh 工具数 19→20，dsh 冒烟里 `corp_risk_score` 真的被调用
+- 踩坑与修法写进示例 README：接入件不 import 运行时 SDK（产物里裸导入解析不到）、
+  产物必须把 `harness/` 写进 `runtimePlan.copy`（**且只在目录存在时声明**，否则所有不带增强的示例在 dsh 上全红）
+
+### 统一轨迹：新增技能级事件 `skill.use`
+
+- 原生轨迹没有"技能"概念，基座从"某次工具调用读了 `skills/<名>/SKILL.md`"**推导**，
+  并按纪律标注 `derivation: "path-pattern"`（推导出来的必须说出来，不许冒充原生观测）
+- 查看器据此让业务标签 `skill:<名>` 真的出现在时间轴上（此前该定位符永不渲染）
+- 自检里用**真实工具调用**验证：假网关新增测试用入参覆盖 `toolArgs`
+  （让一次真实调用去读 SKILL.md），事件计数 `{… "skill.use":1 …}` 且全部过统一轨迹 schema
+
 ### 新增示例：harness 层「业务级增强」（`examples/change-risk-review/`）
 
 - 中性定义只承诺"用风险评分工具"，工具**由 harness 层增强提供**：`harness/pi/enhancements.yaml` 声明 +

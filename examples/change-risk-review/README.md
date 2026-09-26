@@ -17,8 +17,9 @@
 |---|---|
 | `agent.yaml` | 中性定义：人设、模型、只读边界（`tools.deny: [bash, write, edit]`） |
 | `connectors.yaml` | 空 —— 业务能力**不来自** MCP 连接器，而来自 harness 层增强 |
-| `harness/pi/enhancements.yaml` | **业务级增强声明**：声明"本运行时提供 `corp_risk_score` 工具" |
-| `harness/pi/extensions/risk-score.ts` | **增强的实现**：`pi.registerTool()` 注册的业务工具（零依赖、确定性规则） |
+| `harness/shared/risk-score.mjs` | **业务代码（可共享）**：评分规则、工具描述与参数、拒答条件。零依赖、确定性 |
+| `harness/pi/enhancements.yaml` · `harness/pi/extensions/risk-score.ts` | **pi 的接入方式**：`pi.registerTool()` 把共享业务包成工具 |
+| `harness/dsh/enhancements.yaml` · `harness/dsh/risk-score.js` | **dsh 的接入方式**：cordis 插件 + `ctx.tools.register()`（零依赖接入） |
 | `skills/risk-factor-checklist/SKILL.md` | 算分之前必须问清的五类事实；缺事实时怎么答 |
 | `skills/score-interpretation/SKILL.md` | 分数怎么读、因素必须原样引用、三句不许说的话 |
 | `trace-labels.yaml` | 业务给轨迹起的说法（含业务工具 `tool:corp_risk_score`） |
@@ -65,20 +66,29 @@ make examples-check
 
 ## 实测证据（这个示例的意义就在这里）
 
-**业务工具真的发给了模型** —— 端点侧观测到的工具数：
+**业务工具真的发给了模型 —— 两个运行时都是**（端点侧观测到的工具数）：
 
-| 场景 | 端点收到的工具数 |
-|---|---|
-| 同一份定义，**去掉** `harness/` 增强 | **3** |
-| 带 `corp_risk_score` 业务增强 | **4** |
+| 运行时 | 去掉 `harness/` 增强 | 带 `corp_risk_score` 增强 |
+|---|---|---|
+| pi | **3** | **4** |
+| dsh | **19** | **20** |
 
-复现方法（两步对照）：
+复现方法（两步对照，两个运行时各一遍）：
 
 ```bash
 B=$(mktemp -d); cp -r examples/change-risk-review/* $B/; rm -rf $B/harness
-node tools/verify.mjs $B --harness pi                          # → tools=3
-node tools/verify.mjs examples/change-risk-review --harness pi  # → tools=4
+node tools/verify.mjs $B --harness pi     # → tools=3      node tools/verify.mjs $B --harness dsh    # → tools=19
+node tools/verify.mjs examples/change-risk-review --harness pi   # → tools=4
+node tools/verify.mjs examples/change-risk-review --harness dsh  # → tools=20
 ```
+
+**业务代码是同一份**：两侧的接入件都 import 产物里的 business/risk-score.mjs
+（渲染器把 `harness/shared/` 拷进产物：pi 落在 agent-dir/business/，dsh 落在 产物/harness/business/，
+所以两端接入件用的是**同一个相对路径** ../business/risk-score.mjs）。
+
+**接入件只做三件事**：把业务参数形状翻译成该运行时的参数 DSL、注册工具、转发结果。
+**一行业务规则都不该出现在接入件里** —— 这条由闸门 1 的 `enhance/shared-agnostic` 兜住：
+`harness/shared/` 里的代码一旦 import 运行时包或调用运行时 API，当场变红。
 
 **增强真的被加载**：闸门 2 的硬断言「已加载扩展 id 集合 == 声明集合」给出 `集合相等（2 项）`
 （`trace` 基座不变量 + `corp-risk-score` 业务增强）。
@@ -86,26 +96,41 @@ node tools/verify.mjs examples/change-risk-review --harness pi  # → tools=4
 ## 改它（加一个业务增强要动什么）
 
 ```
-1. harness/<运行时>/extensions/<你的工具>.ts   ← 实现：export default function (pi) { pi.registerTool({...}) }
-2. harness/<运行时>/enhancements.yaml          ← 声明：id / kind / entry / description（**不许**重复中性定义字段）
-3. 跑 make validate + node tools/verify.mjs <目录> --harness <运行时>
+harness/shared/<业务>.mjs          ← ① 业务代码：规则/参数/拒答条件。零依赖，不碰任何运行时
+harness/<运行时>/enhancements.yaml ← ② 声明：id / kind / entry 或 package / description
+harness/<运行时>/extensions|插件…  ← ③ 接入件：只做「翻译形状 + 注册 + 转发」
 ```
 
-工具实现的契约（照 `risk-score.ts` 抄）：
+### ① 业务代码（`harness/shared/`）
 
-- `export default function (pi) { … }`，用 `pi.registerTool({ name, label, description, parameters, execute })` 注册
-- `parameters` 用**普通 JSON Schema 对象**即可（运行时只要求它是个对象）——**零依赖**，不需要 TypeScript 类型导入
-- `execute` 返回 `{ content: [{ type: "text", text }], details }`
-- 扩展是 TypeScript，但由运行时用 jiti 直接加载，**没有编译步骤**
+纯 ESM、**零依赖**，只用语言本身。导出三样东西就够了：工具描述与参数（`TOOL`）、
+纯函数规则（`score`）、统一执行语义（`run` → `{ text, details }`）。
+约束：**不许出现任何运行时的名字/API**（闸门 1 会扫代码，注释里提到不算）。
 
-## 别的运行时的增强长什么样（本示例没做，但形态要知道）
+### ② 声明
 
-| 运行时 | 增强形态 | 本示例的做法 |
+| 运行时 | 关键字段 | 说明 |
 |---|---|---|
-| pi | TypeScript 扩展（`pi.registerTool()` / `pi.on()`） | 本示例实现了 |
-| dsh | **cordis 插件 npm 包** + patch 里的 insert row（`{ id, package, config }`） | 未实现：需要一个真实可用的 npm 包，示例不编造不存在的东西 |
+| pi | `entry: extensions/<文件>.ts` | 相对产物 agent 目录 |
+| dsh | `package: ../../../harness/dsh/<文件>.js` | 相对**profile 配置目录**（三层 `..` 才回到产物根） |
 
-所以本示例在 dsh 上"没有业务工具"是**如实的结果**，不是静默忽略：`compare` 与可移植性报告都把它显式说出来。
+### ③ 接入件（两边的差异只在这里）
+
+| | pi | dsh |
+|---|---|---|
+| 模块契约 | `export default function (pi) { … }` | `export { apply, inject, name }`，`inject = ["tools"]` |
+| 注册 | `pi.registerTool({ name, label, description, parameters, execute })` | `ctx.tools.register({ name, description, parameters, output, execute })` |
+| 参数 | **普通 JSON Schema 对象**即可 | 该运行时的参数 DSL（`{ key: { type, required } }`）+ `output.schema` / `output.render` |
+| 结果 | `{ content: [{ type: "text", text }], details }` | 返回值即结果；`output.render` 返回 `[{ type: "text", text }]` |
+| 加载方式 | TypeScript，运行时用 jiti 直接加载，**无编译步骤** | JS 模块，按相对路径 import |
+
+## 两个踩过的坑（写接入件时会遇到）
+
+1. **接入件里不要 import 运行时的 SDK**。dsh 侧最初写 `import { defineTool } from "@deepseek-ai/dsh-tools"`，
+   运行期直接 `failed to import`：接入件位于**产物**里，不在该运行时的 `node_modules` 之下，裸导入解析不到。
+   两条路——把 SDK 接进产物（产物就不自足了）、或按注册接口要求的最少形状自己写（本示例选的）。
+2. **产物要声明把接入件拷进运行目录**。dsh 的 `runtimePlan.copy` 原先只有 `dsh-home/workspace/skills`，
+   插件没被拷过去 ⇒ 同样是 `failed to import`（报错只给文件名，很容易误判成代码写错）。
 
 ## 已知边界
 

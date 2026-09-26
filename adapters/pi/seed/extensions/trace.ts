@@ -40,6 +40,38 @@ const callStartedAt = new Map();
 const ECHO_HEADERS = ["x-fake-gateway-tools", "x-gateway-tools", "x-agent-base-tools"];
 const ECHO_STREAM = ["x-fake-gateway-stream", "x-gateway-stream", "x-agent-base-stream"];
 
+/**
+ * 从工具入参里推导"读了哪个技能"。
+ *
+ * 为什么是推导：原生轨迹里没有"技能"这个事件，只有工具调用。基座按**路径形状**
+ * `skills/<名>/SKILL.md` 判定，并把结果标成 `derivation: "path-pattern"` ——
+ * 审计看到的名字必须能追到规则，而不是"系统认为"。
+ *
+ * 逐值扫描（而不是只认 `input.path`）：不同运行时/不同读工具把路径放在哪个字段并不统一，
+ * 扫字符串值比猜字段名稳。扫描有界（深度 3、只看前若干键），避免病态输入拖慢回调。
+ */
+function skillFromInput(input, depth = 0) {
+  if (depth > 3 || input === null || input === undefined) return null;
+  if (typeof input === "string") {
+    const m = /(?:^|[/\\])skills[/\\]([^/\\]+)[/\\]SKILL\.md$/.exec(input.trim());
+    return m ? m[1] : null;
+  }
+  if (Array.isArray(input)) {
+    for (const v of input.slice(0, 20)) {
+      const r = skillFromInput(v, depth + 1);
+      if (r) return r;
+    }
+    return null;
+  }
+  if (typeof input === "object") {
+    for (const k of Object.keys(input).slice(0, 20)) {
+      const r = skillFromInput(input[k], depth + 1);
+      if (r) return r;
+    }
+  }
+  return null;
+}
+
 function headerOf(headers, names) {
   if (!headers || typeof headers !== "object") return undefined;
   for (const [k, v] of Object.entries(headers)) {
@@ -110,15 +142,29 @@ export default function (pi) {
 
   pi.on("tool_call", (event) => safe(() => {
     const id = String((event && event.toolCallId) ?? "");
+    const tool = String((event && event.toolName) ?? "unknown");
     callStartedAt.set(id, Date.now());
     writer.write({
       type: "tool.call",
       callId: id,
-      tool: String((event && event.toolName) ?? "unknown"),
+      tool,
       // 只存 digest，不存明文（§8.3）
       inputDigest: digestOf(event?.input),
       decision: "unobserved", // 纪律：观测不到就不猜；做决策的扩展应自己上报
     });
+
+    // 技能级事件：从**这次工具调用**的入参路径推导（推导规则见 skillFromInput 的注释）。
+    // 观测不到就不发 —— 不发不是"技能没用"，而是"这条轨迹里看不到它"。
+    const skill = skillFromInput(event?.input);
+    if (skill) {
+      writer.write({
+        type: "skill.use",
+        skill,
+        callId: id,
+        via: tool,
+        derivation: "path-pattern",
+      });
+    }
   }));
 
   pi.on("tool_result", (event) => safe(() => {

@@ -672,6 +672,45 @@ function checkAgent(report, ctx, agentDir) {
   if (dupes.length) report.fail(GATE, "enhance/single-source", `增强重复表达了中性定义字段（两个真源）：${dupes.join(", ")}`);
   else report.pass(GATE, "enhance/single-source", "业务级增强没有重复表达中性定义字段");
 
+  // B6b 共享业务代码必须与运行时无关
+  {
+    const sharedDir = path.join(agentDir, "harness", "shared");
+    if (fs.existsSync(sharedDir)) {
+      // 运行时专属包/名字：出现在共享代码里 ⇒ 它已经不可共享了
+      const FORBIDDEN = [
+        /@earendil-works\//, /@deepseek-ai\//, /@anthropic-ai\//, // 运行时 SDK
+        /from\s+["']pi["']/, /from\s+["']dsh["']/,                    // 运行时自身
+        /\bpi\.register\w+/, /ctx\.tools\b/,                        // 运行时 API
+      ];
+      const offenders = [];
+      const walk = (dir) => {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, e.name);
+          if (e.isDirectory()) { walk(full); continue; }
+          if (!/\.(mjs|js|ts|json)$/.test(e.name)) continue;
+          // **先剥注释再扫**：共享文件里用注释说明"两边接入方式不同"是正常且有益的，
+          // 那不是依赖。判据要盯的是**代码**（import / 调用），不是文档。
+          // （早先直接扫全文 ⇒ 把自己的注释判成违规=假阴/假阳同一类问题。）
+          const text = fs.readFileSync(full, "utf8")
+            .replace(/\/\*[\s\S]*?\*\//g, "")
+            .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+          for (const re of FORBIDDEN) {
+            const m = re.exec(text);
+            if (m) { offenders.push(`${path.relative(agentDir, full)} 出现 ${JSON.stringify(m[0])}`); break; }
+          }
+        }
+      };
+      walk(sharedDir);
+      if (offenders.length) {
+        report.fail(GATE, "enhance/shared-agnostic",
+          `harness/shared/ 是**共享业务代码**，不许依赖任何运行时：${offenders.join("；")}`
+          + "（把接入相关的东西移到 harness/<运行时>/ 里，共享文件只留业务逻辑）");
+      } else {
+        report.pass(GATE, "enhance/shared-agnostic", "harness/shared/ 里的业务代码与运行时无关（可共享）");
+      }
+    }
+  }
+
   // B7 可移植性等级（显式输出，不阻断）
   const used = HARNESS_NAMES.filter((h) => {
     const d = path.join(agentDir, "harness", h);

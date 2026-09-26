@@ -241,7 +241,7 @@ async function handleChatCompletion(req, res, { config, emitter }) {
   let result;
   try {
     const raw = openai.parseChatCompletionRequest(parsed, req.headers);
-    ({ normalized, result } = handleNormalizedRequest(raw, { provider: config.provider }));
+    ({ normalized, result } = handleNormalizedRequest(raw, { provider: config.provider, toolArgs: config.toolArgs }));
   } catch (err) {
     const code = err instanceof FakeGatewayRequestError ? err.code : "BAD_REQUEST";
     const provider = normalized?.provider ?? config.provider;
@@ -292,12 +292,14 @@ export async function startFakeGateway(options = {}) {
     trace = true,
     host = "127.0.0.1",
     provider = process.env.FAKE_GATEWAY_PROVIDER || DEFAULT_PROVIDER,
+    // 测试用：按工具名覆盖入参（JSON）。例如让 read 去读某个 SKILL.md，用来触发技能级轨迹事件。
+    toolArgs = process.env.FAKE_GATEWAY_TOOL_ARGS ? JSON.parse(process.env.FAKE_GATEWAY_TOOL_ARGS) : null,
     model = process.env.FAKE_GATEWAY_MODEL || DEFAULT_MODEL,
     traceDest,
     env = process.env,
   } = options;
 
-  const config = gatewayConfig({ provider, model, protocol: openai.PROTOCOL_ID });
+  const config = gatewayConfig({ provider, model, protocol: openai.PROTOCOL_ID, toolArgs });
   const context = traceContext(env, config);
   const traceLines = [];
   const dest = traceDest ?? (env.AGENT_TRACE_DEST || "stderr");

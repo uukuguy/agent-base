@@ -128,13 +128,17 @@ console.log("\n── 场景 B：假网关 —— 工具调用配对与判定口
 let port = 47300;
 const free = await new Promise((res) => { const s = net.createServer(); s.once("error", () => res(false)); s.once("listening", () => s.close(() => res(true))); s.listen(port, "127.0.0.1"); });
 if (!free) port += 7;
+// 先有暂存目录，网关才能被告知"去读哪个技能文件"（见下面的 toolArgs）
+const stagingB = stage(`http://127.0.0.1:${port}/v1`);
+const skillFile = path.join(stagingB, "skills", "example", "SKILL.md");
+if (!fs.existsSync(skillFile)) throw new Error(`自检装置缺技能文件：${skillFile}`);
+
 const gw = spawn(process.execPath, ["-e",
-  `import("${REPO}/tools/fake-gateway/server.mjs").then(async (m) => { const g = await m.startFakeGateway({ port: ${port} }); setTimeout(async () => { await g.close(); process.exit(0); }, 30000); });`],
+  `import("${REPO}/tools/fake-gateway/server.mjs").then(async (m) => { const g = await m.startFakeGateway({ port: ${port}, toolArgs: { read: { path: ${JSON.stringify(skillFile)} } } }); setTimeout(async () => { await g.close(); process.exit(0); }, 30000); });`],
   { stdio: "ignore" });
 await sleep(2500);
 
 const traceB = newTrace("trace-ext-b.jsonl");
-const stagingB = stage(`http://127.0.0.1:${port}/v1`);
 const runB = await runPi(stagingB, traceB, { timeoutMs: 12000 });
 gw.kill("SIGTERM");
 const eventsB = readEvents(traceB);
@@ -150,6 +154,18 @@ check("用原生 toolCallId 配对（callId 相等且非空）",
 check("耗时为推算值并已标注（缺口 G2）", results.length > 0 && results.every((r) => r.msIsEstimated === true));
 check("判定观测不到 → unobserved（**不写 allow**）", calls.length > 0 && calls.every((c) => c.decision === "unobserved"), calls[0]?.decision);
 check("入参只存 digest，不存明文", calls.length > 0 && calls.every((c) => String(c.inputDigest).startsWith("sha256:")));
+
+// 技能级事件：本次工具调用**真的去读了** skills/example/SKILL.md（入参由测试显式给出，见上面 toolArgs），
+// 于是扩展应当推导出一条 skill.use。它必须是**推导**（derivation: path-pattern），不能伪装成原生观测。
+const skillUses = eventsB.filter((e) => e.type === "skill.use");
+check("读 SKILL.md 的工具调用推导出技能级事件", skillUses.length > 0, `skill.use ${skillUses.length} 条`);
+check("技能名来自路径（skills/<名>/SKILL.md）", skillUses[0]?.skill === "example", skillUses[0]?.skill);
+check("技能事件标注为推导（不冒充原生观测）", skillUses[0]?.derivation === "path-pattern", skillUses[0]?.derivation);
+check("技能事件与那次工具调用配对（callId 相同）",
+  skillUses.length > 0 && calls.some((c) => c.callId === skillUses[0].callId),
+  JSON.stringify({ skill: skillUses[0]?.callId, call: calls[0]?.callId }));
+check("没读技能文件时不发技能事件（只有这次调用会读）",
+  skillUses.length <= calls.length && skillUses.every((e) => calls.some((c) => c.callId === e.callId)));
 
 const all = [...eventsA, ...eventsB];
 console.log("\n── 权威校验：每一行都要过 core/trace/schema.json ──");

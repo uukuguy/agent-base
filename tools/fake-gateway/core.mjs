@@ -66,12 +66,13 @@ export function canonicalJson(value) {
 }
 
 /** 假网关的确定性配置对象。进配置摘要的只有这些「基座选择」，不含任何凭据。 */
-export function gatewayConfig({ provider = DEFAULT_PROVIDER, model = DEFAULT_MODEL, protocol = "openai" } = {}) {
+export function gatewayConfig({ provider = DEFAULT_PROVIDER, model = DEFAULT_MODEL, protocol = "openai", toolArgs = null } = {}) {
   return {
     name: "fake-gateway",
     version: FAKE_GATEWAY_VERSION,
     protocol,
     provider,
+    toolArgs,
     model,
   };
 }
@@ -179,10 +180,15 @@ function buildToolArguments(parameters) {
 /**
  * 规范化请求 → 中性响应结果。
  *
+ * `overrides.toolArgs`（可选，**测试用**）：按工具名给定入参，例如
+ * `{ read: { path: "/…/skills/example/SKILL.md" } }`。存在的理由：有些链路（如技能级
+ * 轨迹事件）只有在"工具真的去读某个文件"时才会发生，而让模型自己去读是不可控的。
+ * 它是**显式**入口，不会悄悄改变默认行为（默认仍按参数 schema 造占位值）。
+ *
  * 返回的是**协议无关**的结果形状；序列化成 OpenAI / Anthropic 响应由适配层负责。
  * `toolCalls` 非空当且仅当请求携带 tools（§6.4：必须能发工具调用，且 tools 计数必须可见）。
  */
-export function respond(normalized) {
+export function respond(normalized, overrides = null) {
   const digest = requestDigest(normalized);
   const tools = normalized.tools.length;
   const stream = normalized.stream;
@@ -197,11 +203,14 @@ export function respond(normalized) {
     (m) => m && (m.role === "tool" || (Array.isArray(m.content) && m.content.some((c) => c && c.type === "tool_result"))),
   );
 
+  // 工具入参：默认按参数 schema 造占位值；**测试可以按工具名覆盖**（见下面 toolArgs 的说明）。
+  const toolName = tools > 0 ? normalized.tools[0].name : null;
+  const forced = toolName && overrides && typeof overrides === "object" ? overrides[toolName] : null;
   const toolCalls = tools > 0 && !alreadyHasToolResult
     ? [{
         id: `call_${digest.slice("sha256:".length, "sha256:".length + 24)}`,
-        name: normalized.tools[0].name,
-        arguments: canonicalJson(buildToolArguments(normalized.tools[0].parameters)),
+        name: toolName,
+        arguments: canonicalJson(forced ?? buildToolArguments(normalized.tools[0].parameters)),
       }]
     : [];
 
@@ -225,5 +234,5 @@ export function respond(normalized) {
 /** 一步到位：规范化 + 生成结果。协议适配层用它，selftest 也用它。 */
 export function handleNormalizedRequest(input, options) {
   const normalized = normalizeRequest(input, options);
-  return { normalized, result: respond(normalized) };
+  return { normalized, result: respond(normalized, options?.toolArgs ?? null) };
 }

@@ -322,6 +322,11 @@ function main() {
   }
   const { patch, denyRows } = built;
 
+  // 可共享的业务代码：与另一个运行时共用 harness/shared/ 这一份。
+  // 落在 `<产物>/harness/business/`，于是接入件（`harness/<运行时>/` 里的插件）用
+  // **同一个相对路径** `../business/<文件>` 引用它 —— 两个运行时的业务代码真的是同一份。
+  copyTree(path.join(agentDir, "harness", "shared"), path.join(outRoot, "harness", "business"));
+
   writeFile(path.join(profileDir, "cordis.patch.yml"), dumpPatch(patch, [
     "# 由 agent-base 渲染器生成 —— 不要手改（改中性定义后重新渲染）。",
     "# 这是 profile 的 patch 层：在 bundles 之后应用，覆盖/禁用既有 row，或 insert 新 row。",
@@ -383,7 +388,11 @@ function main() {
       // 本 harness 的调用形态是 `dsh <profile> [选项…]` —— profile 名是**运行时的专有知识**，
       // 由产物声明，调用方（入口脚本/编排层）不必知道。`@agent` 会被替换成智能体名。
       argvPrefix: ["@agent"],
-      copy: ["dsh-home", "workspace", "skills"],
+      // `harness/` **有才拷**：本运行时的接入件（cordis 插件）与共享业务代码都在那里，
+      // 缺了它插件会在运行期 "failed to import"（实测踩过）。
+      // 但产物里没有这个目录时**不能**写进计划 —— 声明一个不存在的拷入源会让启动期直接失败
+      // （实测：所有不带增强的示例在 dsh 上全红）。
+      copy: ["dsh-home", "workspace", "skills", ...(fs.existsSync(path.join(outRoot, "harness")) ? ["harness"] : [])],
       env: { DSH_HOME: "dsh-home" },
       cwd: "workspace",
       pathRewrites: [

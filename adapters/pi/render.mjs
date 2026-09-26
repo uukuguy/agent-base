@@ -237,6 +237,9 @@ function main() {
   const baseEnh = collectEnhancements(path.join(SEED, "enhancements.yaml"));
   const agentEnh = collectEnhancements(path.join(agentDir, "harness", HARNESS, "enhancements.yaml"));
 
+  // 可共享的业务代码：放 harness/shared/，两个运行时共用这一份；
+  // 各运行时的接入件（扩展/插件）按相对路径 import 它 —— 差别只在接入方式。
+  copyTree(path.join(agentDir, "harness", "shared"), path.join(agentOut, "business"));
   copyTree(path.join(SEED, "extensions"), path.join(agentOut, "extensions"));
   copyTree(path.join(agentDir, "harness", HARNESS, "extensions"), path.join(agentOut, "extensions"));
   // 发射契约只有一处定义：把 core 的发射器拷进产物，扩展用相对路径 import 它

@@ -116,6 +116,16 @@ export function describeEvent(event, labels = {}) {
         label: `${tag} ${what}: ${event.message ?? ""}${fields}` };
     }
 
+    // 技能使用：业务标签按 `skill:<名>` 查表；查不到给机械措辞。
+    // 这条事件是**推导**出来的（见 trace schema 的 derivation 字段），所以标签里也说清是推导 ——
+    // 别让看轨迹的人把"按路径推导"误读成"运行时原生上报了技能"。
+    case "skill.use": {
+      const custom = lookup(labels, [locator.skill(event.skill)]);
+      const how = event.derivation === "path-pattern" ? "（按路径推导）" : "";
+      if (custom) return { kind: "skill", source: "business", label: `${custom}${how}` };
+      return { kind: "skill", source: "mechanical", label: `使用技能 ${event.skill}${how}` };
+    }
+
     case "tool.call": {
       const mcp = parseMcpToolName(event.tool);
       const custom = lookup(labels, [

@@ -273,4 +273,8 @@
 - 14:25 证据链：闸门 1 报可移植性降级 → 渲染登记扩展 → 闸门 2 硬断言"声明==进产物" → 闸门 3 工具数 3→4（业务工具真的发给了模型）→ dsh 侧虽然不可用该工具，但**仍四道闸门全过**且 compare 等价（中性定义层）
 - 14:25 抓到一个判据错误：闸门 2 用"文件名.includes(增强 id)"子串匹配 → id corp-risk-score + 文件 risk-score.ts 被判"没进产物"（假阴；同时 id trace 会被 my-trace-helper.ts 满足=假阳）。改成按声明 entry 精确匹配
 - 14:25 顺带记录：pi 的工具参数 schema 用**普通 JSON Schema 对象**即可（加载器只要求是对象），扩展由 jiti 直接加载、无编译步骤；`extensions/` 目录里每个文件都会被登记为扩展（只有 _trace-emit.mjs 除外）—— 已写进示例 README 的已知坑
+- 15:02 用户指出"harness 业务增强的业务代码应该可共享，差别只是接入方式" → 基座加 `harness/shared/`（渲染器拷进两侧产物，相对路径同名 `../business/…`）+ 闸门 `enhance/shared-agnostic`（剥注释后扫代码，出现运行时 SDK/API 就红）
+- 15:02 示例改成共享形态：一份业务模块 + 两个薄接入件。**两侧实测都生效**：pi tools 3→4、dsh tools 19→20（dsh 冒烟里 corp_risk_score 真被调用）——之前"dsh 侧没实现"的缺口一并关掉
+- 15:02 踩坑两条：dsh 接入件里裸导入 `@deepseek-ai/dsh-tools` 解析不到（产物不在运行时 node_modules 下）→ 改成零依赖接入；`runtimePlan.copy` 声明 `harness` 时**必须判断目录是否存在**，否则不带增强的所有示例在 dsh 上全红
+- 15:02 技能级轨迹事件 `skill.use` 落地：schema + pi 扩展按路径推导 + 查看器 `skill:` 标签；自检用真实工具调用验证（网关新增测试用 toolArgs 覆盖），事件计数含 skill.use:1 且全过 schema
 
