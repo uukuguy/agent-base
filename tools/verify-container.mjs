@@ -45,14 +45,14 @@ const die = (msg, code = EXIT_CODES.usage) => { log(`❌ ${msg}`); process.exit(
 
 const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), {
   valueFlags: ["--harness", "--arch", "--render-dir"],
-  booleanFlags: ["--dry-run", "--json", "--help"],
+  booleanFlags: ["--dry-run", "--json", "--no-cache", "--help"],
 });
-const ALLOWED_FLAGS = new Set(["--dry-run", "--json", "--help"]);
+const ALLOWED_FLAGS = new Set(["--dry-run", "--json", "--no-cache", "--help"]);
 const unknown = [...flags].filter((f) => !ALLOWED_FLAGS.has(f));
 if (unknown.length) die(`未知旗标：${unknown.join(", ")} —— 可用：${[...ALLOWED_FLAGS].join(" / ")}。`
   + `（docker 参数不接受调用方拼：绑定面由基座生成，见本文件顶部）`);
 if (errors?.length) die(errors.join("；"));
-if (flags.has("--help")) { log("用法: node tools/verify-container.mjs <AGENT_DIR> [--harness pi] [--arch arm64|amd64] [--render-dir DIR] [--dry-run] [--json]"); process.exit(EXIT_CODES.ok); }
+if (flags.has("--help")) { log("用法: node tools/verify-container.mjs <AGENT_DIR> [--harness pi] [--arch arm64|amd64] [--render-dir DIR] [--dry-run] [--no-cache] [--json]"); process.exit(EXIT_CODES.ok); }
 
 const asJson = flags.has("--json");
 const dryRun = flags.has("--dry-run");
@@ -150,10 +150,41 @@ if (!imageExists) {
 }
 
 // ---------------------------------------------------------------------------
-// ④ 跑，并把结果整理成结构化输出（AI 要读）
+// ④ 结果缓存（A5 的"同一输入重复触发结果一致、不无效重跑"）
+//
+// 缓存的键 = **本次结论绑定的全部身份**：定义摘要 + 产物摘要 + 渲染输入摘要 + 镜像摘要 + 架构 + 运行时。
+// 任一处变了就不再命中（换定义、改基座、重建镜像都会让键变）。
+//
+// **只缓存通过**（`usable: true`）。失败不缓存：失败往往意味着"正在改"，缓存它会让下一次
+// 直接拿到旧结论、把迭代卡住 —— 而且真是环境抖动的话，缓存会把一次性故障永久固化。
+// 想强制重跑：`--no-cache`。
+// ---------------------------------------------------------------------------
+const { digestCanonical } = await import("../core/gates/index.mjs");
+const identityForCache = {
+  definitionDigest: safeManifest(artifactDir, "definitionDigest"),
+  artifactsDigest: safeManifest(artifactDir, "artifactsDigest"),
+  renderInputsDigest: safeManifest(artifactDir, "renderInputsDigest"),
+  imageDigest, arch, harness,
+};
+const cacheKey = digestCanonical(identityForCache);
+const cacheFile = path.join(REPO, "dist", "verify-cache", `${cacheKey.replace(/^sha256:/, "")}.json`);
+if (!flags.has("--no-cache") && fs.existsSync(cacheFile)) {
+  try {
+    const hit = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
+    const out = { ...hit, cached: true, cacheKey, note: "同一输入（定义/产物/渲染输入/镜像/架构/运行时）此前已通过 ⇒ 直接复用结论；用 --no-cache 强制重跑" };
+    if (asJson) process.stdout.write(JSON.stringify(out, null, 2) + "\n");
+    else log(`✅ 命中缓存（同一输入此前已通过，${hit.cachedAt ?? "?"}）—— 未重新跑容器。用 --no-cache 可强制重跑。`);
+    process.exit(EXIT_CODES.ok);
+  } catch { /* 缓存坏了就重跑，不因此失败 */ }
+}
+
+// ---------------------------------------------------------------------------
+// ⑤ 跑，并把结果整理成结构化输出（AI 要读）
 // ---------------------------------------------------------------------------
 log(`▶ 容器内验证：${image}（arch=${arch}，绑定面 ${mounts.length} 处只读，网络 none）`);
+const startedAt = Date.now();
 const run = spawnSync(argv[0], argv.slice(1), { encoding: "utf8", timeout: 900000 });
+const durationMs = Date.now() - startedAt;
 const text = `${run.stdout ?? ""}\n${run.stderr ?? ""}`;
 const steps = text.split("\n")
   .map((l) => l.match(/^\s*(✅|❌)\s*(闸门 \d：[^—]+?)——\s*(.*)$/))
@@ -175,6 +206,9 @@ const report = {
   mounts,
   exitCode: run.status,
   usable,
+  cached: false,                 // 本次是真跑的（命中缓存时在上面直接返回，标 cached: true）
+  durationMs,                    // 真实耗时（"不无效重跑"的证据）
+  cacheKey,
   steps,
   // 本次容器结论**覆盖**的与**没覆盖**的（后者只能构建侧/镜像侧看）
   covered: ["static(agent-only)", "resolution", "probes", "smoke"],
@@ -218,6 +252,14 @@ function safeManifest(dir, key) {
   try { return JSON.parse(fs.readFileSync(path.join(dir, "render-manifest.json"), "utf8"))[key] ?? null; } catch { return null; }
 }
 
+// **只缓存通过**（理由见上面的注释）；写失败不影响本次结论
+if (usable) {
+  try {
+    fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+    fs.writeFileSync(cacheFile, JSON.stringify({ ...report, cached: undefined, cachedAt: new Date().toISOString() }, null, 2));
+  } catch { /* 缓存写不了只是少一次加速，不是错误 */ }
+}
+
 if (asJson) process.stdout.write(JSON.stringify(report, null, 2) + "\n");
 else {
   log("\n════ 容器内验证 ════");
@@ -233,4 +275,16 @@ else {
   }
   log(`  本次未覆盖：${report.notCovered.join(" · ")}`);
 }
-process.exit(run.status === 0 ? EXIT_CODES.ok : (run.status >= 128 ? EXIT_CODES.crash : run.status));
+// 退出码：保持**语义表**（0/2/10/20/30/40/50）。容器内的退出码本身已按闸门语义给（verify-in-image
+// 取首个失败闸门的码）；但对**旧镜像**（修之前构建的，失败时退 1）要对齐一次 ——
+// 否则调用方拿到一个契约之外的码，CI/归因都没法判。
+{
+  const SEMANTIC = new Set(Object.values(EXIT_CODES));
+  if (run.status === 0) process.exit(EXIT_CODES.ok);
+  if (run.status >= 128) process.exit(EXIT_CODES.crash);
+  if (SEMANTIC.has(run.status)) process.exit(run.status);
+  const firstFailing = steps.find((s) => !s.ok);
+  const gate = firstFailing ? GATE_LABELS[firstFailing.label] : null;
+  const { exitCodeForGate } = await import("../core/gates/index.mjs");
+  process.exit(gate ? exitCodeForGate(gate) : EXIT_CODES.crash);
+}

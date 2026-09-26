@@ -65,18 +65,34 @@ const step = (label, args) => {
   return r.status === 0;
 };
 
+// ---------------------------------------------------------------------------
+// 闸门序列：**首个失败即停**（与宿主 `verify` 同一条规矩，见 docs/07 第一节：
+// "闸门 1 失败时后续闸门不会跑 —— 定义都不合法，后面的结论没有意义"），
+// 并且退出码取**首个失败闸门**的语义码（10/20/30/40），不再用不在契约里的 1。
+// ---------------------------------------------------------------------------
+const GATE_CODE = { 1: "static", 2: "resolution", 3: "probes", 4: "smoke" };
+const sequence = [
+  ...(DEFINITION && fs.existsSync(path.join(DEFINITION, "agent.yaml"))
+    ? [{ n: 1, label: "闸门 1：静态校验", // 镜像里没有基座的 docs/ 与仓库布局 ⇒ 只跑"智能体定义"那部分（基座自洽在构建侧跑）
+        args: [path.join(GATES, "tools/validate.mjs"), DEFINITION, "--agent-only"] }]
+    : []),
+  { n: 2, label: "闸门 2：解析自证", args: [path.join(GATES, `adapters/${harness}/doctor.mjs`), ARTIFACT, "--json"] },
+  { n: 3, label: "闸门 3：集成探针", args: [path.join(GATES, "tools/probe.mjs"), ARTIFACT, "--json", "--harness", harness] },
+  { n: 4, label: "闸门 4：端到端冒烟", args: [path.join(GATES, "tools/smoke.mjs"), ARTIFACT, "--json", "--harness", harness] },
+];
+if (sequence[0]?.n !== 1) log("（没有定义目录 ⇒ 跳过闸门 1；给了 AGENT_DEFINITION_DIR 就会跑）");
+
 let ok = true;
-if (DEFINITION && fs.existsSync(path.join(DEFINITION, "agent.yaml"))) {
-  ok = step("闸门 1：静态校验", // 镜像里没有基座的 docs/ 与仓库布局 ⇒ 只跑"智能体定义"那部分（基座自洽在构建侧跑）
-    [path.join(GATES, "tools/validate.mjs"), DEFINITION, "--agent-only"]) && ok;
-} else {
-  log("（没有定义目录 ⇒ 跳过闸门 1；给了 AGENT_DEFINITION_DIR 就会跑）");
+let failedGate = null;
+for (const s of sequence) {
+  if (!step(s.label, s.args)) { ok = false; failedGate = GATE_CODE[s.n]; break; }
 }
-ok = step("闸门 2：解析自证", [path.join(GATES, `adapters/${harness}/doctor.mjs`), ARTIFACT, "--json"]) && ok;
-ok = step("闸门 3：集成探针", [path.join(GATES, "tools/probe.mjs"), ARTIFACT, "--json", "--harness", harness]) && ok;
-ok = step("闸门 4：端到端冒烟", [path.join(GATES, "tools/smoke.mjs"), ARTIFACT, "--json", "--harness", harness]) && ok;
 
 log("\n════ 镜像内自证 ════");
 for (const r of results) log(`  ${r.status === 0 ? "✅" : "❌"} ${r.label} —— ${r.verdict}`);
 log(ok ? "\n✅ 可用：镜像内自证通过（离线、零凭据）" : "\n❌ 不可用：镜像内自证失败");
-process.exit(ok ? 0 : 1);
+
+// 退出码语义**只有一处定义**（core/gates/exit-codes.mjs），从闸门仓库根动态导入 ——
+// 镜像里那份就是同一个文件，所以不会出现"镜像内自己发明一套退出码"。
+const { exitCodeForGate } = await import(new URL(`file://${path.join(GATES, "core/gates/exit-codes.mjs")}`).href);
+process.exit(ok ? 0 : (failedGate ? exitCodeForGate(failedGate) : 50));

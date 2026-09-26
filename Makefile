@@ -19,7 +19,7 @@ JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -95,6 +95,9 @@ env-check: ## 环境一致性：本地与容器差在哪、哪些本地查不了
 
 verify-container: ## 受控容器验证：绑定面=当前项目（只读），docker 参数由基座生成（DRY=1 只看参数）
 	@node tools/verify-container.mjs $(AGENT_DIR) $(if $(HARNESS),--harness $(HARNESS),) $(if $(ARCH),--arch $(ARCH),) $(if $(DRY),--dry-run,) $(if $(JSON),--json,)
+
+unattended-selftest: ## 无人值守端到端：改定义 → 本地闸门 → 计划 → 预检 → 受控容器验证 → 归因
+	@node tools/unattended-selftest.mjs
 
 verify-container-selftest: ## 受控容器验证自检（逃逸面断言 · 绑定面 · 危险目录 · 真跑一次）
 	@node tools/verify-container-selftest.mjs

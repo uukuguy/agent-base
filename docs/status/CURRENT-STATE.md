@@ -7,7 +7,7 @@
 - Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **L3 阶段二余项 = A5 无人值守端到端判据 → A6 受控入口接成需审批工具**；已完成：阶段一（A1/V2/E1b/Q1/Q2）+ A2 受控容器入口 + A3 出处与覆盖 + A4 失败归因
+- Active work package: **L3 收尾 = A6 把受控容器入口接成需审批的工具**；已完成：阶段一（A1/V2/E1b/Q1/Q2）+ A2 受控容器入口 + A3 出处与覆盖 + A4 失败归因 + A5 无人值守端到端判据
 
 ## Current Architecture
 
@@ -95,7 +95,7 @@
 
 ## Open Problems (theme-level)
 
-- **L3 阶段二**：受控容器验证入口（A2）与出处/覆盖（A3）已完成；**剩失败归因三分类（A4）· 无人值守端到端判据（A5）· 把受控入口接成需审批的工具（A6）**
+- **L3 收尾**：A2–A5 已完成（受控入口 / 出处与覆盖 / 失败归因 / 无人值守判据）；**剩 A6：把受控入口接成需审批的工具，让审批事件进统一轨迹**（不因此给 AI 任意 docker 权限）
 - **只有宿主侧的结论**：`verify --json` 已带 `environment.where` 与 `notCoveredHere`，但**交付口径尚未强制"容器内自证为准"**（§28 Q3 = §30 A3）
 - **钩子只能证明"发射路径在工作"**：逐条自证（每个声明的钩子都留痕）未做（§23 E2b）
 - **dsh 侧事件集合未穷举**：`hookEvents.enumerated: false` ⇒ 那边写钩子只能标「未验证」，没有名字层面的判据
