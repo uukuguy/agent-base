@@ -1,56 +1,50 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-26 22:30. **Session remains active — not a final handoff.**
+> Updated: 2026-09-26 23:5x. **Session remains active — not a final handoff.**
+> 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
 
-1. **D8 修复（用户报的真 bug）**：`run-local` 进交互后**没有 `/project`** —— 根因是**产物复用判据只看定义摘要**，基座变了（新增 seed 扩展）而定义没变 ⇒ 旧产物被复用且**无任何报错**。现在渲染输入自己有摘要（定义 + seed + 渲染器 + adapter.yaml + catalog + emit.mjs），旧产物无此字段 ⇒ 一律重渲（自愈）。自检已固化 [181d2ac]
-2. **§26 V1 完成**：会话内自省命令 `/project`（基座不变量）；**E1 完成**（钩子事件名成为可校验契约）[4ed2916 · 686c6d4]
-3. **下一个具体动作**：§26 **V2**（同一份逻辑再开 CLI 出口）或 **E2b**（钩子逐条自证）；**E1b**（接入缝事件名）数据路径已就位
+1. **阶段一闭合**（§1.1 的第 1 阶段，全部有证据）：**A1 + V2**（`make verify-plan` / `make project-info` / 会话内 `/project plan`，一份逻辑两个出口）· **E1b**（接入缝的钩子事件名也进判据）· **Q1 + Q2**（`make env-check`：本地预检 + 未声明的环境差异 ⇒ 红），并把环境结论并进 `verify --json` 的 `environment`
+2. **下一个具体动作**：阶段二（L3 关键路径）**A2 受控容器验证入口** —— 只接受"项目 + harness + arch"，绑定面由基座生成（项目只读、基座工具链来自镜像、socket/privileged/`-v /` 一律拒绝），复用镜像自带的 agent-only `verify`；紧接着 A3（`image` 摘要 + `covered`）/ A4（失败归因）/ A5（无人值守端到端）
+3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**
 
 ## Where things stand
 
-- **全绿**：16 个自检 · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）· 两侧渲染清单都记 `renderInputsDigest`
-- ✅ **记忆层已配好（本轮）**：`mnemon` CLI 装好（官方 macOS 推荐 `brew install --cask mnemon-dev/tap/mnemon`，实测 0.2.9；写 `/opt/homebrew` 会被沙箱拒 ⇒ 需提权）+ Memory Space「agent-base 项目记忆」(id `default`) 已建并**激活**。归档真的跑起来了：热记忆 15 条/10220 字节 → **11 条/7721 字节**（`~/.mnemon/data/default/mnemon.db`，15 insights / 41 edges）。排错：`mnemon --version` 探活（**别用 `mnemon status`**，有副作用）；宿主找不到二进制时设 `MNEMON_CLI_PATH`
-- 工作树干净；5 个提交都在本地（无远端）
-- `examples/idea-to-proof/.render/pi` 已重渲（含 `/project`）；其它示例的旧缓存会在下次 `make local`/`run-local` 时**自动重渲**
+- **全绿**：**17 个自检** · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
+- Makefile **44 个目标**（无 `NOT_YET` 桩）；本轮新增 `project-info` / `verify-plan` / `project-info-selftest` / `env-check` / `env-check-selftest`
+- 本轮提交（都在本地，无远端）：`ef9c92d`（A1+V2）· `487ea2f`（E1b）· 环境一致性若干（Q1/Q2）
+- 记忆层可用（`mnemon` 0.2.9 + Memory Space `default` 已激活，满时自动归档）
 
-## What this session delivered
+## What this session delivered（本轮，按 §1.1 阶段一）
 
-**D8：产物复用判据（本轮，`181d2ac`）**
+**A1 + V2：验证计划与非交互出口**（`ef9c92d`）
 
-- `core/gates/digest.mjs` 新增 `digestInputs(entries)`（带角色的输入集合摘要；`optional` 显式记 `absent`，区分"没有"与"没算"）
-- `adapters/{pi,dsh}/render-inputs.mjs`：声明各自决定产物的输入（定义 / seed / 渲染器 / adapter.yaml / catalog / emit.mjs），并导出与 harness 无关的 `renderInputsDigest`
-- 两侧渲染器把 `renderInputsDigest` 写进清单；`tools/run-local.mjs` 用它判新鲜度（缺失字段 ⇒ 视为旧产物）
-- `local-selftest` 新增两条：**"基座变了、定义没变 ⇒ 也重新渲染"** 与 **"不许误报成定义已变"**
+- 自省逻辑从 pi seed 搬到 **`core/introspect/project-info.mjs`**（中性、无运行时常量名）⇒ 会话内入口、CLI 出口、将来的容器路径**共用一份**；渲染器照 `_trace-emit.mjs` 的先例把它拷进产物 `extensions/_project-info.mjs`
+- `make verify-plan [JSON=1]` + 会话内 `/project plan`：身份四摘要 · `local[]`（四道闸门的命令与期望）· `container[]`（四条，每条带 `why`）· `notCovered[]
+` · `make project-info [CATEGORY=…] [JSON=1]`
+- "只能在容器里成立"的断言做成**声明式**（`core/introspect/_container-only.mjs`），自检**双向**比对声明与 C9 实现（声明里的必须存在；实现里字面量的必须已归类）
 
-**§26 V1：`/project`**（`4ed2916`）—— 八个分类，全部从产物现算；补全即"项目应该有哪些信息"的目录；钩子事件名与运行时 39 个集合逐个核对；可移植性与闸门 1 同源；自检 21 项（含真起 pi 的 `get_commands` 取证）
+**E1b：接入缝事件名**（`487ea2f`）—— 启动期用产物清单的 `hookEvents` 校验 overlay 声明；写错**响亮失败并点名**；`enumerated:false` 不假校验但提示；两条新负例（startup-selftest 37 项）
 
-**E1：钩子事件名契约**（`686c6d4`）—— `event` → `events[]`；`adapter.yaml` 的 `hookEvents`（pi 39 个 + 复算命令，dsh 如实标未穷举）；闸门 1 `enhance/events` / `hook/events-decl` / `catalog/enum-sync`；基座自己的 seed 声明也进校验；D-0017 裁定 harness 层契约随基座版本演进
-
-**记账对齐**（`7afeaeb`）—— roadmap/docs13 与实现一致
+**Q1 + Q2：环境一致性与本地预检** —— `core/env/parity.mjs`（声明 + `classify`）· `core/catalog/adapter-pins.mjs`（pin 的**唯一**读取处，`dev-env` 与 `env-check` 共用）· `tools/env-check.mjs`（文本/JSON；未声明差异 ⇒ 退出码 10）；`verify --json` 新增 `environment{where,ok,declared,undeclared,notCoveredHere,unprecheckable}`；预装清单新增 `localCommands`（apt 包名 ≠ 命令名）
 
 ## Next steps (immediate, action-level)
 
-1. **§26 V2**：同一份 `_project-info.mjs` 再开一个 CLI 出口（CI/容器可用）—— **不要写第二份文案**
-2. **E2b 钩子逐条自证**（路线图顺序的下一项）
-3. **E1b 接入缝的事件名**：`manifest.hookEvents` 已就位，启动期 `applyOverlay` / 闸门 2 用它校验
-4. **§26 V3**：dsh 侧等价入口（做不到就写进 `exemptions.yaml`）
-5. 次要：dsh 接入缝装载形态只有一种 · 多语言业务代码（E9）· `image-push` 未对真实 registry 验证 · `CLAUDE.md` 仍未创建
-6. **已设计但「择机实现」（用户 2026-09-26 决定，不占当前队列）**：能力包（bundles）——`coding` / `verify-baseline` 两类包 + 动态使能。设计稿 `docs/design/2026-09-26-capability-bundles.md`，路线图 §27（B1 机制本体 → C4 技能落盘 → B2 `/project bundles` → C3 默认组合，兑现缺陷 D9）。**不要当成下一步开工**，除非用户点名。
+1. **A2** 受控容器验证入口（封闭命令 + 绑定面 allowlist + realpath + 三条负例；复用镜像 agent-only `verify`）
+2. **A3** 结论带 `image` 摘要与 `covered` 显式清单；`docs/13`/`docs/14` 写明**交付结论以容器内自证为准**
+3. **A4** 失败归因三分类（`local-reproducible` / `declared-env-difference` / `unknown`，`unknown` 必须响亮上报）
+4. **A5** 无人值守端到端判据（一条脚本化演示：改定义 → 本地闸门 → 容器验证 → 归因）
+5. 可随手插入：`P5 + O2 + O3`（契约表与口径纪律）· `E2b`（钩子逐条自证）· `CLAUDE.md`
 
 ## Don't go down these paths again (ruled out)
 
-- **只比定义摘要就复用产物** ⇒ 基座变了却不重渲，**且不报错**（D8，本轮实测：新命令在会话里根本不存在）
-- **两条启动路径各拼一份 env** ⇒ 同一能力「容器里能用、本地不能用」，且报错不指向环境变量（D10：本地少了 `AGENT_ARTIFACT_DIR`）。平台变量**单一定义**在 `core/image/platform-env.mjs`；`startup.prepare` 的运行期布局契约必须由 `stageRenderDir` **原样带出**，本地不许手搓
-- **去猜 `dirname(配置目录)` 找渲染清单** ⇒ **清单在产物根，暂存的运行目录里没有**；任何"读清单"的能力都得用 `AGENT_ARTIFACT_DIR`
-- **复用判据各写一份路径列表** ⇒ 两份迟早不一致，失败方式是"某次改动不触发重渲"且无声；判据必须与渲染器共用一份实现
-- **在双引号字符串里再嵌双引号** —— 本轮踩了**第四次**（`capabilities.yaml`、`_project-info.mjs`、两个自检）；中文全角括号无害，嵌套的 `"` 才致命，一律用「」
-- **y 靠 grep 人读输出取闸门结论** —— 人读报告走 **stderr**，stdout 只放 `--json`
-- **把 piRpc 的 responses 键当成请求 id** —— 键是**命令名**（`responses.get("get_commands")`）
-- **`/project` 自己算一套可移植性** ⇒ 立刻与闸门 1 打架（第一版就犯）
-- **给 dsh 编一份假的事件清单** ⇒ 穷举不出来就如实标"未验证"
-- **以为沙箱内装不了 CLI** —— 会被拒的是"写 `/opt/homebrew`"，走**一次提权**（`sandbox_permissions`）就能装成；真正的坑是**建了 Memory Space 却没激活**（报 `catalog=1 / writable=0`），以及用 `mnemon status` 当探活（有副作用）
+- **在 `core/` 里写运行时常量的名字**（如把 `"pi"` 当默认参数）⇒ 被 `core/harness-name` 当场抓住。core 的中立性靠它守着（本轮真踩中，一次改掉 5 处红）
+- **假设 apt 包名 == 命令名** ⇒ `ripgrep` 的命令是 `rg`、`ca-certificates` 根本不是命令。本地预检要么声明命令（`localCommands`），要么明确标"不可预检"
+- **同一条事实写两份** ⇒ 本轮差一点又犯：pin 的读取抽成 `core/catalog/adapter-pins.mjs` 给 `dev-env` 与 `env-check` 共用；容器断言清单只保留 `_container-only.mjs` 一处，`env/parity.mjs` 直接引用它
+- **在双引号字符串里再嵌双引号** —— 已踩**第五次**（`parity.mjs` 刚犯）；中文全角括号无害，嵌套的 `"` 才致命，一律用「」
+- **多个 `printf` 只把重定向挂在最后一条上** ⇒ 前几条掉到 stdout、日志丢失；追加多行要用 `{ …; } >> file`
+- **只比定义摘要就复用产物**（D8）· **两条启动路径各拼一份 env**（D10）· **去猜 `dirname(配置目录)` 找清单** ⇒ 都用 `AGENT_ARTIFACT_DIR` / `platform-env.mjs`
 
 ## Ready-to-paste commands
 
@@ -60,16 +54,16 @@ cd ~/sandbox/agentic-2026/agent-base
 # 回归（全部应为全绿）
 for t in validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest \
          gateway-selftest providers-selftest startup-selftest pi-selftest pi-trace-selftest \
-         pi-trace-ext-selftest pi-project-info-selftest new-agent-selftest local-selftest; do
-  printf "%-30s" $t; make -s $t >/dev/null 2>&1 && echo OK || echo FAIL; done
+         pi-trace-ext-selftest pi-project-info-selftest project-info-selftest env-check-selftest \
+         new-agent-selftest local-selftest; do
+  printf "%-32s" $t; make -s $t >/dev/null 2>&1 && echo OK || echo FAIL; done
 node conformance/run.mjs --harness pi && node conformance/run.mjs --harness dsh
 make examples-check && make walkthrough
 
-# 用户报的那条路径（现在应该有 /project）
-cd examples/idea-to-proof && make local
-> /project            # 整份；/project hooks 只看钩子；/project <Tab> 补全即目录
-
-# 产物新鲜度自愈（基座变了也会重渲）
-make pi-project-info-selftest && make local-selftest
+# 本轮新增的两个出口
+make verify-plan AGENT_DIR=examples/idea-to-proof          # 要验什么、哪些只能容器验、为什么
+make verify-plan AGENT_DIR=examples/idea-to-proof JSON=1   # 给 AI 读
+make project-info AGENT_DIR=examples/idea-to-proof CATEGORY=hooks
+make env-check                                             # 本地 vs 容器：差异与缺项
+make env-check JSON=1
 ```
-

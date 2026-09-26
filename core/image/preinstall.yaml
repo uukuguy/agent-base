@@ -239,6 +239,10 @@ entries:
     category: dev-debug
     transport: null
     install: { registry: system, packages: ["bash", "curl", "ripgrep", "jq", "git", "ca-certificates"] }
+    # 本地预检查什么（`make env-check` 用）：**apt 包名不等于命令名**（ripgrep 的命令是 rg；
+    # ca-certificates 是数据不是命令 —— 不列在这里，如实标"无法本地预检"）。
+    # 这份映射放在这里而不是写在检查脚本里：预装内容的真源只有本文件一处。
+    localCommands: { bash: bash, curl: curl, ripgrep: rg, jq: jq, git: git }
     credentials: none
     enabledByDefault: true
     verifiedAlive: "2026-09-25"

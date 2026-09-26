@@ -102,6 +102,27 @@ for (const [gateId, tool, label] of [
 }
 
 report.gates = collected;
+
+// 环境结论一并给出（路线图 §28 Q1/Q3）：本地跑出来的"可用"**不含**容器才能验的那几类，
+// 且差异必须可见 —— 否则"本地过、容器挂"没人知道为什么。这里只**附带**，不改退出码：
+// 环境差异是事实，不是这次验证的失败（未声明的差异由 `make env-check` 自己红）。
+{
+  const envRun = spawnSync(process.execPath, [path.join(REPO, "tools/env-check.mjs"), "--json"], { encoding: "utf8", cwd: REPO, timeout: 180000 });
+  try {
+    const envDoc = JSON.parse(envRun.stdout);
+    report.environment = {
+      where: envDoc.where,
+      ok: envDoc.ok,
+      declared: envDoc.declared ?? [],
+      undeclared: envDoc.undeclared ?? [],
+      notCoveredHere: (envDoc.notCoveredHere ?? []).map((c) => c.id),
+      unprecheckable: envDoc.unprecheckable ?? [],
+    };
+  } catch {
+    report.environment = { where: null, ok: null, note: "环境检查未能运行（不影响本次闸门结论）" };
+  }
+}
+
 finish();
 
 function finish() {

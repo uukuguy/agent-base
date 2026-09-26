@@ -26,25 +26,11 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { EXIT_CODES, parseArgs } from "../core/gates/index.mjs";
+// pin 的读取只有一处实现（`make env-check` 也用它，避免两处各读一遍 adapters/ 而漂移）
+import { readAdapterPins as readAdapters } from "../core/catalog/adapter-pins.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
-
-/** 读各 adapter 的安装坐标与可执行名 —— harness 专有事实的单一真源。 */
-function readAdapters() {
-  const dir = path.join(REPO, "adapters");
-  return fs.readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name).sort()
-    .map((name) => {
-      const f = path.join(dir, name, "adapter.yaml");
-      if (!fs.existsSync(f)) return null;
-      const a = YAML.parse(fs.readFileSync(f, "utf8"));
-      if (!a?.package || !a?.version) return null;
-      return { adapter: name, pkg: a.package, version: a.version, bin: a.bin ?? name };
-    })
-    .filter(Boolean);
-}
 
 /** 已全局安装的包 → 版本。 */
 function installedGlobal() {

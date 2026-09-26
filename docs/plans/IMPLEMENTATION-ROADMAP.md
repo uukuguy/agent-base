@@ -1101,9 +1101,9 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 
 | # | 项 | 判据（什么算做完） | 依赖 | 状态 |
 |---|---|---|---|---|
-| Q1 | **本地预检（"降调试次数"的核心）**：开始验证前先查"本机是否具备这次要验的东西"——harness 版本与 pin 一致、能解析到 `preinstall.lock.txt` 里的预装 npm 集合、宿主是否有那 6 个工具、定义是否依赖容器专有项；缺什么**本地当场说清** | ① 缺项时本地就报（不是等容器挂）；② "期望"来自 `preinstall.lock.txt` + adapter pins **同一份来源**，不另写一份；③ 结果进 `verify --json` | — | `pending` |
-| Q2 | **`env-exemptions.yaml` 受管**：逐条声明"本地 vs 容器差在哪、为什么必须差、本地能否预检"；出现**未声明的**差异 ⇒ 红 | ① 与 `exemptions.yaml` 同一纪律（可以不一样，但不许悄悄不一样）；② 上表三条是首批内容；③ 有负例（临时造一个未声明差异 ⇒ 红） | Q1 | `pending` |
-| Q3 | **对照取证 + 出处标注**：交付时在容器里跑**同一份产物**（不改东西）；`verify --json` 写明结论出处与"本次未覆盖的已声明差异" | ① 宿主跑出来的结论明确标"未含安全下限"；② 容器内跑出来的标"容器内"；③ `docs/13`/`docs/14` 明确**交付结论以容器内自证为准** | Q2 | `pending` |
+| Q1 | **本地预检（"降调试次数"的核心）** ✅ | 已做：`make env-check`（文本 / `JSON=1`）。开始验证前就查：harness 版本与 pin 一致（与 `make dev-env --check` **共用** `core/catalog/adapter-pins.mjs` 这一份"期望"）、预装 npm 包在本机镜像里是否齐、宿主是否有那套工具、以及哪些**本地查不了**（如实列出）。结果进 `verify --json` 的 `environment` 字段。自检 `env-check-selftest`（含"每个 apt 包要么可查、要么明确标不可查"这条不变量 —— 第一次实现就踩了：apt 包名 ≠ 命令名，`ripgrep` 的命令是 `rg`） | — | `done` |
+| Q2 | **`env-exemptions` 受管**：逐条声明"本地 vs 容器差在哪、为什么必须差、本地能否预检"；出现**未声明的**差异 ⇒ 红 ✅ | 已做：声明在 `core/env/parity.mjs`（容器断言那部分**直接来自** `_container-only.mjs`，不另列一份）+ 宿主工具链 / 预装 npm 本地镜像 / 宿主 node_modules 三类；`classify()` 把命中未声明分类的差异列为 `undeclared` 并让 `make env-check` **非零退出**（自检里有该负例：版本漂移必须红） | Q1 | `done` |
+| Q3 | **对照取证 + 出处标注**（**与 §30 A3 合流**，不再各算一项） | 见 **A3**：`verify --json` 已给出 `environment.where`（宿主/容器）与 `notCoveredHere`（本次未覆盖的容器断言）；A3 再补 `image` 摘要与 `covered` 清单 | A2 | `部分`（`where` + `notCoveredHere` 已随 Q1 落地） |
 | Q4 | **本地预装集有锁**：`.local-packages` 从 `preinstall.lock.txt` 生成/校验（镜像预装清单的本地对应物） | ① 有可复算的锁，`make dev-env` 按它装；② 与 `preinstall/lock-sync` 同源；③ 本地缺项如实标注（apt 类 = 宿主提供） | Q1 | `pending` |
 | Q5 | **容器内交互**（可选，长期）：让"你调试的就是要交付的"——`-debug` 变体里挂上产物根跑真正的运行时，而不只是诊断 shell | 容器内会话里 `/project` 与 `verify` 都能用；与 `run-local` 的差异**有判据**（不靠人记） | B1 / Q3 | `pending` |
 
@@ -1200,7 +1200,7 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 |---|---|---|---|---|
 | A1 | **意图面 `verify-plan`**：机器可读地说明"要验什么、哪些只能在容器验、为什么" ✅ | 已做：`make verify-plan`（`JSON=1` 给 AI）+ 会话内 `/project plan`，两者共用 `core/introspect/project-info.mjs`。输出含 `identity`（定义/产物/渲染输入/生效配置；镜像输入摘要在有构建上下文时给出）· `local[]`（四道闸门的命令与期望）· `container[]`（四条，每条带 `why`）· `notCovered[]`。**"加一条容器断言"的判据按可达形式落实**：新断言要在 `core/introspect/_container-only.mjs` 归类，自检会揪出"C9 里写了却未归类"的 id（静态扫 `add("…")` 字面量；变量拼 id 扫不到 —— 该限制已写进文件顶部） | §26 V1 | `done` |
 | A2 | **执行面：受控容器验证入口**（封闭命令；**绑定面 = 当前项目**，由基座生成，调用方不能拼 docker 参数） | ① AI 能自主触发并拿到结构化结果；② **任意 docker 参数传不进去** —— 负例：附加 `-v /:/host`、`--privileged`、socket 挂载、把项目目录挂成 rw 做"验证" 全部被拒；③ **项目内指向 `/` 的符号链接**被 realpath 校验挡住；④ **复用镜像自带的 agent-only `verify`**（实测：容器里跑宿主入口 `tools/verify.mjs` 会出现 2 个假失败）；⑤ 审批留痕进统一轨迹 | 用户已定绑定面 | `pending` |
-| A3 | **结果面：出处 + 覆盖范围**：每条结论带 `{where, image, covered, notCovered, why}` | 宿主跑出来的结论明确标"未含安全下限/双架构/同源"；容器内跑出来的标"container"并带镜像摘要 | A2 | `pending` |
+| A3 | **结果面：出处 + 覆盖范围**：每条结论带 `{where, image, covered, notCovered, why}` | `where` 与 `notCovered` 已随 §28 Q1 落地（`verify --json` 的 `environment`）；**剩下**：`image` 摘要（用了哪个镜像）与 `covered` 显式清单；宿主跑出来的结论明确标"未含安全下限/双架构/同源" | A2 | `部分` |
 | A4 | **失败面：归因分类**（`local-reproducible` / `declared-env-difference` / `unknown`） | ① 差异清单**机器可读**（§28 Q2）；② 命中已声明差异不算缺陷；③ 既非差异又复现不出来 ⇒ **响亮上报**（不许 AI 自行猜）；④ 有负例 | §28 Q1/Q2 | `pending` |
 | A5 | **端到端无人值守判据**：AI 从"改了定义"走到"拿到可归因的容器结论"，全程不需要交互式终端、不需要人转述 | 一条脚本化的端到端演示；每步非交互且输出可解析；同一输入重复触发结果一致（可缓存，不无效重跑） | A1–A4 | `pending` |
 

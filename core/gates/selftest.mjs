@@ -36,7 +36,7 @@ function check(name, cond, extra = "") {
 
 const REQUIRED_REPORT_KEYS = [
   "agent", "harness", "harnessVersion", "definitionDigest", "artifactsDigest",
-  "paramNames", "effectiveConfigDigest", "gates", "usable",
+  "paramNames", "effectiveConfigDigest", "gates", "usable", "environment",
 ];
 
 // ---------------------------------------------------------------------------

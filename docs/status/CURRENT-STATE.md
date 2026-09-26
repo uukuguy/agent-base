@@ -4,10 +4,10 @@
 
 - Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，两侧均可用）
 - Current branch: `main`
-- Theme-level focus: **harness 业务定制**（钩子、接入缝、派生镜像）—— 起点门槛已打通，剩余在深度定制与服务形态
+- Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
 - Project route: managed
-- Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S8；**当前活跃待办在 §23/§24/§25**）
-- Active work package: **无在飞包**（上一包"派生镜像与接入缝 P1–P4"已闭合）；候选下一包 = 钩子声明契约（§23 E1/E2b）
+- Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
+- Active work package: **L3 阶段二**（§30 A2 受控容器入口 → A3 出处与覆盖 → A4 失败归因 → A5 无人值守判据）；阶段一（A1 + V2 + E1b + Q1 + Q2）已闭合
 
 ## Current Architecture
 
@@ -76,7 +76,7 @@
 
 `core/`（91 文件）· `adapters/{pi,dsh}/`（24）· `tools/`（23）· `conformance/`（9）· `template/`（6）·
 `docs/`（16 篇 + `design/`、`plans/`、`status/`）；`dist/` 是构建产物（已 gitignore）。
-**Makefile 39 个目标全部已实现**（无 `NOT_YET` 桩）。
+**Makefile 44 个目标全部已实现**（无 `NOT_YET` 桩；17 个自检目标）。
 
 ### 契约与检查（近期收紧，均带负例）
 
@@ -95,8 +95,9 @@
 
 ## Open Problems (theme-level)
 
-- **钩子只能证明"发射路径在工作"**：逐条自证（每个声明的钩子都留痕）未做
-- **接入缝（overlay）里的钩子事件名未进判据**：事件名校验只覆盖定义层与基座 seed；把集合写进产物清单后由启动期/闸门 2 同判（路线图 §23 E1b）
+- **L3 阶段二未做**：受控容器验证入口（A2）· 结论的 `image` 摘要与 `covered` 清单（A3 余下）· 失败归因三分类（A4）· 无人值守端到端判据（A5）
+- **只有宿主侧的结论**：`verify --json` 已带 `environment.where` 与 `notCoveredHere`，但**交付口径尚未强制"容器内自证为准"**（§28 Q3 = §30 A3）
+- **钩子只能证明"发射路径在工作"**：逐条自证（每个声明的钩子都留痕）未做（§23 E2b）
 - **dsh 侧事件集合未穷举**：`hookEvents.enumerated: false` ⇒ 那边写钩子只能标「未验证」，没有名字层面的判据
 - **L3 loop 定制与 L4 服务形态无声明面与判据**：长驻会话、多会话并发、审批通道、成本/网关
 - **dsh 侧接入缝未实现**：overlay 只支持"扩展目录 + settings 登记"这一种装载形态，其余响亮失败

@@ -370,3 +370,6 @@
 - 00:05 过程记录（我自己的错）：第一次全量回归 5 处红 + 两侧 C10 + examples 19 项失败 —— 原因是 core 里写了运行时常量默认值（`harness = "pi"`），被 **`core/harness-name`** 当场抓住。这个检查很值钱：core/ 的中立性靠它守着。改掉后全绿
 - 00:05 回归证据：16 个自检全绿 · 两侧 conformance **10/10** · `examples-check` 全绿；新增自检 2 个（`pi-project-info-selftest` 24 项 / `project-info-selftest` 23 项）；实测会话内 `/project plan` 与 `/project skills` 都在真运行时里正常产出
 - 00:06 **E1b 完成**：接入缝（overlay）的钩子事件名进判据 —— 启动期 `applyOverlay` 用产物清单里的 `hookEvents` 校验，写错**响亮失败并点名**（退出码 2）；`enumerated:false` 的运行时不做假校验但提示"按未验证处理"；钩子没写 events 同样红。自检新增两条负例（startup-selftest 37 项全绿）
+- 00:18 **阶段一闭合**（§1.1 第 1 阶段）：A1+V2（`make verify-plan` / `make project-info` / `/project plan`，一份逻辑两个出口）· E1b（接入缝事件名，启动期响亮失败）· Q1+Q2（`make env-check` 本地预检 + 未声明差异 ⇒ 红），并把环境结论并进 `verify --json` 的 `environment{where,ok,declared,undeclared,notCoveredHere,unprecheckable}`
+- 00:18 阶段边界状态对齐（用户要求大阶段边界走 project-state update）：CURRENT-STATE 刷新主题焦点（→ L3 环境与验证权威性）、活跃工作包（→ L3 阶段二）、Makefile 39→44 目标/17 自检；剔除已解决的开放问题（接入缝事件名）；RESUME 重写为活动会话检查点。**注意：`handoff` 需要用户评审，本轮不伪造 —— 会话真结束时再写**
+- 00:18 阶段一回归证据：**17 个自检全绿** · 两侧 conformance **10/10** · `examples-check` · `walkthrough`（20/1/0）
