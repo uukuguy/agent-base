@@ -246,6 +246,12 @@ function main() {
   // 发射契约只有一处定义：把 core 的发射器拷进产物，扩展用相对路径 import 它
   writeFile(path.join(agentOut, "extensions", "_trace-emit.mjs"),
     fs.readFileSync(path.join(REPO, "core/trace/emit.mjs"), "utf8"));
+  // 项目自省的**纯逻辑**同样只有一份（在 core/introspect/ 里），渲染器把它拷进产物：
+  // 会话内的入口（`project-info.ts`）与命令行出口（`tools/project-info.mjs`）共用它。
+  writeFile(path.join(agentOut, "extensions", "_project-info.mjs"),
+    fs.readFileSync(path.join(REPO, "core/introspect/project-info.mjs"), "utf8"));
+  writeFile(path.join(agentOut, "extensions", "_container-only.mjs"),
+    fs.readFileSync(path.join(REPO, "core/introspect/_container-only.mjs"), "utf8"));
 
   const declaredEnhancements = [...new Set([...baseEnh, ...agentEnh].map((e) => e.id))].sort();
   // 哪些声明是**钩子**：闸门 3 的 probe/hook-fired 靠它判断"要不要断言钩子真的触发了"

@@ -21,7 +21,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { CATEGORIES, collect, complete, render } from "./seed/extensions/_project-info.mjs";
+import { CATEGORIES, collect, complete, render } from "../../core/introspect/project-info.mjs";
 import { piRpc, stageRenderDir } from "./run.mjs";
 import { localPlatformEnv } from "../../core/image/platform-env.mjs";
 

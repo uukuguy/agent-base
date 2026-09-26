@@ -125,6 +125,7 @@ docker run --rm --network none \
 | **镜像内**能自证 | `docker run <镜像> verify` | 闸门 2/3/4（有定义连闸门 1）—— 离线、零凭据 |
 | 接入缝不改产物 | `make startup-selftest` | 7 项接入缝断言（含「产物未被改动」） |
 | **会话里能问到项目真相** | `make local` 然后 `/project`（或 `make pi-project-info-selftest`） | 命令真的注册（source=extension）· 输出每项指到产物来源 · 补全项随项目变 · 事件名写错标 ❌ |
+| **要验什么、哪些只能容器验** | `make verify-plan AGENT_DIR=…`（`JSON=1` 给 AI）/ 会话内 `/project plan` | 四个身份摘要 + 本地四道闸门的命令与期望 + 容器断言逐条带 `why` + 本次未覆盖清单；`make project-info-selftest` 全绿 |
 | 声明了但没写对 ⇒ 响亮失败 | 见 §4 | 全部非 0 退出，且报错点明原因 |
 
 **一条命令跑全部**：`make verify-all`（每个示例 × 两个运行时）· `make conformance`（C1–C10）。

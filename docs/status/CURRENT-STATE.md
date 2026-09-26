@@ -84,7 +84,8 @@
 - 钩子事件名的**契约面**：`adapters/<h>/adapter.yaml` 的 `hookEvents`（pi 39 个已穷举 + 复算命令；dsh 未穷举 ⇒ 如实标 `enumerated: false`）；闸门 1 `enhance/events` 逐个对名字，`hook/events-decl` 盯声明自洽（count 见证值），`catalog/enum-sync` 盯能力目录与 schema 的枚举一致；`hookEvents` 已**带进渲染清单**（产物自描述，E1b 的数据路径）
 - 闸门 1 现在**也校验基座自己的** `adapters/<h>/seed/enhancements.yaml`（此前它是唯一没人查的增强声明 —— 基座不给自己开后门）
 - 增强的**下划线约定**：`extensions/_*.mjs` = 被 import 的助手，不登记为扩展；声明指向 `_` 开头的文件在渲染期报错（声明了却永远不会被加载）
-- 会话内自省命令 `/project`（基座不变量，`adapters/pi/seed/extensions/project-info.ts`）：报告全部从产物现算，钩子事件名与运行时集合逐个核对，可移植性结论与闸门 1 **同源**；自检 `pi-project-info-selftest`
+- 项目自省：会话内 `/project`（基座不变量，`adapters/pi/seed/extensions/project-info.ts` 薄壳）与命令行 `make project-info` / `make verify-plan` **共用同一份逻辑**（`core/introspect/project-info.mjs`，渲染器把它拷进产物供扩展 import）；报告全部从产物现算，钩子事件名与运行时集合逐个核对，可移植性结论与闸门 1 **同源**；自检 `pi-project-info-selftest` + `project-info-selftest`
+- **验证计划**（`make verify-plan`，`JSON=1` 给 AI）：四个身份摘要 + 本地四道闸门的命令与期望 + "只能在容器里成立"的四条（每条带 `why`）+ 本次未覆盖清单；`core/introspect/_container-only.mjs` 是那份**声明**，自检盯着它与 C9 实现一致（防"加了断言没归类"）
 - 渲染期：未声明的接入件、非法的 dsh 增强声明 ⇒ **响亮失败**（不静默跳过/静默加载）
 - 参数层：`AGENT_PERMISSION_MODE` / `AGENT_WORKSPACE_ROOT` 已登记（适配器不许读未登记的名字）
 - 工具边界：**清单声明**（`runtimePlan.prependArgs`），本地与容器**两条启动路径都执行**（实测 `tools=1`）
@@ -142,6 +143,8 @@
 
 - `Makefile` —— 全部命令的唯一边界（38 个目标，全部已实现）
 - `tools/{validate,probe,smoke,verify}.mjs` —— 闸门 1/3/4 与四道闸门编排
+- `tools/project-info.mjs` —— **项目自省的命令行出口**（与会话内 `/project` 共用 `core/introspect/` 的同一份逻辑）；`--plan` 给验证计划
+- `core/introspect/{project-info,_container-only}.mjs` —— 自省与"只能在容器验"的**声明**（后者被自检盯着与 C9 实现一致）
 - `tools/{dev-env,run-local}.mjs` —— 本地开发环境（按 pin 对齐版本；临时 HOME 跑制品；复用前校验定义摘要）
 - `tools/derived-image.mjs` —— 派生镜像构建 + 镜像内自证（`make image-derived`）
 - `tools/examples-check.mjs` —— 示例校验（结构 + README 完整性/参数名 + 四道闸门 + 技能脚本自检 + N5）

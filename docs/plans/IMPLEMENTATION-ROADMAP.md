@@ -82,7 +82,7 @@
 
 - **上游 pin 漂移复核**：dsh `0.1.7-rc.1` 是预发布、pi 迭代快；升级必须重跑两侧 conformance（已自动化）
 - **`image-push`**：推送链路未对真实 registry 验证 —— 属**外部条件**（要有内部仓库），不是开发项
-- **验收口径**：任何阶段收尾都要重跑「15 个自检 + 两侧 conformance + `examples-check`」（本文件各节的判据都以此为底）
+- **验收口径**：任何阶段收尾都要重跑「16 个自检 + 两侧 conformance + `examples-check`」（本文件各节的判据都以此为底）
 
 ---
 
@@ -993,7 +993,7 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 | # | 项 | 判据（什么算做完） | 依赖 | 状态 |
 |---|---|---|---|---|
 | V1 | **基座不变量扩展注册一条自省命令**（pi 先做，走 `adapters/pi/seed/`）✅ | 已做：`/project`（`adapters/pi/seed/extensions/project-info.ts` + 纯逻辑 `_project-info.mjs`）。实测：① 会话里 `source=extension` 出现；② 二级补全 = 产物里真实的值（删技能即少一项）；③ 每项都标来源文件；④ 钩子事件名与运行时 39 个集合**逐个核对**，写错标 ❌；⑤ 读不到产物**响亮失败**；⑥ 可移植性结论与闸门 1 **同源**（自检里直接断言两者一致）；⑦ 自检 `make pi-project-info-selftest`（21 项，含真起 pi 的 `get_commands` 取证） | P1–P3 | `done` |
-| V2 | **同一份数据、两个出口**：`make`/CLI 侧也能打印同一份项目自省（CI 与容器里可用），与 V1 **共用同一实现**，不写第二份文案 | 两侧输出同源（改一处两处都变）；不得出现两份平行实现 | V1 | `pending` |
+| V2 | **同一份数据、两个出口**：`make`/CLI 侧也能打印同一份项目自省（CI 与容器里可用），与 V1 **共用同一实现**，不写第二份文案 ✅ | 已做：`tools/project-info.mjs` + `make project-info`（文本 / `JSON=1` 机器可读 / `CATEGORY=<名>` 单类）。**同源的落法**：逻辑搬到 `core/introspect/project-info.mjs`（中性、无运行时常量名），渲染器像 `_trace-emit.mjs` 那样把它拷进产物 `extensions/_project-info.mjs` 供会话内入口 import ⇒ **一份源码两处用**；自检断言"CLI 的文本与逻辑层逐字一致" | V1 | `done` |
 | V3 | **dsh 侧的等价入口**（dsh 有自己的命令/服务形态；装载方式不同属正常） | dsh 会话里同样能查；做不到就**显式声明做不到**并写进 `exemptions.yaml`（不假装等价） | V1 | `pending` |
 
 
@@ -1198,7 +1198,7 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 
 | # | 项 | 判据（什么算做完） | 依赖 | 状态 |
 |---|---|---|---|---|
-| A1 | **意图面 `verify-plan`**：机器可读地说明"要验什么、哪些只能在容器验、为什么" | ① 加一条只在容器成立的断言 ⇒ 它自动出现在 `container[]` 且带 `why`；② 与 `/project` 同源同逻辑（不写第二份文案）；③ 输出含 `identity`（定义/产物/生效配置/镜像输入四个摘要） | §26 V1 | `pending` |
+| A1 | **意图面 `verify-plan`**：机器可读地说明"要验什么、哪些只能在容器验、为什么" ✅ | 已做：`make verify-plan`（`JSON=1` 给 AI）+ 会话内 `/project plan`，两者共用 `core/introspect/project-info.mjs`。输出含 `identity`（定义/产物/渲染输入/生效配置；镜像输入摘要在有构建上下文时给出）· `local[]`（四道闸门的命令与期望）· `container[]`（四条，每条带 `why`）· `notCovered[]`。**"加一条容器断言"的判据按可达形式落实**：新断言要在 `core/introspect/_container-only.mjs` 归类，自检会揪出"C9 里写了却未归类"的 id（静态扫 `add("…")` 字面量；变量拼 id 扫不到 —— 该限制已写进文件顶部） | §26 V1 | `done` |
 | A2 | **执行面：受控容器验证入口**（封闭命令；**绑定面 = 当前项目**，由基座生成，调用方不能拼 docker 参数） | ① AI 能自主触发并拿到结构化结果；② **任意 docker 参数传不进去** —— 负例：附加 `-v /:/host`、`--privileged`、socket 挂载、把项目目录挂成 rw 做"验证" 全部被拒；③ **项目内指向 `/` 的符号链接**被 realpath 校验挡住；④ **复用镜像自带的 agent-only `verify`**（实测：容器里跑宿主入口 `tools/verify.mjs` 会出现 2 个假失败）；⑤ 审批留痕进统一轨迹 | 用户已定绑定面 | `pending` |
 | A3 | **结果面：出处 + 覆盖范围**：每条结论带 `{where, image, covered, notCovered, why}` | 宿主跑出来的结论明确标"未含安全下限/双架构/同源"；容器内跑出来的标"container"并带镜像摘要 | A2 | `pending` |
 | A4 | **失败面：归因分类**（`local-reproducible` / `declared-env-difference` / `unknown`） | ① 差异清单**机器可读**（§28 Q2）；② 命中已声明差异不算缺陷；③ 既非差异又复现不出来 ⇒ **响亮上报**（不许 AI 自行猜）；④ 有负例 | §28 Q1/Q2 | `pending` |

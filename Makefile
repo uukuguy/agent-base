@@ -19,7 +19,7 @@ JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -80,6 +80,15 @@ pi-trace-ext-selftest: ## 基座轨迹扩展自检（回调式主路径）：真
 
 pi-project-info-selftest: ## 会话内自省命令自检（/project）：内容随项目变、补全即目录、事件名真核对
 	@node adapters/pi/project-info-selftest.mjs
+
+project-info: ## 项目自省（命令行出口，与 /project 同一份逻辑；JSON=1 出机器可读）
+	@node tools/project-info.mjs $(AGENT_DIR) $(if $(HARNESS),--harness $(HARNESS),) $(if $(RENDER_DIR),--render-dir $(RENDER_DIR),) $(if $(CATEGORY),--category $(CATEGORY),) $(if $(JSON),--json,)
+
+verify-plan: ## 验证计划：要验什么、哪些只能在容器验、为什么（JSON=1 给 AI 读）
+	@node tools/project-info.mjs $(AGENT_DIR) --plan $(if $(HARNESS),--harness $(HARNESS),) $(if $(RENDER_DIR),--render-dir $(RENDER_DIR),) $(if $(JSON),--json,)
+
+project-info-selftest: ## 自省逻辑与验证计划自检（CLI 出口 · 计划分区 · 容器断言声明一致）
+	@node tools/project-info-selftest.mjs
 
 probe: ## 闸门 3：集成探针（默认零凭据假网关，需 RENDER_DIR）
 	@node tools/probe.mjs $(RENDER_DIR) $(if $(JSON),--json,) $(if $(ENDPOINT),--endpoint $(ENDPOINT),)

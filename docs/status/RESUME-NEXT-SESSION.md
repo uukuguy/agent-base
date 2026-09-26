@@ -10,7 +10,7 @@
 
 ## Where things stand
 
-- **全绿**：15 个自检 · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）· 两侧渲染清单都记 `renderInputsDigest`
+- **全绿**：16 个自检 · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）· 两侧渲染清单都记 `renderInputsDigest`
 - ✅ **记忆层已配好（本轮）**：`mnemon` CLI 装好（官方 macOS 推荐 `brew install --cask mnemon-dev/tap/mnemon`，实测 0.2.9；写 `/opt/homebrew` 会被沙箱拒 ⇒ 需提权）+ Memory Space「agent-base 项目记忆」(id `default`) 已建并**激活**。归档真的跑起来了：热记忆 15 条/10220 字节 → **11 条/7721 字节**（`~/.mnemon/data/default/mnemon.db`，15 insights / 41 edges）。排错：`mnemon --version` 探活（**别用 `mnemon status`**，有副作用）；宿主找不到二进制时设 `MNEMON_CLI_PATH`
 - 工作树干净；5 个提交都在本地（无远端）
 - `examples/idea-to-proof/.render/pi` 已重渲（含 `/project`）；其它示例的旧缓存会在下次 `make local`/`run-local` 时**自动重渲**

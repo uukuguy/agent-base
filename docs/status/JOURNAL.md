@@ -365,3 +365,7 @@
 - 23:39 用户要求"几条大开发线路要记录并安排清楚" → 在**唯一权威清单**里新增 **§1.1 当前活跃工作线**（不另立第二份计划文件，避免两处真源）：六条线 L1 钩子与定制契约 / L2 会话内发现面 / L3 环境与验证权威性 / L4 能力包 / L5 基座自陈与口径 / L6 业务代码可移植；并给出**三阶段顺序 + 决策门 + 常设职责 + 不需决策即可开工的清单**
 - 23:39 §1.1 的顺序要点：① 第一阶段（无需决策）**A1（含 V2 非交互出口）→ E1b → Q1+Q2**；② 第二阶段 L3 关键路径 **A2 → A3 → A4 → A5**，收束时 Q3/Q4 必留、Q5/§29 W* 降级为可选；③ 第三阶段（择机）bundle 线 B1 → C4 → B2 → C3 → C5；④ 小线随插：P5 + O2/O3 + E2b + CLAUDE.md
 - 23:39 §1.1 记了三个决策门（主运行时选型 / bundle 线何时启动 / dev 容器是否还要做）与三条常设职责（上游 pin 漂移复核、image-push 属外部条件、每次收尾重跑 15 自检+两侧 conformance+examples-check）
+- 00:05 **A1 + V2 完成**（§30 意图面 + §26 非交互出口）：`make verify-plan`（`JSON=1` 给 AI）+ 会话内 `/project plan`，`make project-info`（文本/JSON/单类）。**同一份实现的落法**：逻辑从 `adapters/pi/seed/extensions/_project-info.mjs` 搬到 **`core/introspect/project-info.mjs`**（中性、无运行时常量名），渲染器照 `_trace-emit.mjs` 的先例把它拷进产物 `extensions/_project-info.mjs` 供会话内入口 import —— 一份源码两处用；自检断言"CLI 文本与逻辑层逐字一致"
+- 00:05 A1 的"哪些只能在容器验"做成**声明式**：`core/introspect/_container-only.mjs` 四类（in-image-verify / security-floor / dual-arch / same-source）+ `why`（同时是失败归因依据）；自检 `project-info-selftest` 静态比对声明与 `conformance/image-*.mjs` 的 `add("…")` id，**双向**（声明里的必须在实现里存在；实现里字面量的必须已归类）—— 变量拼 id 的写法扫不到，该限制已写进文件顶部
+- 00:05 过程记录（我自己的错）：第一次全量回归 5 处红 + 两侧 C10 + examples 19 项失败 —— 原因是 core 里写了运行时常量默认值（`harness = "pi"`），被 **`core/harness-name`** 当场抓住。这个检查很值钱：core/ 的中立性靠它守着。改掉后全绿
+- 00:05 回归证据：16 个自检全绿 · 两侧 conformance **10/10** · `examples-check` 全绿；新增自检 2 个（`pi-project-info-selftest` 24 项 / `project-info-selftest` 23 项）；实测会话内 `/project plan` 与 `/project skills` 都在真运行时里正常产出
