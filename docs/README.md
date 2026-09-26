@@ -23,6 +23,7 @@
 | 09 | [harness-contract](09-harness-contract.md) —— 适配契约、新运行时怎么接（含四条"别另发明一套"） | 平台开发者 | ✅ |
 | 10 | [harness-selection](10-harness-selection.md) —— 两个运行时的能力对比与选型（**不构成绑定**） | 架构/平台 | ✅ |
 | 11 | [harness-enhancements](11-harness-enhancements.md) —— 业务级增强怎么写（含三层结构与晋升通道） | 业务开发者（要写增强时） | ✅ |
+| [12 · 开发场景演练](12-dev-walkthrough.md) | 验证"我的场景能不能用"：一条命令走完派生→闸门→渲染→真跑→容器 |
 | — | 第 13 条说明 | —— | 上游运行时包内**没有 `docs/` 目录**，只有包级 README；两份上位设计文档里的实测结论已沉淀为 `docs/design/2026-09-25-{pi,dsh}-harness-design.md` |
 
 **状态**：12 篇**全部完成**。

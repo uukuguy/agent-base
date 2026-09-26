@@ -65,6 +65,9 @@ providers-init: ## 问端点有哪些模型，写成 routes.yaml（ENDPOINT=http
 	  $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--provider "$(PROVIDER)",) \
 	  $(if $(OUT),--out "$(OUT)",--out ./routes.yaml)
 
+walkthrough: ## 开发场景演练（在基座工作区跑：派生→闸门→渲染→真跑→容器→比对）
+	@node $(AGENT_BASE_DIR)/tools/walkthrough.mjs $(if $(LIVE),--live,)
+
 verify: check-base ## 四道闸门全跑 → 给出「可用 / 不可用」（LIVE=1 打真实端点；ENDPOINT=URL 指定端点）
 	@node $(AGENT_BASE_DIR)/tools/verify.mjs . --harness $(HARNESS) --out $(RENDER_DIR) $(if $(LIVE),--live,) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(JSON),--json,)
 

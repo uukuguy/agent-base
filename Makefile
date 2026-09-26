@@ -37,6 +37,9 @@ validate-selftest: ## 闸门 1 的注入式负向自检（非法样本必须全�
 	@node tools/validate.mjs core/spec/fixtures/valid --selftest
 
 # --- 基座自检（S1 已交付）---------------------------------------------------
+walkthrough: ## 开发场景演练（LIVE=1 打真实端点）
+	@node tools/walkthrough.mjs
+
 providers-selftest: ## provider 目录自检（解析优先级 / 覆盖失效要报错 / 从端点问模型）
 	@node tools/providers-selftest.mjs
 
