@@ -134,7 +134,7 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 | `agent-base:0.1.0-arm64` | arm64 | `268c25667ef316bd` | 2.46 GB |
 | `agent-base:0.1.0-amd64` | amd64 | `97c3ea290d4c3395` | 2.44 GB |
 | `agent-base:0.1.0-debug-arm64` | arm64 | `4a28dbf9e730d23d` | 2.47 GB |
-| `agent-base:0.1.0-debug-amd64` | amd64 | `97c3ea290d4c3395`→ 见构建输出 | ~2.45 GB |
+| `agent-base:0.1.0-debug-amd64` | amd64 | `c27c7762ea58a28e` | 2.45 GB |
 | `dist/image/agent-base-0.1.0.oci.tar` | arm64 + amd64 | 1.83 GB（多架构 manifest） | — |
 
 **同源指纹**：`core/image/inputs-digest.mjs` 对构建输入（两个 Dockerfile / entrypoint / 启动脚本 / 两份锁）
