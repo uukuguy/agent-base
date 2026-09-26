@@ -1,12 +1,12 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 00:2x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-27 00:5x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
 
-1. **阶段一闭合 + 阶段二过半**：阶段一 = **A1 + V2**（`make verify-plan` / `make project-info` / `/project plan`）· **E1b**（接入缝事件名）· **Q1 + Q2**（`make env-check`）；阶段二 = **A2 受控容器验证入口**（`make verify-container`：绑定面恰好两处只读、网络 none、根只读、能力全丢、docker 参数不可追加，真跑容器内四道闸门全过）+ **A3 出处与覆盖**
-2. **下一个具体动作**：**A4 失败归因**（真缺陷 / 已声明环境差异 / 容器专有断言失败 / unknown —— 最后一类必须响亮上报），然后 **A5 无人值守端到端判据**、**A6 把受控入口接成需审批的工具**（审批事件进统一轨迹）
+1. **阶段一闭合 + 阶段二过半**：阶段一 = **A1 + V2**（`make verify-plan` / `make project-info` / `/project plan`）· **E1b**（接入缝事件名）· **Q1 + Q2**（`make env-check`）；阶段二 = **A2 受控容器验证入口** + **A3 出处与覆盖** + **A4 失败归因**（五类：本地可复现 / 已声明差异 / 容器专有 / **本地没跑到** / 未声明差异⇒响亮上报）
+2. **下一个具体动作**：**A5 无人值守端到端判据**（一条脚本化演示：改定义 → 本地闸门 → 受控容器验证 → 归因，全程非交互、输出可解析），然后 **A6 把受控入口接成需审批的工具**（审批事件进统一轨迹）
 3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**
 
 ## Where things stand

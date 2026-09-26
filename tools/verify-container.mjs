@@ -33,6 +33,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { EXIT_CODES, parseArgs } from "../core/gates/index.mjs";
+import { CONTAINER_ONLY } from "../core/introspect/_container-only.mjs";
+import { GATE_DIFFERENCE_CLASS } from "../core/env/parity.mjs";
+import { attributeFailure, GATE_LABELS, renderAttribution } from "../core/verify/attribution.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -176,8 +179,40 @@ const report = {
   // 本次容器结论**覆盖**的与**没覆盖**的（后者只能构建侧/镜像侧看）
   covered: ["static(agent-only)", "resolution", "probes", "smoke"],
   notCovered: ["security-floor(C9)", "dual-arch", "images-same-source"],
+  attribution: null,
   rawTail: text.trim().split("\n").slice(-6),
 };
+
+// ---------------------------------------------------------------------------
+// ⑤ 失败时**归因**（A4）：容器挂 ≠ 代码有 bug。跑一次宿主验证作对照，按类分开。
+//    `unknown` 必须响亮上报 —— 它意味着存在**未声明的**差异，不许用"环境问题"糊过去。
+// ---------------------------------------------------------------------------
+if (!usable) {
+  const failing = steps.filter((s) => !s.ok).map((s) => GATE_LABELS[s.label] ?? s.label);
+  const hostRun = spawnSync(process.execPath,
+    [path.join(REPO, "tools/verify.mjs"), real, "--harness", harness, "--out", artifactDir, "--json"],
+    { encoding: "utf8", cwd: REPO, timeout: 900000 });
+  let hostRan = [];
+  let hostFailed = [];
+  try {
+    const hj = JSON.parse(hostRun.stdout);
+    // ⚠️ 宿主 `verify` **首败即停**：`gates` 里只有真正跑过的那些 ⇒ 必须把"跑过"与"失败"分开。
+    // 否则"没跑到"会被当成"本地通过"，凭空造出"容器专有失败"（本轮实测踩中，见 attribution.mjs 的注释）。
+    hostRan = (hj.gates ?? []).map((g) => GATE_LABELS[g.id] ?? g.id);
+    hostFailed = (hj.gates ?? []).filter((g) => !g.ok).map((g) => GATE_LABELS[g.id] ?? g.id);
+  } catch { /* 宿主那侧跑不起来 ⇒ 都为空，归因会如实说"本地没跑到" */ }
+  report.attribution = {
+    ...attributeFailure({
+      failing,
+      containerOnly: CONTAINER_ONLY.map((c) => c.id),
+      hostRan,
+      hostFailed,
+      gateDifferenceClass: GATE_DIFFERENCE_CLASS,
+    }),
+    hostExitCode: hostRun.status,
+    hostRan,
+  };
+}
 
 function safeManifest(dir, key) {
   try { return JSON.parse(fs.readFileSync(path.join(dir, "render-manifest.json"), "utf8"))[key] ?? null; } catch { return null; }
@@ -188,6 +223,14 @@ else {
   log("\n════ 容器内验证 ════");
   for (const s of steps) log(`  ${s.ok ? "✅" : "❌"} ${s.label} —— ${s.verdict}`);
   log(usable ? "\n✅ 容器内验证通过（离线、零凭据、只读绑定）" : `\n❌ 容器内验证未通过（退出码 ${run.status}）`);
+  if (report.attribution) {
+    log("\n── 失败归因（容器挂 ≠ 代码有 bug）──");
+    log(renderAttribution(report.attribution));
+    if (report.attribution.unknown.length) {
+      log(`\n❗ 有 ${report.attribution.unknown.length} 项**未声明的差异**（${report.attribution.unknown.join(", ")}）`
+        + `—— 本地过、容器挂且没人声明过：要么消差，要么在 core/env/parity.mjs 里登记它和理由。别猜。`);
+    }
+  }
   log(`  本次未覆盖：${report.notCovered.join(" · ")}`);
 }
 process.exit(run.status === 0 ? EXIT_CODES.ok : (run.status >= 128 ? EXIT_CODES.crash : run.status));

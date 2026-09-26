@@ -52,6 +52,15 @@ export const DIFFERENCE_CLASSES = [
 export const DECLARED_IDS = DIFFERENCE_CLASSES.map((c) => c.id);
 
 /**
+ * 闸门 → 已声明差异类（供失败归因用，见 `core/verify/attribution.mjs`）。
+ *
+ * **现在显式为空**：至今没有"某道闸门在容器里必然失败、且属已声明差异"的情况。
+ * 这一点很重要 —— 空缺意味着"容器挂、本地过"时归因会落到 `unknown` 并**响亮上报**，
+ * 而不是被一句含糊的"环境差异"糊过去。等真遇到并搞清楚了，就在**这里**登记它和理由。
+ */
+export const GATE_DIFFERENCE_CLASS = {};
+
+/**
  * 把"发现"归类成 已声明 / 未声明。
  *
  * @param {Array<{id: string, classId: string, detail: string}>} findings

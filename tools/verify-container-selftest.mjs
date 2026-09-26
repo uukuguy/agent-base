@@ -114,6 +114,57 @@ console.log("\n── D. 真跑一次（镜像在本地时）──");
   }
 }
 
+console.log("\n── E. 失败归因：容器挂 ≠ 代码有 bug ──");
+{
+  const { attributeFailure } = await import("../core/verify/attribution.mjs");
+
+  const onlyContainer = attributeFailure({ failing: ["uid-non-root"], containerOnly: ["uid-non-root"] });
+  check("容器专有断言失败 ⇒ container-only-failure（真缺陷，改镜像/参数）",
+    onlyContainer.items[0].verdict === "container-only-failure" && onlyContainer.ok);
+
+  const repro = attributeFailure({ failing: ["static"], hostRan: ["static"], hostFailed: ["static"] });
+  check("本地也跑到且也失败 ⇒ local-reproducible（真缺陷）",
+    repro.items[0].verdict === "local-reproducible" && repro.ok);
+
+  // ⚠️ 这条是本轮实测踩中的：宿主 verify 首败即停，"没跑到"**不等于**"本地通过"
+  const notRun = attributeFailure({ failing: ["resolution"], hostRan: ["static"], hostFailed: ["static"] });
+  check("本地没跑到 ⇒ local-unverified（不许当成环境差异、更不许当成通过）",
+    notRun.items[0].verdict === "local-unverified" && notRun.ok);
+
+  const declaredDiff = attributeFailure({
+    failing: ["probes"], hostRan: ["probes"], hostFailed: [], gateDifferenceClass: { probes: "host-toolchain" },
+  });
+  check("本地跑到且通过、且差异已声明 ⇒ declared-env-difference（不是缺陷）",
+    declaredDiff.items[0].verdict === "declared-env-difference" && declaredDiff.ok);
+
+  const unknown = attributeFailure({ failing: ["smoke"], hostRan: ["smoke"], hostFailed: [] });
+  check("本地跑到且通过、差异**未声明** ⇒ unknown 且 ok=false（响亮上报）",
+    unknown.items[0].verdict === "unknown" && !unknown.ok && unknown.unknown.includes("smoke"));
+}
+
+console.log("\n── F. 真跑一个**会失败**的项目 ⇒ 归因必须给出本地可复现/本地没跑到 ──");
+{
+  // 造一个真缺陷：技能 frontmatter 缺 description（闸门 1 会红）⇒ 闸门 1 本地也会红（首败即停），
+  // 后面的闸门本地压根没跑到 ⇒ 归因应当说"本地没跑到"，而不是编一个"容器专有失败"。
+  const broken = makeAgent("verify-container-broken");
+  fs.writeFileSync(path.join(broken, "skills", "alpha", "SKILL.md"), "---\nname: alpha\n---\n正文\n");
+  const probe = jsonOf(run([broken, "--dry-run", "--json"]));
+  if (!probe?.imageExists) {
+    console.log(`⏭  跳过：本地没有镜像 ${probe?.image} —— 这一项**没验**`);
+  } else {
+    const r = run([broken, "--json"]);
+    const doc2 = jsonOf(r);
+    check("容器内验证**未通过**（真缺陷）且退出码非零", r.status !== 0 && doc2?.usable === false, `status=${r.status}`);
+    const items = doc2?.attribution?.items ?? [];
+    check("归因指出闸门 1 是**本地可复现**的真缺陷",
+      items.some((i) => i.id === "static" && i.verdict === "local-reproducible"), JSON.stringify(items));
+    check("归因不把'本地没跑到'说成'本地通过'",
+      items.filter((i) => i.verdict === "local-reproducible").every((i) => i.id === "static")
+      && items.some((i) => i.verdict === "local-unverified"), JSON.stringify(items));
+    check("没有未声明的差异（unknown 为空）", (doc2?.attribution?.unknown ?? []).length === 0, JSON.stringify(doc2?.attribution?.unknown));
+  }
+}
+
 console.log("");
 if (failures) {
   console.log(`❌ 受控容器验证自检：失败 ${failures} 项`);

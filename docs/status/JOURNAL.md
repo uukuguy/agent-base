@@ -377,3 +377,6 @@
 - 00:30 A2 真跑证据：容器内**闸门 1（agent-only）+ 2 + 3 + 4 全过**，离线零凭据；输出 `where=container` + 镜像摘要 + `covered`/`notCovered`（安全下限/双架构/同源如实标未覆盖）。**A3 随之完成**：宿主侧 `verify --json` 也带 `covered`+`where=host`
 - 00:30 A2 踩的两个真问题：① **macOS `/var`→`/private/var`** 让"realpath ≠ resolve"判定把**所有临时目录**误杀 ⇒ 判据改成"只拦输入路径**本身**是符号链接"，实际挂 realpath；② **单横线旗标（`-v`）会被当成位置参数**混过旗标白名单 ⇒ 多位置参数一律拒（这条正是"受控"的漏口）
 - 00:30 新增 **A6**（A2 的第 ⑤ 条拆出来）：把受控入口接成"需审批的工具"，审批事件进统一轨迹 —— 不因此给 AI 任意 docker 权限。回归：**18 项自检全绿** · 两侧 conformance 10/10 · examples-check 绿；Makefile 44→46 目标
+- 00:41 **A4 失败归因完成**：`core/verify/attribution.mjs`（纯逻辑，可被自检直接断言）+ `verify-container` 失败时自动跑一遍宿主验证作对照。**五类**：local-reproducible（真缺陷）/ declared-env-difference（已声明，不是缺陷）/ container-only-failure（容器专有断言挂＝真缺陷，改镜像/参数）/ **local-unverified（本地没跑到）** / unknown（本地跑到且过、差异又没声明 ⇒ 响亮上报，`ok=false`）
+- 00:41 A4 实测踩中并修掉一个真缺陷：宿主 `verify` 是**首败即停**的，而容器内自证跑完四步 ⇒ 我最初把"不在 hostFailed 里"当成"本地通过"，于是凭空造出"容器专有失败"（把闸门 2 报成未声明差异）。修法：归因必须区分"跑过且过"与"没跑到"，新增 `local-unverified`。自检新增 E 段（五类纯逻辑）与 F 段（真造一个坏项目跑容器，断言闸门 1 = 本地可复现、闸门 2 = 本地没跑到、unknown 为空）
+- 00:41 回归：**18 项自检全绿** · 两侧 conformance **10/10** · examples-check 绿。A2/A3/A4 连成一条可用链路：`make verify-container`（受控入口）→ 结构化结论（出处/覆盖/镜像摘要）→ 失败归因
