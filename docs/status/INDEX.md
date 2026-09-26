@@ -43,6 +43,10 @@ When adding a new file to `docs/status/`, **also add its row here** — otherwis
 | `docs/design/2026-09-25-pi-harness-design.md` | pi 专有实测约束上位依据 |
 | `docs/design/2026-09-25-dsh-harness-design.md` | dsh 专有实测约束上位依据 |
 | `README.md` | 对外定位与基座/应用边界 |
+| `docs/13-developer-contract.md` | 开发者契约：起点（含还缺什么）、保证（逐条指向真实判据）、明确不约束清单 |
+| `docs/14-how-to-verify.md` | 能做什么 / 怎么做 / 怎么确认（逐条给命令 + 期望 + 边界，含负例表） |
+| `docs/design/2026-09-26-harness-customization.md` | 两侧可定制点实测调研（pi 39 个钩子事件 / dsh ~30 个 seam；L0–L4 分层；D1–D7 实证缺陷） |
+| `docs/design/2026-09-26-base-value-and-openness.md` | 基座价值定义（"保证 / 允许 / 不管"三段式；能力有无判据的自检问题） |
 
 ## Don't add new files unless they fit one of the categories above
 
