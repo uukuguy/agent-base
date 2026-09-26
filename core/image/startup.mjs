@@ -30,6 +30,8 @@
 
 import fs from "node:fs";
 import os from "node:os";
+// 启动期要读 overlay.yaml（接入缝）。**镜像里必须能解析到它** —— 见 Dockerfile 的 npm install --prefix
+import YAML from "yaml";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
@@ -154,6 +156,76 @@ function stage(artifactDir, plan, runDir) {
   return copied;
 }
 
+/**
+ * 应用"接入缝"（上层镜像带进来的业务代码与钩子）。
+ *
+ * 为什么需要（P3）：扩展必须在**产物**里才会被加载，而派生镜像里没有渲染器 ——
+ * "上层加钩子"这条路被实际挡住。做法：overlay 目录按**产物同构**的布局摆文件，
+ * 启动期**只改暂存副本**：
+ *   ① 拷 `extensions/**` 与 `business/**` 进副本
+ *   ② 把 `enhancements` 并进副本的 `enhancements.yaml`（闸门 2 的集合断言因此覆盖它）
+ *   ③ 把扩展路径追加进 `settings.json.extensions`（该运行时从这里加载扩展）
+ * 产物本身一个字节都不动。
+ */
+function applyOverlay(runDir, harnessName, overlayDir) {
+  if (!overlayDir || !fs.existsSync(overlayDir)) return null;
+  const manifestFile = path.join(overlayDir, "overlay.yaml");
+  if (!fs.existsSync(manifestFile)) {
+    die(`overlay 目录存在但缺 overlay.yaml：${overlayDir}（无法判断要带什么进来；不猜）`);
+  }
+  let doc;
+  try { doc = YAML.parse(fs.readFileSync(manifestFile, "utf8")); }
+  catch (e) { die(`overlay.yaml 解析失败：${e.message}`); }
+
+  const want = doc?.harness ?? null;
+  if (want && want !== harnessName) {
+    die(`overlay.yaml 声明 harness=${want}，当前运行时是 ${harnessName} —— 不匹配（不猜、不静默跳过）`);
+  }
+  // 接入缝的**装载方式由该运行时的产物布局决定**：当前只实现了"扩展目录 + settings.extensions"
+  // 这一种形态（`settings.json` 里登记扩展路径）。换一个装载形态（例如把插件写成组合树里的行）
+  // 需要各自适配器声明并实现 —— 见路线图 P3。
+  const settingsFile0 = path.join(runDir, "settings.json");
+  if (!fs.existsSync(settingsFile0)) {
+    die(`接入缝暂不支持该运行时的装载形态：暂存副本里没有 settings.json（找不到登记扩展的地方）`
+      + ` —— 这不是"跳过"，是没实现；见路线图 P3`);
+  }
+
+  const copied = [];
+  for (const sub of ["extensions", "business"]) {
+    const src = path.join(overlayDir, sub);
+    if (!fs.existsSync(src)) continue;
+    fs.cpSync(src, path.join(runDir, sub), { recursive: true });
+    for (const f of fs.readdirSync(src)) copied.push(`${sub}/${f}`);
+  }
+
+  const declared = Array.isArray(doc?.enhancements) ? doc.enhancements : [];
+  const enhFile = path.join(runDir, "enhancements.yaml");
+  if (declared.length) {
+    if (!fs.existsSync(enhFile)) die("overlay 声明了增强，但暂存副本里没有 enhancements.yaml（产物不完整？）");
+    const cur = YAML.parse(fs.readFileSync(enhFile, "utf8")) ?? {};
+    const byId = new Map((cur.enhancements ?? []).map((e) => [e.id, e]));
+    for (const e of declared) byId.set(e.id, e);      // 同 id 以 overlay 为准（它就是最后写入者）
+    fs.writeFileSync(enhFile, YAML.stringify({
+      ...cur,
+      note: `${cur.note ?? ""} + overlay`.trim(),
+      enhancements: [...byId.values()],
+    }));
+  }
+
+  const settingsFile = settingsFile0;
+  if (fs.existsSync(settingsFile)) {
+    const settings = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+    const list = new Set(settings.extensions ?? []);
+    for (const rel of copied.filter((c) => c.startsWith("extensions/")).map((c) => c.replace(/^extensions\//, ""))) {
+      if (rel !== "_trace-emit.mjs") list.add(`extensions/${rel}`);
+    }
+    settings.extensions = [...list].sort();
+    fs.writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`);
+  }
+
+  return { dir: overlayDir, copied, declared: declared.length };
+}
+
 function rewriteInTree(root, from, to) {
   for (const e of fs.readdirSync(root, { withFileTypes: true })) {
     const f = path.join(root, e.name);
@@ -264,6 +336,13 @@ function prepare({ artifact, runDir }) {
     process.exit(EXIT_USAGE);
   }
 
+  // 接入缝：上层镜像带进来的业务代码与钩子（**只改暂存副本**；产物仍然只读）。
+  // 落点是**该运行时的配置目录** —— 它由 runtimePlan 的 env 声明（例如某运行时是 `<运行目录>/agent-dir`），
+  // 不是运行目录根。写错根目录的表现是"overlay 生效了但产物里找不到 enhancements.yaml"。
+  const stagingRel = Object.values(plan.env ?? {})[0] ?? null;
+  const stagingDir = stagingRel ? path.join(effectiveRunDir, stagingRel) : effectiveRunDir;
+  const overlay = applyOverlay(stagingDir, manifest.harness, process.env.AGENT_OVERLAY_DIR ?? "/opt/agent-base/overlay");
+
   // 运行时环境：清单声明"哪个环境变量指向运行目录里的哪个相对路径"
   const env = {};
   for (const [name, rel] of Object.entries(plan.env ?? {})) env[name] = path.join(effectiveRunDir, rel);
@@ -278,6 +357,7 @@ function prepare({ artifact, runDir }) {
     runDir: effectiveRunDir,
     copied,
     rendered: render.written,
+    ...(overlay ? { overlay } : {}),
     env,
     cwd,
     effectiveConfigDigest: manifest.effectiveConfigDigest ?? null,
@@ -312,6 +392,8 @@ function jsonOut(r) {
     agent: r.manifest.agent, harness: r.manifest.harness,
     runDir: r.runDir, cwd: r.cwd, env: r.env,
     copied: r.copied, rendered: r.rendered,
+    // 接入缝是否生效（上层镜像带的业务代码/钩子）：让日志与自检看得见，而不是"悄悄合了"
+    ...(r.overlay ? { overlay: r.overlay } : {}),
     effectiveConfigDigest: r.effectiveConfigDigest,
     params,
   }, null, 2);

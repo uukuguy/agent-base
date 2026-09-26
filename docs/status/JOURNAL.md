@@ -294,4 +294,8 @@
 - 2026-09-26 落成**开发者契约** `docs/13-developer-contract.md`：① 起点（含**还缺什么**：派生镜像骨架、镜像内自证、镜像内加钩子、钩子触发闸门、loop/服务声明面）② 保证（每条指向真实判据，含**跨版本稳定性承诺**与可能的变）③ 不约束（自定义字段原样透传+标注、手写接入件、绕过基座都允许；唯一硬边界=不静默）
 - 2026-09-26 契约里的数字都现场核实过：闸门 1 基座 **27** 项 / 负例 **10** 个 / 自检 **13** 个 / conformance **C1–C10** / 轨迹 **9** 类事件 / 示例 **6** 个
 - 2026-09-26 决策 **D-0016** + 路线图 **§25**（P1–P5，起点门槛与"契约表必须随实现更新"的制度化）
+- 2026-09-26 用户同意推进、完成后由他验证 → 实施 **P1–P3（起点门槛）**：接入缝（overlay，只改暂存副本）· 镜像内自证（闸门带进镜像，`verify` 子命令，离线零凭据）· 派生镜像骨架（`template/derived` + `make image-derived` 一条命令给证据）
+- 2026-09-26 实测链路：`make image-derived AGENT_DIR=examples/idea-to-proof OVERLAY_DIR=<带业务钩子> IMAGE_REF=ab-derived:0.1.0` → 构建成功；镜像内 `config-check`（无挂载）✅ · 缺凭据 fail-fast ✅ · `verify` 闸门 1（agent-only）/2/3/4 全过 ✅；闸门 2 把 overlay 的声明计入（集合相等 2 项：corp-audit + trace）
+- 2026-09-26 途中修两个真缺陷：① **COPY 保留权限位** —— 种子 `trace.ts` 等文件在仓库里是 0600，烤进镜像后非 root 读不到（EACCES），修法：仓库内改 0644 + 派生骨架 `chmod -R a+rX`；② `core/image/startup.mjs` 注释里写了运行时名，被 `core/harness-name` 当场抓到
+- 2026-09-26 新增 `validate --agent-only`（只校验智能体定义）；**P4（钩子触发即证据）留待下一轮**，不做半成品
 

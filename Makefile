@@ -113,6 +113,9 @@ image-push: ## 构建并推送多架构镜像到 registry（需 IMAGE_REF=host/n
 	@test -n "$(IMAGE_REF)" || { echo "需要 IMAGE_REF，例如 IMAGE_REF=registry.example.com/ns/agent-base:0.1.0"; exit 2; }
 	@node core/image/build.mjs --push $(IMAGE_REF)
 
+image-derived: ## 构建派生镜像（业务层）并在镜像内自证（需 AGENT_DIR；可选 OVERLAY_DIR/IMAGE_REF/HARNESS）
+	@node tools/derived-image.mjs "$(AGENT_DIR)" $(if $(HARNESS),--harness $(HARNESS),) $(if $(IMAGE_REF),--ref $(IMAGE_REF),) $(if $(OVERLAY_DIR),--overlay $(OVERLAY_DIR),) $(if $(KEEP),--keep,)
+
 image-manifest: ## 只产出多架构 manifest list（OCI 归档落盘，不推 registry）
 	@node core/image/build.mjs --manifest
 

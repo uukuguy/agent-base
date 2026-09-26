@@ -89,6 +89,20 @@ RUN set -eux; \
     printf 'production\n' > /etc/agent-base-variant; \
     chown -R agent:agent /home/agent /opt/agent-base
 
+# ---- 闸门源码（P2：镜像内自证）-------------------------------------------------
+# 为什么把闸门放进生产镜像：**派生镜像要能自己确认没坏** —— 否则上层改完只能回仓库验，
+# CI 也没法在镜像内验收。代价是镜像多 ~1 MB 源码 + 两个 npm 依赖（ajv / yaml）。
+# 注意：容器的安全下限（C9）**不在这里** —— 它需要 docker 检视，只能在构建侧跑。
+COPY gates /opt/agent-base/gates
+RUN set -eux; \
+    cd /opt/agent-base/gates; \
+    npm install --no-audit --no-fund --omit=dev ajv yaml >/dev/null 2>&1; \
+    chmod -R a+rX /opt/agent-base/gates
+
+# 启动期要读 overlay.yaml（P3 接入缝）⇒ 镜像里必须能解析到 yaml。
+# 装在 /opt/agent-base/node_modules：node 从 /opt/agent-base/startup.mjs 向上查找即可命中（不靠 NODE_PATH）。
+RUN npm install --prefix /opt/agent-base --no-audit --no-fund --omit=dev yaml >/dev/null 2>&1
+
 COPY startup.mjs /opt/agent-base/startup.mjs
 COPY entrypoint.sh /usr/local/bin/agent-base-entrypoint
 # 显式修权限：COPY 保留源文件的权限位，而开发机上的文件可能是 0600 ——

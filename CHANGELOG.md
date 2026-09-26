@@ -109,6 +109,19 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 > 已改为按「值是否随部署环境而变」判定 —— 模型名是环境属性，进参数层；`model.route` 仍是制品层
 > （它决定后面三个引用名）。
 
+### 派生镜像：起点门槛打通（P1–P3）
+
+- **接入缝**（P3）：`/opt/agent-base/overlay/`（`AGENT_OVERLAY_DIR`）——上层镜像把业务代码与钩子放这里，
+  启动期**只改暂存副本**：拷 `extensions/`、`business/`，把 `enhancements` 并进副本清单，
+  并把扩展登记进 `settings.json`。产物一个字节不动，**闸门 2 的"声明 == 进产物"因此覆盖它**（实测集合相等）
+- **镜像内自证**（P2）：镜像携带闸门源码与依赖（`/opt/agent-base/gates`），
+  `docker run <镜像> verify` 跑**闸门 2/3/4**（给了定义连**闸门 1**）—— 离线、零凭据，可放进 CI；
+  为它新增 `validate --agent-only`（镜像里没有基座 docs/布局，跑基座自洽只会假红）
+- **派生镜像骨架**（P1）：`template/derived/Dockerfile` + `make image-derived AGENT_DIR=… [OVERLAY_DIR=…]`
+  —— 渲染 → 组上下文 → 构建 → **镜像内自证**，一条命令给证据（实测：构建成功 + 自证通过）
+- 修两个真实缺陷：① **`COPY` 保留权限位**导致容器内读不到（仓库里多个 0600 文件 + 派生骨架缺 `chmod`，
+  两者都修）② `core/image/startup.mjs` 注释里出现运行时名（`core/harness-name` 闸门抓到，已改中性）
+
 ### 业务增强：**业务代码共享，接入方式各写各的**
 
 - `harness/shared/**` 是**可共享的业务代码**（零依赖、纯逻辑），渲染器把它拷进两个产物

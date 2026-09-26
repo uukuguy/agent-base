@@ -61,6 +61,8 @@ case "${1:-agent}" in
   shell) shift; exec /bin/sh "$@" ;;
   # 配置自检：只校验运行期参数与产物，不跑模型。生产里当就绪探针用。
   config-check) shift; exec node "$STARTUP" config-check --artifact "$ARTIFACT_DIR" "$@" ;;
+  # 镜像内自证：闸门 2/3/4（有定义时连闸门 1）—— 离线、零凭据，适合 CI 里当验收步骤
+  verify) shift; exec node "${AGENT_GATES_DIR:-/opt/agent-base/gates}/verify-in-image.mjs" "$@" ;;
   *) exec "$@" ;;
 esac
 

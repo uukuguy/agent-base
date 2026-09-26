@@ -913,9 +913,9 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 
 | # | 缺口 | 判据（什么算补上） | 依赖 | 状态 |
 |---|---|---|---|---|
-| P1 | **派生镜像骨架**：`FROM agent-base:<ver>` + 业务层目录约定 + 构建说明 + 一个最小可跑样例 | 上层样例镜像能构建、能跑、README 说清每一步 | D-0014 | `pending` |
-| P2 | **镜像内自证**：把闸门工具（或 slim 验证器）带进镜像 | 在派生镜像里 `verify` 能跑；CI 可在镜像内验收 | P1 | `pending` |
-| P3 | **镜像内加钩子**：运行时覆盖目录 或 镜像内渲染（选一并声明） | 上层镜像里钩子生效有证据 | P1、E1/E2 | `pending` |
+| P1 | **派生镜像骨架** ✅ | `core/image/derived/Dockerfile` + `make image-derived`；实测构建成功 | D-0014 | `done` |
+| P2 | **镜像内自证** ✅ | `docker run <镜像> verify` 实测闸门 2/3/4 全过（离线零凭据） | P1 | `done` |
+| P3 | **接入缝**（overlay）✅ | `/opt/agent-base/overlay/`；闸门 2 实测把 overlay 的声明计入（集合相等 2 项） | P1 | `done` |
 | P4 | **钩子触发闸门** | 假网关触发 `tool_call`，断言钩子留痕/拦截生效（与 E2 合流） | E1 | `pending` |
 | P5 | **契约表随实现更新**：`docs/13` §2 的每一行都要有"最后一次实测"的日期/命令 | 表里没有未标注的陈旧断言（D7 的教训制度化） | P4 | `pending` |
 

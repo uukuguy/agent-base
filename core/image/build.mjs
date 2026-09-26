@@ -146,6 +146,16 @@ function prepareContext(specs) {
   // 注意：inputs-digest.mjs 只被 build.mjs 自己 import，不必进上下文（它不参与镜像内容）
     fs.copyFileSync(path.join(IMAGE_DIR, f), path.join(ctx, f));
   }
+  // 闸门源码进上下文（P2：镜像内自证）。保持相对布局 —— 各工具靠**自身位置**推 REPO，
+  // 所以在 /opt/agent-base/gates/ 下同样成立。不含 node_modules；依赖在 Dockerfile 里装。
+  for (const dir of ["core", "tools", "adapters"]) {
+    fs.cpSync(path.join(REPO, dir), path.join(ctx, "gates", dir), {
+      recursive: true,
+      filter: (src) => !src.includes("node_modules") && !src.includes(`${path.sep}dist${path.sep}`),
+    });
+  }
+  fs.copyFileSync(path.join(REPO, "core/image/verify-in-image.mjs"), path.join(ctx, "gates", "verify-in-image.mjs"));
+
   fs.writeFileSync(path.join(ctx, "harnesses.lock.json"), JSON.stringify({
     note: "由 core/image/build.mjs 从 adapters/*/adapter.yaml 生成 —— 不要手改。",
     harnesses: specs,

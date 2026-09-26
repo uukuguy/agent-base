@@ -804,14 +804,18 @@ function main() {
   const args = process.argv.slice(2);
   const json = args.includes("--json");
   const selftest = args.includes("--selftest");
+  // 只校验智能体定义、跳过"基座自洽"那部分：镜像内自证用 ——
+  // 镜像里没有基座的 docs/ 与仓库布局，跑基座自洽只会得到假红。
+  const agentOnly = args.includes("--agent-only");
   const positional = args.filter((a) => !a.startsWith("-"));
 
   if (args.includes("--help") || args.includes("-h")) {
-    process.stderr.write("用法: node tools/validate.mjs [AGENT_DIR] [--selftest] [--json]\n");
+    process.stderr.write("用法: node tools/validate.mjs [AGENT_DIR] [--selftest] [--json] [--agent-only]\n");
     process.exit(EXIT_CODES.ok);
   }
-  if (args.some((a) => a.startsWith("-") && !["--json", "--selftest", "--help", "-h"].includes(a))) {
-    process.stderr.write(`未知参数：${args.filter((a) => a.startsWith("-") && !["--json", "--selftest", "--help", "-h"].includes(a)).join(" ")}\n`);
+  const known = ["--json", "--selftest", "--agent-only", "--help", "-h"];
+  if (args.some((a) => a.startsWith("-") && !known.includes(a))) {
+    process.stderr.write(`未知参数：${args.filter((a) => a.startsWith("-") && !known.includes(a)).join(" ")}\n`);
     process.exit(EXIT_CODES.usage);
   }
   if (positional.length > 1) {
@@ -821,7 +825,12 @@ function main() {
 
   const report = new GateReport();
   const agentDirArg = positional.length ? path.resolve(positional[0]) : process.cwd();
-  const ctx = checkBase(report, agentDirArg);
+  // --agent-only：镜像内自证用 —— 镜像里没有基座的 docs/ 与仓库布局，跑基座自洽只会假红。
+  // 注意：**不能跳过 checkBase 的加载**（它给出 schema/ajv/目录等上下文，checkAgent 依赖它们），
+  // 只能把基座自洽的**报告**写进一个被丢弃的 report，然后把它加载出的 ctx 交给 checkAgent。
+  const baseCtx = checkBase(agentOnly ? new GateReport(GATE) : report, agentDirArg);
+  const ctx = baseCtx;
+  if (agentOnly) report.pass(GATE, "cli/agent-only", "只校验智能体定义（跳过基座自洽：镜像内自证用）");
   if (positional.length) checkAgent(report, ctx, agentDirArg);
 
   const selftestResults = selftest ? checkSelftest() : null;

@@ -74,8 +74,10 @@ const absHits = walk(target).filter((f) => {
   //      不能拿 includes(REPO) 去判 —— 那会把正确的相对引用误判成绝对路径）
   const m = t.match(/^AGENT_BASE_DIR \?= (\S+)$/m);
   if (m && m[1].startsWith("/")) return true;
-  // ② 任何以根开头的本机路径都不该出现（前置字符是 `.` 或 `/` 说明属于 ../ 相对引用）
-  return /(^|[\s"'=(])\/(Users|home|opt)\//.test(t);
+  // ② **宿主**路径不该出现（前置字符是 `.` 或 `/` 说明属于 ../ 相对引用）。
+  //    注意：容器内部路径（`/opt/...`）是**合法且必要**的 —— 它不绑定任何具体主机；
+  //    早先连 `/opt` 一起禁，会把"镜像里 COPY 到 /opt/agent-base"这种正确写法误判成违规。
+  return /(^|[\s"'=(])\/(Users|home)\//.test(t);
 }).map((f) => path.relative(target, f));
 check("无绝对路径（基座引用为相对路径）", absHits.length === 0, absHits.join(", "));
 

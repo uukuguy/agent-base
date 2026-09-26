@@ -25,6 +25,7 @@ import { EXIT_CODES, parseArgs, digestDirectory, DEFAULT_EXCLUDES } from "../gat
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
 const STARTUP = path.join(HERE, "startup.mjs");
+import YAML from "yaml";   // 自检要读暂存副本里的 enhancements.yaml
 
 const { values } = parseArgs(process.argv.slice(2), { valueFlags: ["--harness"] });
 // 适配器按目录发现（不写死运行时名 —— core/ 里不该出现它们）
@@ -220,6 +221,82 @@ try { parsed = JSON.parse(cc.stdout); } catch { /* 下面按失败报 */ }
 check("config-check 通过且 stdout 是纯 JSON", cc.status === 0 && parsed !== null);
 check("config-check 不泄漏凭据值", !JSON.stringify(parsed ?? {}).includes("sk-secret-value"));
 check("config-check 不留运行目录", !fs.existsSync(freshWork) || fs.readdirSync(freshWork).length === 0);
+
+// ⑨ 接入缝（overlay）：上层镜像带业务代码与钩子进来 —— 只改暂存副本，且**闸门 2 能看见它**
+{
+  const ov = fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-ov-"));
+  fs.mkdirSync(path.join(ov, "extensions"), { recursive: true });
+  fs.mkdirSync(path.join(ov, "business"), { recursive: true });
+  // 夹具内容**刻意保持运行时中性**：这是 core/ 里的文件，不许出现任何运行时名（层纪律）。
+  // 它不会被执行，只需要"像一个接入件文件"即可。
+  fs.writeFileSync(path.join(ov, "extensions", "corp-audit.ext"),
+    'export default function register(api) { api.on("tool_call", () => {}); }\n');
+  fs.writeFileSync(path.join(ov, "business", "rules.mjs"), 'export const V = "1";\n');
+  fs.writeFileSync(path.join(ov, "overlay.yaml"), [
+    "apiVersion: agent-base/v1",
+    `harness: ${harness}`,
+    "enhancements:",
+    "  - kind: hook",
+    "    id: corp-audit",
+    "    entry: extensions/corp-audit.ext",
+    "    event: tool_call",
+    "",
+  ].join("\n"));
+
+  const ovWork = fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-ovrun-"));
+  const ovr = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", artifact, "--run-dir", ovWork, "--json"],
+    { encoding: "utf8", env: { ...process.env, ...okEnv, AGENT_OVERLAY_DIR: ov } });
+  let prep = null;
+  try { prep = JSON.parse(ovr.stdout); } catch { /* 下面按失败报 */ }
+
+  // 接入缝的装载形态**按运行时不同**：产物里登记扩展的位置（settings.json）存在才支持。
+  // 支持 ⇒ 必须成功；不支持 ⇒ 必须**响亮失败**（"没实现"不许静默跳过）。两条都是断言。
+  const supportsOverlay = fs.existsSync(path.join(artifact, "agent-dir", "settings.json"));
+  if (!supportsOverlay) {
+    check("接入缝：该运行时未实现装载形态 ⇒ 响亮失败（不静默跳过）",
+      ovr.status !== 0 && /暂不支持该运行时的装载形态/.test(`${ovr.stdout}${ovr.stderr}`), `${ovr.status}`);
+  }
+  check("接入缝：prepare 成功且带 overlay 信息", !supportsOverlay || (ovr.status === 0 && prep?.overlay?.declared === 1), (ovr.stderr ?? "").slice(-200));
+
+  // prep.env 里的值是**绝对路径**（startup 自己 join 过 runDir），别再 join 一次
+  const envVal = Object.values(prep?.env ?? {})[0] ?? "";
+  const staging = path.isAbsolute(envVal) ? envVal : path.join(ovWork, envVal);
+  if (!supportsOverlay) {
+    process.stdout.write("➖ 接入缝的三条落地断言：该运行时未实现装载形态，跳过（上面已断言它响亮失败）\n");
+  }
+  const enh = !supportsOverlay ? null : fs.existsSync(path.join(staging, "enhancements.yaml"))
+    ? YAML.parse(fs.readFileSync(path.join(staging, "enhancements.yaml"), "utf8")) : null;
+  check("接入缝：业务增强并进了暂存副本的清单（不支持装载形态时跳过）", !supportsOverlay ||
+    (enh?.enhancements ?? []).some((e) => e.id === "corp-audit"), JSON.stringify((enh?.enhancements ?? []).map((e) => e.id)));
+  const settings = !supportsOverlay ? null : (fs.existsSync(path.join(staging, "settings.json"))
+    ? JSON.parse(fs.readFileSync(path.join(staging, "settings.json"), "utf8")) : null);
+  check("接入缝：扩展被登记进 settings（该运行时从这里加载）", !supportsOverlay ||
+    (settings?.extensions ?? []).some((x) => String(x).includes("corp-audit")), JSON.stringify(settings?.extensions));
+  check("接入缝：业务代码拷进了副本", !supportsOverlay || fs.existsSync(path.join(staging, "business", "rules.mjs")));
+
+  // **产物本身一个字节都不能变** —— 这是"产物只读"底线在接入缝上的体现
+  const before = fs.readFileSync(path.join(artifact, "render-manifest.json"), "utf8");
+  // 产物**未被改动**的断言：不同运行时的扩展目录位置不同（有的在 agent-dir/ 下，有的根本没有），
+  // 所以先判存在再读 —— 早期版本直接 readdirSync，在另一个运行时上以 ENOENT 把自检打崩。
+  const extDir = path.join(artifact, "agent-dir", "extensions");
+  const beforeFiles = fs.existsSync(extDir) ? fs.readdirSync(extDir).sort().join(",") : "";
+  check("接入缝：产物未被改动", !beforeFiles.includes("corp-audit"));
+
+  // 负向：声明了别的运行时 ⇒ 必须响亮失败，不猜、不静默跳过
+  const ovBad = fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-ovbad-"));
+  fs.writeFileSync(path.join(ovBad, "overlay.yaml"), "apiVersion: agent-base/v1\nharness: not-this-harness\n");
+  const badRun = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", artifact, "--run-dir", fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-ovbad-run-")), "--json"],
+    { encoding: "utf8", env: { ...process.env, ...okEnv, AGENT_OVERLAY_DIR: ovBad } });
+  check("接入缝：运行时声明不匹配 ⇒ 响亮失败（不静默跳过）",
+    badRun.status !== 0 && /不匹配/.test(`${badRun.stdout}${badRun.stderr}`), `${badRun.status}`);
+
+  // 负向：overlay 目录存在但没有清单 ⇒ 不猜，直接失败
+  const ovNoManifest = fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-ovnm-"));
+  const nmRun = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", artifact, "--run-dir", fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-ovnm-run-")), "--json"],
+    { encoding: "utf8", env: { ...process.env, ...okEnv, AGENT_OVERLAY_DIR: ovNoManifest } });
+  check("接入缝：目录存在但缺 overlay.yaml ⇒ 失败（不猜内容）",
+    nmRun.status !== 0 && /overlay\.yaml/.test(`${nmRun.stdout}${nmRun.stderr}`), `${nmRun.status}`);
+}
 
 process.stdout.write(`\n启动期准备自检：${fail === 0 ? "全绿" : `失败 ${fail} 项`}（通过 ${pass}）\n`);
 process.exit(fail === 0 ? EXIT_CODES.ok : 1);

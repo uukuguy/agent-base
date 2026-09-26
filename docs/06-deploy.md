@@ -198,3 +198,43 @@ make image-builder         # 多架构 builder 就绪并设为当前（让手敲
 **「验证快照」，不是生产镜像。** 版本号怎么走、什么算破坏性变更，见根目录 [`CHANGELOG.md`](../CHANGELOG.md) 的版本策略一节。 它存在的意义是让验证环境足够接近生产、结论才可信；
 生产化（鉴权、审批流、多租户、高可用、SBOM 签名、常驻服务编排）不在基座范围。
 所以：**别把它当生产部署方案**，把它当"这次验证是在什么环境里跑出来的"的可复现证据。
+
+## 派生镜像：业务层怎么加、怎么自证（P1–P3）
+
+基座镜像是底座；**真正可用的智能体是它之上的一层镜像**。派生镜像的骨架在 `core/image/derived/Dockerfile`，
+按约定放三样东西，基座启动时自动接上：
+
+| 放到哪 | 是什么 | 效果 |
+|---|---|---|
+| `/opt/agent-base/artifact/` | 渲染产物 | **烤进镜像 ⇒ 运行时不必挂载** |
+| `/opt/agent-base/definition/` | 中性定义 | 镜像内自证可连闸门 1 一起跑 |
+| `/opt/agent-base/overlay/` | **接入缝**：业务代码与钩子 | 启动期**只改暂存副本**：拷 `extensions/`、`business/`，把 `enhancements` 并进副本的清单，并把扩展登记进 `settings.json` |
+
+**接入缝的清单**（`overlay/overlay.yaml`）：
+
+```yaml
+apiVersion: agent-base/v1
+harness: pi                 # 与当前运行时不符 ⇒ 明确失败（不猜、不静默跳过）
+enhancements:
+  - kind: hook
+    id: corp-audit
+    entry: extensions/corp-audit.ts
+    event: tool_call        # 业务钩子：工具调用前审计/脱敏/策略
+```
+
+**一条命令构建并自证**：
+
+```bash
+make image-derived AGENT_DIR=examples/idea-to-proof OVERLAY_DIR=./my-overlay IMAGE_REF=agent:mine
+#   期望（离线、零凭据）：
+#     ✅ 配置齐备（config-check，无挂载）
+#     ✅ 缺凭据 fail-fast（不静默跑）
+#     ✅ 可用：派生镜像构建成功，并在镜像内自证通过
+```
+
+**镜像内自证**（闸门 2/3/4；给了定义就连闸门 1）：`docker run --rm <镜像> verify`
+—— 适合放进 CI 当验收步骤。它**不覆盖**容器的安全下限（C9），那部分只能在构建侧跑。
+
+**权限坑（已处理）**：`COPY` 保留源文件权限位；开发机上的文件可能是 0600，容器里以非 root 跑会读不到
+（本项目自己踩过一次）。派生骨架因此显式 `chmod -R a+rX` 产物/定义/接入缝。
+
