@@ -316,3 +316,4 @@
 - 21:18 契约面变更记账：CHANGELOG 立「破坏性：`event` → `events`」+ 迁移写法；**D-0017** 裁定 harness 层契约（`enhancements.schema.json`）随**基座版本**演进、不进 `apiVersion`（`apiVersion` 窄化为只承诺中性定义；被否方案=升 v2 让 6 示例+模板+fixtures 全动）
 - 21:18 数字实测刷新：闸门 1 基座 27→**29** 项、带定义 39–42→**43–44** 项、负例 12→**13** 个；能力目录补齐 enhancements 组（package/events/config/description，kind 枚举 `plugin`→与 schema 对齐）
 - 21:18 全量回归全绿：14 个自检 · 两侧 conformance **10/10** · `examples-check` · `walkthrough`（20 通过 / 1 跳过 / 0 失败）
+- 21:18 /project-state checkpoint：RESUME 重写为活动会话检查点（E1 完成、下一动作 = §26 V1 或 E2b、E1b 与 dsh 事件集合缺口登记在案）

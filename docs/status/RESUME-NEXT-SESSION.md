@@ -1,59 +1,65 @@
-# Next-Session Handoff
+# Live Session Checkpoint
 
-> Updated: 2026-09-26 21:00 end of session. **取代** 20:30 那份活动会话检查点。
+> Updated: 2026-09-26 21:20. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-1. **起点门槛已打通**：接入缝（运行期加业务代码/钩子，产物不动）· 镜像内自证（离线零凭据）· 派生镜像（一条命令构建 + 自证）
-2. **7 处"文档说有、实现没有"的缺陷收口**（D1–D6 + 示例命令断链）并让**钩子触发可验**（P4）；其中 `tools.deny` 交付入口失效是**真漏** —— 旧写法本地也没生效，实测 `probe/model.tools` 4 → 1
-3. **下一个具体动作**：E1 —— 钩子**事件名校验**（`adapter.yaml` 声明每运行时可订阅事件集合，写错必须红；某运行时有 39 个可订阅事件，现在写错不报）
+1. **E1 完成**（钩子声明契约）：`kind: hook` 的 `event`（单串）→ **`events`（数组）**，名字逐个对 `adapter.yaml` 声明的可订阅集合（pi **39 个**，附复算命令）；负例 `13-enhance-hook-bad-event` 只因该原因红 [686c6d4]
+2. **顺手堵了个后门**：闸门 1 此前不校验**基座自己的** `adapters/<h>/seed/enhancements.yaml` —— 那份 `kind: hook` 连事件名都没写却一直"全绿"
+3. **下一个具体动作**：用户新提的 **§26 V1 `make guide AGENT_DIR=…`**（列出该项目要验什么：闸门逐条期望 + 技能/连接器/增强/钩子事件名 + 可粘贴命令）—— 依赖已就绪；路线图顺序上的下一项是 **E2b（钩子逐条自证）**
 
 ## Where things stand
 
-- **全绿**：14 个自检 · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`
-- 四个镜像变体 + 多架构 OCI 归档**与源码同源**（C9 逐份核对）；同源指纹 `sha256:73f6c4ed…`
-- 工作树干净；**无远端**（`main` 仅本地），本轮 9 个提交全部落在本地
-- 状态层已刷新：`CURRENT-STATE.md` 结构层重写（两层产品形态、定制分层 L0–L4、开放问题已剔除解决项、去掉会过期的镜像 ID 表）
+- **全绿（实测）**：14 个自检 · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20 通过 / 1 跳过 / 0 失败）
+- **闸门 1 数字变了**（本轮实测）：基座自洽 **29** 项（原 27）· 带定义 **43–44** 项（原 39–42）· 负例 **13** 个（原 12）+ 1 个合法样本
+- 本轮两个提交都在本地：`7afeaeb`（记账与实现对齐）、`686c6d4`（E1）。工作树干净；仍**无远端**
+- 状态层已刷新：CURRENT-STATE 的开放问题与"契约与检查"段；roadmap §23 勾 E1、新增 E1b，新增 §26；DECISIONS **D-0017**
+- ⚠️ **运行时记忆写不进去**：`MEMORY.md` 顶到容量（10220/10240）、Memory Space 数为 0（无处归档）⇒ mnemon 明确拒绝写入。用户反馈因此只落在仓库里（roadmap §26 + JOURNAL）
 
 ## What this session delivered
 
-**调研与定位**（`docs/design/2026-09-26-harness-customization.md`、`docs/design/2026-09-26-base-value-and-openness.md`、D-0014/0015/0016、`docs/13-developer-contract.md`、`docs/14-how-to-verify.md`）
+**记账漂移修复**（`/project-state check` 抓到，用户同意后执行）[7afeaeb]
 
-- 两侧可定制点实测：pi **39 个钩子事件**（`types.d.ts:979-1017` 逐行数）/ dsh **~30 个服务 seam + waterfall**；loop 与组合树的真实可定制边界、patch row 的硬边界（只能改 `config`/`disabled`）
-- 定下两层产品形态（基座镜像 / 上层业务镜像）与**保证 / 允许 / 不管**三段式措辞原则
+- roadmap §25 `P4` 已实现却标 `pending`、§23 `E3/E4` 即 §25 `P3/P2` 却各自 pending、"E2 标 done 却依赖 pending 的 E1"是**假依赖** → 全部对角
+- `docs/13` §2 的 D2 行 `⚠️`→`✅`、带定义项数 38–40→**39–42**（六示例实测区间）、负例 10→**12**；INDEX 补 4 条外部锚点
+- 教训已记 JOURNAL：**同一能力被两张表各记一遍就一定会不一致**（§23 加交叉引用）
 
-**起点门槛 P1–P3**（`core/image/derived/Dockerfile`、`tools/derived-image.mjs`、`core/image/verify-in-image.mjs`、`core/image/startup.mjs` 的 `applyOverlay`、`make image-derived`）
+**E1 钩子声明契约**（路线图 §23）[686c6d4]
 
-- 接入缝只改暂存副本；扩展登记进 `settings.json`；闸门 2 的集合断言覆盖 overlay 声明（实测 2 项）
-- 镜像携带闸门 ⇒ `docker run <镜像> verify` 离线零凭据；为它新增 `validate --agent-only`
+- `adapters/pi/adapter.yaml`：新增 `hookEvents`（`enumerated: true`、**count 39** 作手抄见证值、`source`、**`reproduce` 复算命令**、39 个事件名按 `types.d.ts:979-1017` 声明顺序）
+- `adapters/dsh/adapter.yaml`：`enumerated: false`（无统一钩子总线，seam 名字未穷举）⇒ 名字不假校验，声明如实标「未验证」
+- `core/spec/enhancements.schema.json`：`event: string` → **`events: string[]`**（`minItems: 1`，`kind=hook` 必填）
+- 基座 seed 的 trace 声明补上它真正订阅的 **6 个**事件（与 `extensions/trace.ts` 的 `pi.on(...)` 逐条对应）
+- 闸门 1 新增：`enhance/events`（逐个对名字，坏名字列出来并指向复算命令）· `hook/events-decl`（声明自洽：count/重复/必须给 source；`enumerated: false` 必须给 note 且不许给名字）· `catalog/enum-sync`（能力目录与 schema 的枚举必须一致）
+- 闸门 1 **现在也校验 `adapters/<h>/seed/enhancements.yaml`**（schema + 单一真源 + 事件名，与智能体声明同一套）
+- 负例 `13-enhance-hook-bad-event`（`events: [tool_calls]`）→ 只因 `enhance/events` 红
+- 能力目录 `enhancements` 组补齐：`package`/`events`/`config`/`description` 四个字段，`kind` 枚举 `plugin` → 与 schema 对齐（`docs/03` 已 `make gen-docs` 刷新）
 
-**钩子可验 P4**（`core/trace/schema.json`、`core/trace/emit.mjs`、`adapters/{pi,dsh}/trace.mjs`、`tools/probe.mjs`）
+**契约记账**（用户会关心的一条）
 
-- 轨迹事件带 `emitter: hook|post-hoc`；`probe/hook-fired` 要求"声明了钩子就必须有钩子当场发出的事件"（pi 实测 5 条）；事后映射的运行时**如实报"不适用"**
+- CHANGELOG 0.1.0 下立「**破坏性：`event` → `events`**」+ 迁移写法（`event: X` → `events: [X]`）
+- **D-0017**：`enhancements.schema.json` 是 **harness 层**契约，随**基座版本**演进，**不进 `apiVersion`**；`apiVersion` 语义窄化为"只承诺中性定义"。被否方案=升 `apiVersion: agent-base/v2`（6 示例 + 模板 + fixtures 全动，为一个未发布且不可移植的字段，不成比例）
+- `docs/13` §3 稳定性表加一行明确这条边界；`docs/11` 示例改为 `events:` 并新增"四条硬约束"（含事件名）；`docs/14` 补判据与负例行
 
-**缺陷收口 D1–D6**（`core/spec/enhancements.schema.json`、`adapters/pi/render.mjs`、`adapters/dsh/render.mjs`、`core/catalog/params.yaml`、`runtimePlan.prependArgs`）
+**用户新提需求（已登记）**
 
-- 增强 schema + 负例 11/12 · 未声明接入件渲染期失败 · 增强进 `compare`（暴露并声明 pi/dsh 结构性差异）· dsh 非法声明响亮失败 · 参数层登记 · 工具边界清单化且两条启动路径都执行
-
-**开发循环可依**（6 个示例 README、`template/README.md`、`examples/README.md`、`tools/run-local.mjs`、`tools/examples-check.mjs`）
-
-- 全部示例 README 统一成"改 → 查 → 跑 → 验"；`run-local` 复用产物前比定义摘要；`examples-check` 新增两条检查（示例 Makefile 引用必须存在、README 参数名必须落在产物契约或平台变量里）
+- 用户实测 `examples/idea-to-proof`：`make local` 进交互 pi **调试很方便**；要求新增一条命令列出"该项目要验证的目标 / skills 等"以指导验证 → roadmap **§26 V1/V2**，硬要求：**从产物与 adapter.yaml 真源现算**，不许第二份手写文案、不许与 `docs/14` 打架
 
 ## Next steps (immediate, action-level)
 
-1. **E1 钩子事件名契约**：`adapters/<h>/adapter.yaml` 声明可订阅事件集合（版本 pin），`enhancements.yaml` 的 `event` 必须属于它；补负例（写错事件名必须红）
-2. **E2b 钩子逐条自证**：声明 N 个钩子 ⇒ N 个都能指到自己的痕迹（现在只证明"发射路径在工作"）
-3. **定主运行时**（D-0014 §7.1 待决：dsh 业务面更全 vs pi 更轻）—— 它决定 E5（服务形态）与 E6（loop 策略）的落点
-4. 次要候选：dsh 侧接入缝（E3）· 多语言共享业务代码（D-0012/E9）· `image-push` 仍未对真实 registry 验证 · `CLAUDE.md` 仍未创建
+1. **§26 V1 `make guide AGENT_DIR=<示例>`**（用户提出，起点依赖已就绪）：列出四道闸门逐条期望 + 技能/连接器/增强 + 钩子订阅事件名 + 可移植性等级，每条附可粘贴命令；定义里加一个技能/钩子 ⇒ 输出必须跟着变
+2. **E2b 钩子逐条自证**（路线图顺序的下一项）：声明 N 个钩子 ⇒ N 个都能指到自己的痕迹（现在只证明"发射路径在工作"）
+3. **E1b 接入缝的事件名**：把 `hookEvents` 写进 render manifest，启动期 `applyOverlay` / 闸门 2 用它校验 overlay 声明的事件名（overlay 是业务定制主路径，现在事件名无人对）
+4. 次要：dsh 侧接入缝（E3 已在旧口径下"done"，但**装载形态只有扩展目录+settings 一种**）· 多语言业务代码（E9）· `image-push` 未对真实 registry 验证 · `CLAUDE.md` 仍未创建
 
 ## Don't go down these paths again (ruled out)
 
-- **不校验定义摘要就复用渲染产物** ⇒ "改了没生效"，且报错指向已改掉的供应商/参数名（本轮实际踩中）
-- **在 `try` 里算摘要/调外部函数** ⇒ 漏 import 被 catch 伪装成"旧产物清单读不出来"，排查成本翻倍；错要当场炸
-- **检查写死名字或只认特定后缀** ⇒ `_BASE_URL` 后缀过滤让 `DEEPSEEK_ENDPOINT_URL` 溜过；C9 容器检查写死 `CORP_GATEWAY_*` 在示例换供应商后永远红 —— 名字一律从产物契约读
-- **把"文档说有"当真** ⇒ 本轮 7 处缺陷全是"文档声称 vs 实现不符"
-- **只看 C9 的第一条失败** ⇒ 同源失败时后面的容器能力检查根本不跑，会掩盖它们已经坏了很久
-- **不要靠"某条检查过了"推断能力存在** ⇒ 检查可能因错误原因通过（本轮自查一次）
+- **为 harness 层字段改名去升 `apiVersion`** ⇒ 会把中性定义与不可移植的 harness 层绑成同一个节奏（D-0017 已否，附代价）
+- **给 dsh 编一份假的事件清单** ⇒ 穷举不出来就**如实标"未验证"**，不做假校验（与"跳过即通过"同类）
+- **保留 `event` 单串并加 `events` 双写法** ⇒ 同一事实两种写法，正是本轮刚抓到的"两处真源"病
+- **把事件名校验只放在渲染器里** ⇒ 渲染器只覆盖"渲染过的东西"；闸门 1 才覆盖定义层 + 基座 seed
+- **只校验智能体的声明、放过基座自己的** ⇒ 本轮实测：seed 的 `kind: hook` 没有事件名，一直没红
+- **手抄事件名不留见证值/复算命令** ⇒ 39 这个数字两份二手报告给过 24/32，都对不上；`count` + `reproduce` 就是为这个
 
 ## Ready-to-paste commands
 
@@ -67,16 +73,19 @@ for t in validate validate-selftest gates-selftest trace-selftest emit-selftest 
 node conformance/run.mjs --harness pi && node conformance/run.mjs --harness dsh
 make examples-check && make walkthrough
 
-# 派生镜像（业务层起点）
-make image-derived AGENT_DIR=examples/idea-to-proof OVERLAY_DIR=./my-overlay IMAGE_REF=agent:mine
+# 看钩子事件契约（39 个 + 复算命令）
+grep -A50 '^hookEvents:' adapters/pi/adapter.yaml
+node tools/validate.mjs examples/idea-to-proof | grep -E 'enhance/events|hook/events-decl'
 
-# 镜像内自证（离线、零凭据）
-docker run --rm --network none -v <产物>:/opt/agent-base/artifact:ro -e HARNESS=pi <镜像> verify
+# 负例只该因目标原因红
+make validate-selftest          # 期望：13-enhance-hook-bad-event 实际=["enhance/events"]
 
-# 确认工具边界真的生效（应 tools=1；旧写法是 4）
-docker run --rm --network none -e HARNESS=pi -e CORP_GATEWAY_BASE_URL=… -e CORP_GATEWAY_API_KEY=… \
-  --entrypoint /bin/sh <镜像> -c 'node /opt/agent-base/gates/tools/probe.mjs /opt/agent-base/artifact --harness pi | grep model.tools'
+# 改过 catalog 就刷新生成文档
+make gen-docs
+```
 
-# 示例里开发调试（每个示例 README 的「构建与验证过程」同此）
-cd examples/idea-to-proof && make validate && make verify
+## 用户实测过的本地调试入口（本轮反馈）
+
+```bash
+cd examples/idea-to-proof && make local     # 进交互 pi —— 用户实测"调试很方便"
 ```
