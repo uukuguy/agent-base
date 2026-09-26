@@ -31,6 +31,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { runLlmConfigChecks } from "./image-capability-checks.mjs";
+// 同一份指纹实现（构建端把它烤进 LABEL，这里重算比对）
+import { imageInputsDigest } from "../core/image/inputs-digest.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -233,6 +235,33 @@ export function runImageChecks({ version, arch = hostArch() } = {}) {
     relying.length === 0
       ? "没有 adapter 声称无 OS 沙箱，无需对照"
       : `${relying.join(", ")} 声明 osSandbox=unsupported 并依赖容器层硬下限；容器下限实测${floorOk ? "成立" : "**不成立**（声明等于空话）"}`);
+
+  // ④b **同源检查**：镜像必须与当前源码同源
+  //
+  // 这条是补一个真实漏检：改了入口脚本/启动脚本却不重建镜像，镜像里跑的还是旧行为，
+  // 而当时所有检查只看"镜像存在 + 平台对" ⇒ 全绿。指纹由构建端烤进 LABEL（core/image/build.mjs），
+  // 这里用**同一份实现**重算比对。
+  {
+    const ctx = path.join(REPO, "dist/image/context");
+    if (!fs.existsSync(path.join(ctx, "Dockerfile"))) {
+      add("images-same-source", false, "缺构建上下文 dist/image/context —— 无法判断镜像是否与当前源码同源（先跑一次 make image）");
+    } else {
+      const expected = imageInputsDigest(ctx);
+      const tags = [base, debug, `agent-base:${version}-amd64`, `agent-base:${version}-debug-amd64`];
+      const seen = [];
+      const stale = [];
+      for (const t of tags) {
+        const lbl = spawnSync("docker", ["image", "inspect", t, "--format", '{{index .Config.Labels "agent-base.inputs-digest"}}'],
+          { encoding: "utf8" }).stdout.trim();
+        if (!lbl) continue;                    // 该变体不存在（有专门的 dual-arch 检查负责报）
+        seen.push(t);
+        if (lbl !== expected) stale.push(`${t}(${lbl.slice(0, 15)}…)`);
+      }
+      if (!seen.length) add("images-same-source", false, "没有可核对的镜像变体");
+      else if (stale.length) add("images-same-source", false, `镜像与当前源码**不同源**（改过 Dockerfile/entrypoint/startup/lock 后没重建）：${stale.join(", ")}`);
+      else add("images-same-source", true, `${seen.length} 个变体与当前源码同源（inputs-digest ${expected.slice(0, 15)}…）`);
+    }
+  }
 
   // ⑤ 交付价值的最终检验：容器里能配好 LLM 并真跑通（含负向）
   for (const c of runLlmConfigChecks({ image: base })) add(c.id, c.ok, c.detail);

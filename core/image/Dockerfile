@@ -23,7 +23,16 @@
 # ============================================================================
 
 ARG NODE_IMAGE=node:24-bookworm-slim
+# 构建输入指纹（由 core/image/build.mjs 计算并传入）：让"镜像是否与当前源码同源"可被检查。
+# 没有它，改了入口脚本却不重建，镜像里跑的还是旧行为 —— 而检查只看"镜像存在 + 平台对"。
+ARG IMAGE_INPUTS_DIGEST=unknown
 FROM ${NODE_IMAGE}
+
+# ARG 必须**在 FROM 之后再声明一次**才在后续指令里可见 ——
+# 早前只在 FROM 之前声明，于是 LABEL 拿到空值（生产镜像没有指纹，调试镜像有）。
+ARG IMAGE_INPUTS_DIGEST=unknown
+LABEL agent-base.inputs-digest=${IMAGE_INPUTS_DIGEST} \
+      agent-base.variant=production
 
 # 版本 pin 来自**构建上下文里的坐标表** harnesses.lock.json
 # （由 core/image/build.mjs 从 adapters/*/adapter.yaml 生成 —— 单一真源仍在那里）。

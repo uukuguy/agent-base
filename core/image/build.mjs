@@ -23,12 +23,16 @@
 // ============================================================================
 
 import fs from "node:fs";
+import fsSync from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { EXIT_CODES } from "../gates/index.mjs";
 import { parseArgs } from "../gates/cli.mjs";
+// 输入指纹：构建端与检查端**共用同一份实现**（core/image/inputs-digest.mjs）
+import { imageInputsDigest } from "./inputs-digest.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -59,17 +63,34 @@ const MULTI_BUILDER = "ab-multi";
  * 反过来，多平台构建必须在 container builder 上做（docker 驱动不支持）。
  * 所以结论是：**每次构建显式指定对的 builder**，不要依赖"当前 builder"。
  */
+/**
+ * 列出 buildx builder（名字 + 驱动）。
+ *
+ * **不要用 `docker buildx ls --format`**：本机 buildx 0.33 下它对 `{{.Name}}/{{.Driver}}` 返回**空**，
+ * 于是探测永远失败、调试变体构建挂掉（构建信息里只有一段看不懂的 buildkit 堆栈）。
+ * 解析纯文本表格反而稳定（`NAME/NODE` 表头 + 以 `\_` 开头的节点行要跳过）。
+ */
+function listBuilders() {
+  const out = spawnSync("docker", ["buildx", "ls"], { encoding: "utf8" }).stdout;
+  const rows = [];
+  for (const line of out.split("\n")) {
+    const t = line.trim();
+    if (!t || /^NAME\/NODE/.test(t) || t.startsWith("\\_") || t.startsWith("Cannot load")) continue;
+    const m = t.match(/^(\S+)\s+(\S+)/);
+    if (m) rows.push({ name: m[1].replace(/\*$/, ""), driver: m[2] });
+  }
+  return rows;
+}
+
 function dockerDriverBuilder() {
-  const out = spawnSync("docker", ["buildx", "ls", "--format", "{{.Name}}|{{.Driver}}"], { encoding: "utf8" }).stdout;
-  const rows = out.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => l.split("|"));
-  const dockerOnes = rows.filter((r) => r[1] === "docker").map((r) => r[0]);
+  const dockerOnes = listBuilders().filter((r) => r.driver === "docker").map((r) => r.name);
   if (!dockerOnes.length) return null;
   // 优先与当前 docker context 同名的那个（OrbStack 下即为 `orbstack`），否则退到第一个
   const ctx = spawnSync("docker", ["context", "show"], { encoding: "utf8" }).stdout.trim();
   return dockerOnes.includes(ctx) ? ctx : dockerOnes[0];
 }
 function ensureMultiBuilder() {
-  const have = spawnSync("docker", ["buildx", "ls", "--format", "{{.Name}}"], { encoding: "utf8" }).stdout.split("\n").map((x) => x.trim());
+  const have = listBuilders().map((r) => r.name);
   if (!have.includes(MULTI_BUILDER)) {
     log(`▶ 创建多架构 builder：${MULTI_BUILDER}（docker-container 驱动 —— 本机 docker 驱动不支持 manifest list）`);
     const c = docker(["buildx", "create", "--name", MULTI_BUILDER, "--driver", "docker-container", "--bootstrap"], { capture: true });
@@ -122,6 +143,7 @@ function prepareContext(specs) {
   fs.mkdirSync(ctx, { recursive: true });
   // 启动期准备脚本必须进上下文：它是"参数下放"的落地点（见 core/image/startup.mjs 的文件头）
   for (const f of ["Dockerfile", "Dockerfile.debug", "entrypoint.sh", "startup.mjs", "preinstall.lock.txt"]) {
+  // 注意：inputs-digest.mjs 只被 build.mjs 自己 import，不必进上下文（它不参与镜像内容）
     fs.copyFileSync(path.join(IMAGE_DIR, f), path.join(ctx, f));
   }
   fs.writeFileSync(path.join(ctx, "harnesses.lock.json"), JSON.stringify({
@@ -142,7 +164,7 @@ function hostArch() {
   return m === "x86_64" ? "amd64" : m === "aarch64" || m === "arm64" ? "arm64" : m;
 }
 
-function buildArch({ arch, tag, baseTag, debug, specs, ctx, noCache }) {
+function buildArch({ arch, tag, baseTag, debug, specs, ctx, noCache, inputsDigest }) {
   const platform = `linux/${arch}`;
   const args = [
     "buildx", "build", `--platform`, platform, "--load",
@@ -153,6 +175,8 @@ function buildArch({ arch, tag, baseTag, debug, specs, ctx, noCache }) {
   if (localBuilder) args.push("--builder", localBuilder);
   else log("⚠️ 没找到 docker 驱动的 builder，将沿用当前 builder（若当前是 container 驱动，调试变体会因看不到本地镜像而失败）");
   if (noCache) args.push("--no-cache");
+  // 烤进镜像的输入指纹：让"镜像是否与当前源码同源"可被检查（而不是靠人记得重建）
+  if (inputsDigest) args.push("--build-arg", `IMAGE_INPUTS_DIGEST=${inputsDigest}`);
   if (debug) {
     // 显式传基础镜像 tag：早前用 `tag.replace(/-debug$/, "")` 猜，而调试 tag 形如
     // `...-debug-arm64`（结尾是架构），替换不中 ⇒ BASE_IMAGE 指回自己 ⇒ 拉取失败。
@@ -228,11 +252,12 @@ function main() {
 
   if (!flags.has("--manifest")) {
     for (const arch of arches) {
-      const base = buildArch({ arch, tag: tagFor(arch, false), debug: false, specs, ctx, noCache: flags.has("--no-cache") });
+      const inputsDigest = imageInputsDigest(ctx);
+      const base = buildArch({ arch, tag: tagFor(arch, false), debug: false, specs, ctx, noCache: flags.has("--no-cache"), inputsDigest });
       if (!base.ok) { log(`\n❌ ${arch} 基础镜像构建失败`); process.exit(EXIT_CODES.crash); }
       results.push(base);
       if (flags.has("--debug")) {
-        const dbg = buildArch({ arch, tag: tagFor(arch, true), baseTag: tagFor(arch, false), debug: true, specs, ctx, noCache: flags.has("--no-cache") });
+        const dbg = buildArch({ arch, tag: tagFor(arch, true), baseTag: tagFor(arch, false), debug: true, specs, ctx, noCache: flags.has("--no-cache"), inputsDigest });
         if (!dbg.ok) { log(`\n❌ ${arch} 调试变体构建失败`); process.exit(EXIT_CODES.crash); }
         results.push(dbg);
       }
@@ -278,6 +303,9 @@ function main() {
       "--builder", MULTI_BUILDER,
       "--platform", "linux/arm64,linux/amd64",
       "-f", path.join(ctx, "Dockerfile"),
+      // 归档里的镜像也要带**输入指纹**：实测漏过一次 —— 本地镜像带指纹、归档里却是 unknown，
+      // 于是"归档是否与当前源码同源"无从判断。
+      "--build-arg", `IMAGE_INPUTS_DIGEST=${imageInputsDigest(ctx)}`,
       "--output", `type=oci,dest=${dest}`,
       ctx,
     ], { capture: true });

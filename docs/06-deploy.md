@@ -182,6 +182,11 @@ make image-builder         # 多架构 builder 就绪并设为当前（让手敲
 **预装清单**的单一真源是 `core/image/preinstall.yaml`；构建输入是它生成的
 `core/image/preinstall.lock.txt`（改了清单要跑 `make image-lock`，否则 `make validate` 会失败）。
 
+**改了这些输入就必须重建镜像**：两个 `Dockerfile` · `entrypoint.sh` · `core/image/startup.mjs` ·
+两份锁（`harnesses.lock.json` / `preinstall.lock.txt`）。构建期会把它们的指纹烤进镜像 LABEL
+`agent-base.inputs-digest`，`conformance` 的 C9 会重算比对 —— **忘了重建会直接红**，
+不会再出现"镜像在跑旧行为而所有检查全绿"。
+
 **构建环境注意**：本机 Docker 由 OrbStack 管理，其 `docker` 驱动**不支持多平台构建** ——
 `make image-all` 会自动准备一个 `docker-container` 驱动的 builder 来完成。手敲多平台命令前先
 `make image-builder`。

@@ -124,3 +124,20 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 4. CLAUDE.md（若已创建）+ 运行时记忆自动加载。
 5. 自检全貌：`make -s help`；十个自检目标 + `make conformance`（后者对 dsh 预期非零）。
 6. 需要实现细节时按需读统一设计正文（1600+ 行，**勿全文加载**）：§0.2 决策、§2 架构、§4 定义单元、§5 适配契约、§6 四闸门、§8 交付契约与轨迹、§12 落地、附录 B 实施顺序。
+
+## 当前镜像快照（2026-09-26）
+
+四份交付镜像 + 一份多架构归档，**全部与当前源码同源**（`conformance` C9 的 `images-same-source` 逐份核对）。
+
+| 镜像 | 架构 | ID（前 16 位） | 大小 |
+|---|---|---|---|
+| `agent-base:0.1.0-arm64` | arm64 | `268c25667ef316bd` | 2.46 GB |
+| `agent-base:0.1.0-amd64` | amd64 | `97c3ea290d4c3395` | 2.44 GB |
+| `agent-base:0.1.0-debug-arm64` | arm64 | `4a28dbf9e730d23d` | 2.47 GB |
+| `agent-base:0.1.0-debug-amd64` | amd64 | `97c3ea290d4c3395`→ 见构建输出 | ~2.45 GB |
+| `dist/image/agent-base-0.1.0.oci.tar` | arm64 + amd64 | 1.83 GB（多架构 manifest） | — |
+
+**同源指纹**：`core/image/inputs-digest.mjs` 对构建输入（两个 Dockerfile / entrypoint / 启动脚本 / 两份锁）
+算一个 sha256，构建期烤进镜像 LABEL `agent-base.inputs-digest`；C9 用**同一份实现**重算比对。
+**改了这些输入却不重建镜像 ⇒ C9 直接红**（这是补一个真实漏检：此前只验"存在 + 平台对"）。
+
