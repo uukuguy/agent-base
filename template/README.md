@@ -17,13 +17,23 @@
 
 ## 常用命令
 
+**开发循环：改 → 查 → 跑 → 验**（都在这个目录里跑）：
+
 ```bash
-make validate     # 改完先跑这个：定义合法吗
-make verify       # 四道闸门全跑，最后给出「可用 / 不可用」
-make render       # 只想看渲染产物
-make doctor       # 想知道运行时"实际加载了什么"
-make help         # 全部命令
+make validate     # ① 改完先跑：秒级、不用网络、不用密钥（定义/引用/分层/增强声明都查）
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="…"   # ② 真跑一次
+make verify       # ③ 四道闸门 → 「可用 / 不可用」
+make compare      # ④ 换个运行时再验、看等价性（差异必须有声明）
 ```
+
+不确定有哪些模型可用：
+
+```bash
+make providers-init ENDPOINT=<端点> API_KEY=<密钥>   # 写成 ./providers.yaml（会被自动采用）
+```
+
+其它：`make render`（只看渲染产物）· `make probe` / `make smoke`（零凭据地看链路与边界）·
+`make doctor`（运行时"实际加载了什么"）· `make help`（全部命令）
 
 `make verify` 是核心。它依次跑四道闸门：
 

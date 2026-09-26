@@ -37,172 +37,84 @@ README.md            本文件
 
 ## 构建与验证过程
 
-> **全程不需要任何密钥。** 两个原因：① `model.provider: ollama` 在基座内置 provider 目录里是
-> `auth: none` —— 本地服务，基座不产生凭据参数；② 下面步骤 2–4 里闸门 3/4 默认打**自带零凭据假网关**，
-> 与你本机有没有模型服务无关。只有步骤 6 真跑时才需要 Ollama 真的在跑，但**仍然不需要密钥**。
-
-### 步骤 1 · 闸门 1：定义合法吗（在**仓库根**跑）
-
-- 做什么：确认 agent.yaml 通过 schema、`model.provider` 已声明、3 个技能的 frontmatter 合法。
-- 命令：
+**在这个目录里开发** —— 每个示例自带 Makefile，不用回仓库根：
 
 ```bash
-node tools/validate.mjs examples/local-model-dev
-```
-
-- 看什么：关键行与末尾摘要。
-- 期望结果：**退出码 0**，并看到
-
-```
-✅ [provider/declared] model.provider「ollama」已声明（openai-completions，端点 http://localhost:11434/v1）
-✅ [skill/frontmatter] 3 个技能的 frontmatter 合法
-✅ [model/declared-in-provider] provider ollama 未声明模型名单，跳过成员资格校验
-闸门 1：全绿（39 项检查）
-```
-
-> 注意最后一行：本地 provider 不声明模型名单，所以**闸门 1 不会替你校验模型名**——
-> 模型名必须像步骤 8 那样从端点实测。
-
-### 步骤 2 · 闸门 1–4（pi）
-
-- 做什么：把四道闸门串起来，得到「可用 / 不可用」的结论。
-- 命令：
-
-```bash
-node tools/verify.mjs examples/local-model-dev --harness pi
-```
-
-- 看什么：逐道闸门的 ✅，以及最后一行结论。
-- 期望结果：**退出码 0**，并看到
-
-```
-✅ [resolution/skills-set] 硬断言 1：实际加载的技能集合必须等于声明集合｜集合相等（3 项）
-✅ [probe/model.tools] 端点收到的请求里 tools=3 > 0（证据来源：端点侧（假网关记录））
-✅ [smoke/output-marker] 输出包含预期标记 FAKE_GATEWAY_OK
-✅ [smoke/no-denied-tools] 调用到的工具都未触碰禁用清单：read
-可用：四道闸门全过（§6.8）
-```
-
-四道闸门分别在证：定义合法（1）、运行时**实际加载**的技能与声明一致（2）、
-模型与技能真的可达且请求里带工具（3）、它真的能干活且没越界用工具（4）。
-本示例声明 `tools.deny: [write, edit]`，所以冒烟里出现 `read`（dsh 上是别的内置工具）正常，
-出现 `write` / `edit` 才是越界。
-
-### 步骤 3 · 闸门 1–4（dsh）
-
-- 做什么：同一份定义换运行时，确认**可移植**。
-- 命令：
-
-```bash
-node tools/verify.mjs examples/local-model-dev --harness dsh
-```
-
-- 期望结果：**退出码 0**，同样是 `可用：四道闸门全过`。dsh 的工具名与粒度与 pi 不同（它是 row 级），
-  这些差异由适配器显式声明，不会沉默地不一样。
-
-### 步骤 4 · 跨运行时等价性
-
-- 做什么：确认中性定义层面的三组集合（技能 / 连接器 / 模型路由）两侧一致。
-- 命令：
-
-```bash
-node tools/compare.mjs examples/local-model-dev
-```
-
-- 期望结果：**退出码 0**，并看到
-
-```
-✅ 技能集合
-     dsh   capability-boundary-log, endpoint-swap-checklist, prompt-eval-offline
-     pi    capability-boundary-log, endpoint-swap-checklist, prompt-eval-offline
-✅ 路由协议形状：openai-completions
-✅ 等价性通过：中性定义层的三组集合两侧一致，差异均有声明。
-```
-
-### 步骤 5 · 技能脚本自检
-
-- 命令：
-
-```bash
-node examples/local-model-dev/skills/prompt-eval-offline/scripts/eval-check.mjs --selftest
-```
-
-- 期望结果：**退出码 0**，末行 `eval-check 自检：全绿`。
-
-### 步骤 6 · 本机起 Ollama，真跑一次
-
-前面几步验的是**契约**；真跑才是"你这台机器 + 这个模型"的证据。
-
-```bash
-# ① 确认本机有 Ollama 且在跑，并列出已拉取的模型（NAME 列就是要写进 model.name 的完整串，含 tag）
-ollama list
-ollama pull qwen2.5-coder:7b        # 或拉你想要的，或直接用 list 里已有的
-```
-
-```bash
-# ② 在示例目录里真跑一次 —— **不用给端点**：产物里已带 Ollama 的默认端点，run-local 会自动用它
 cd examples/local-model-dev
-make run-local PROMPT="用一句话说明你能做什么"
 ```
 
-- 看什么：头部会打印 `模型端点` / `暂存副本` / `轨迹`，然后是模型的回复。
-- 期望结果：**退出码 0**，有正常文本回复。模型名写错时会在这一步**显式失败**（端点报 model not found），
-  不会静默跳过——这正是要把模型名从端点问出来的原因。
-
-用 `ollama list` 里已有的模型跑：
+### 开发循环：改 → 查 → 跑 → 验
 
 ```bash
-make run-local MODEL=<ollama list 里的 NAME> PROMPT="只回复 OK"
+# ① 改完立刻查：秒级，不用网络、不用密钥（定义/引用/分层/增强声明都查）
+make validate
+#   期望：闸门 1：全绿，末尾没有 ❌（写错的地方会点名字段；**不写死项数**，免得数字一漂就过期）
+
+# ② 真跑一次
+make run-local ENDPOINT=<端点> PROMPT="核对本机端点与模型是否可用，并给出结论"
+#   期望：本机端点/模型的核对结论（可用性 + 依据）；退出码 0
+
+# ③ 四道闸门 → 给一个「可用 / 不可用」的结论
+make verify
+#   期望：✅ 可用：四道闸门全过（§6.8）
+#   闸门 3/4 默认走基座自带的**零凭据假网关**，不需要任何密钥
 ```
 
-> 端点来源的优先级：`--endpoint` > 环境变量 `OLLAMA_BASE_URL` > **产物里的默认值**。
-> 所以换机器/换端口时才需要显式给：`OLLAMA_BASE_URL=http://other-host:11434/v1 make run-local PROMPT="…"`。
-
-### 步骤 7 · 换 vLLM / LM Studio
-
-换端点只改 agent.yaml 里 `model.provider` 一行，其余不动。
-
-```yaml
-# vLLM：默认端点 http://localhost:8000/v1；模型名就是 `vllm serve <模型>` 的那个
-model:
-  provider: vllm
-  name: Qwen/Qwen2.5-Coder-7B-Instruct
-```
-
-```yaml
-# LM Studio / llama.cpp / 其它自建服务：provider 用 local（通用 OpenAI 兼容），端点由部署给
-model:
-  provider: local
-  name: <LM Studio 里加载的模型 id>
-```
+### 端点与密钥怎么给（三选一）
 
 ```bash
-# local 没写死端点（provider 里是 baseUrlParam）⇒ 必须显式给（LM Studio 常用 1234）
-make run-local ENDPOINT=http://localhost:1234/v1 PROMPT="只回复 OK"
+# ① 命令行（临时用）
+make run-local ENDPOINT=<端点> PROMPT="…"
+
+# ② 放这个目录下的 .env（之后不用再敲；**真实环境变量优先于它**）
+printf 'OLLAMA_BASE_URL=<端点>\n' > .env
+make run-local PROMPT="…"
+
+# ③ 凭据目录（CI / 生产）：AGENT_SECRETS_DIR=/dir，读 /dir/<参数名>
 ```
 
-改完**重跑步骤 1–4**，再真跑一次。
+本示例的参数名：`ENDPOINT` → `OLLAMA_BASE_URL`（本地模型**不需要密钥**）
 
-### 步骤 8 · 问端点"你到底有哪些模型"
-
-不要靠记忆填模型名——让端点自己回答：
+### 不知道有哪些模型可用
 
 ```bash
-make providers-init ENDPOINT=http://localhost:11434/v1 PROVIDER=ollama DRY_RUN=1
-#   等价于：node tools/providers-init.mjs --endpoint http://localhost:11434/v1 --provider ollama --dry-run
+make providers-init ENDPOINT=<端点> 
+#   期望：打印该端点的模型名单，并写成 ./providers.yaml
+#   这个文件会被自动采用；`agent.yaml` 里的 model.name 写错了，闸门 1 当场拦住
 ```
 
-- 看什么：它问 `GET <端点>/models`，把解析出的模型名列出来。
-- 期望结果：**退出码 0**，并打印形如
+### 换一个运行时再验一次 / 看等价性
 
-```
-▶ http://localhost:11434/v1/models 报告 N 个模型：
-   · qwen2.5-coder:7b
-   · ...
+```bash
+make verify HARNESS=dsh     # 期望：同样「可用：四道闸门全过」
+make compare                # 期望：等价性通过（差异必须有声明，不许沉默）
 ```
 
-`--dry-run` 只问不写；去掉它会把结果写成一份 provider 目录（vLLM 换 8000，LM Studio 换 1234）。
-基座自带的 `Makefile` 里也有 `providers-init` 目标，但它当前有旗标 bug，直接用上面这条 node 命令即可。
+### 零凭据地只看链路与边界
+
+```bash
+make probe    # 闸门 3：模型可达、工具字段没被吞、流式没被降级
+make smoke    # 闸门 4：真的干活、且没越界用工具
+```
+
+### 改了技能自带的脚本，就跑它的自检
+
+```bash
+node skills/prompt-eval-offline/scripts/eval-check.mjs --selftest
+#   期望：退出码 0
+```
+
+### 四道闸门分别在证明什么
+
+| 闸门 | 证明什么 | 本示例的看点 |
+|---|---|---|
+| 1 静态 | 定义合法、引用与分层合规 | 技能名与目录一致、模型名在该供应商名单内、增强声明合法 |
+| 2 解析自证 | 运行时**实际加载**到的东西与声明一致 | 技能/增强真的进了产物（不是写在定义里就算） |
+| 3 集成探针 | 模型可达、工具字段在、流式没降级 | 闸门 3/4 会打到你本机的端点 —— 先确认 Ollama/vLLM 已起来 |
+| 4 端到端冒烟 | 它真的能干活、且没越界用工具 | 被禁的工具不会出现在冒烟轨迹里（边界是**实测**的，不是约定的） |
+
+本示例用**本地模型**：不需要密钥；`OLLAMA_BASE_URL` 默认 `http://127.0.0.1:11434/v1`
+
 
 ## 改它
 

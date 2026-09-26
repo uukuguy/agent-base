@@ -69,10 +69,22 @@ export function runLlmConfigChecks({ image }) {
   if (!artifact) return [{ id: "agent-runs-with-injected-llm-config", ok: false, detail: "前置失败：渲染产物失败" }];
 
   const okDir = fs.mkdtempSync(path.join(os.tmpdir(), "llm-cfg-out-"));
+  // **参数名从产物清单里取**（`runtimeParams[].backs` 就是这份契约），不许写死某个供应商的名字。
+  // 教训：这里原来写死 CORP_GATEWAY_*，而本检查渲染的示例后来换了供应商 ——
+  // 检查就变成"永远红"，而它先前被 C9 的前一步（镜像同源）挡住，没人发现。
+  const manifest = JSON.parse(fs.readFileSync(path.join(artifact, "render-manifest.json"), "utf8"));
+  const params = manifest.runtimeParams ?? [];
+  const endpointParam = params.find((x) => x.backs === "model.provider" && !x.secret)?.name;
+  const secretParam = params.find((x) => x.secret === true)?.name;
+  const modelParam = params.find((x) => x.backs === "model.name")?.name;
+  if (!endpointParam || !secretParam || !modelParam) {
+    return [{ id: "agent-runs-with-injected-llm-config", ok: false,
+      detail: `产物未声明完整的运行期参数契约（endpoint=${endpointParam} secret=${secretParam} model=${modelParam}）` }];
+  }
   const injected = {
-    CORP_GATEWAY_BASE_URL: `http://127.0.0.1:${GW_PORT}/v1`,
-    CORP_GATEWAY_API_KEY: "placeholder-not-a-credential",
-    CORP_GATEWAY_MODEL: "corp-think",
+    [endpointParam]: `http://127.0.0.1:${GW_PORT}/v1`,
+    [secretParam]: "placeholder-not-a-credential",
+    [modelParam]: manifest.modelProviders?.[0] === "deepseek" ? "deepseek-flash" : "corp-think",
   };
   const ok = runAgentInContainer(image, artifact, injected, okDir);
 
@@ -89,22 +101,23 @@ export function runLlmConfigChecks({ image }) {
     withTools.length ? `端点侧记录 ${withTools.length} 次请求，tools=${withTools[0].tools} stream=true` : `轨迹里没有带工具数的 model.request（轨迹行数 ${reqs.length}）`);
 
   // 正向③：模型名确实是运行期注入的那个（而不是产物里的默认值碰巧相同）
-  add("container-model-name-from-runtime", withTools.some((e) => e.model === injected.CORP_GATEWAY_MODEL),
+  add("container-model-name-from-runtime", withTools.some((e) => e.model === injected[modelParam]),
     `端点侧记录的 model=${[...new Set(withTools.map((e) => e.model))].join(",") || "(无)"}`);
 
   // 正向④：产物只读挂载未被改写（改了摘要就不成立）
-  const manifestDigest = JSON.parse(fs.readFileSync(path.join(artifact, "render-manifest.json"), "utf8")).artifactsDigest;
+  const manifestDigest = manifest.artifactsDigest;
   add("container-artifact-untouched", !!manifestDigest && fs.existsSync(path.join(artifact, "render-manifest.json")),
     "产物根目录仍可读且清单在位（写入都发生在暂存副本里）");
 
   // 负向：不给凭据 → 退出码 2，且点名缺哪个引用名
   const badDir = fs.mkdtempSync(path.join(os.tmpdir(), "llm-cfg-bad-"));
   const bad = runAgentInContainer(image, artifact, {
-    CORP_GATEWAY_BASE_URL: injected.CORP_GATEWAY_BASE_URL,
-    CORP_GATEWAY_MODEL: injected.CORP_GATEWAY_MODEL,
+    [endpointParam]: injected[endpointParam],
+    [modelParam]: injected[modelParam],
   }, badDir);
-  add("container-missing-credential-fails-fast", bad.exit === 2 && /CORP_GATEWAY_API_KEY/.test(bad.agentErr),
-    `退出码 ${bad.exit}（期望 2）；stderr 是否点名缺的引用名：${/CORP_GATEWAY_API_KEY/.test(bad.agentErr)}`);
+  const namesMissing = new RegExp(secretParam).test(bad.agentErr);
+  add("container-missing-credential-fails-fast", bad.exit === 2 && namesMissing,
+    `退出码 ${bad.exit}（期望 2）；stderr 是否点名缺的引用名（${secretParam}）：${namesMissing}`);
 
   return checks;
 }

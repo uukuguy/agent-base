@@ -75,6 +75,29 @@ check("运行后未污染本机 ~/.pi（隔离生效）",
   before === null || !fs.existsSync(path.join(os.homedir(), ".pi")) || fs.statSync(path.join(os.homedir(), ".pi")).mtimeMs === before,
   "本机 ~/.pi 的 mtime 发生变化 ⇒ HOME 没隔离干净");
 
+console.log("\n── 改了定义就不许复用旧产物（「改了没生效」是最费时间的坑）──");
+{
+  // 首次运行已经把产物渲进了 base/render；现在**改一下定义**再跑一次，
+  // 必须（a）重新渲染、且（b）明说"定义已变"。不修的话：报错会指向已被改掉的供应商/参数名。
+  const yamlFile = path.join(agent, "agent.yaml");
+  const before = fs.readFileSync(yamlFile, "utf8");
+  fs.writeFileSync(yamlFile, before.replace(/^(description:.*)$/m, "$1（改了）"));
+  const gw2 = spawn(process.execPath, ["-e",
+    `import("${REPO}/tools/fake-gateway/server.mjs").then(async (m) => { const g = await m.startFakeGateway({ port: ${port + 1} }); setTimeout(async () => { await g.close(); process.exit(0); }, 90000); });`],
+    { stdio: "ignore" });
+  await sleep(2500);
+  const r2 = spawnSync(process.execPath, [
+    path.join(HERE, "run-local.mjs"), agent, "--prompt", "再说一句",
+    "--endpoint", `http://127.0.0.1:${port + 1}/v1`, "--zero-credential", "true",
+    "--render-dir", path.join(base, "render"),
+  ], { encoding: "utf8", cwd: REPO, timeout: 180000 });
+  gw2.kill("SIGTERM");
+  const log2 = `${r2.stdout ?? ""}\n${r2.stderr ?? ""}`;
+  check("定义变了会重新渲染（而不是用旧产物）", /定义已变/.test(log2), log2.split("\n").slice(0, 3).join(" / "));
+  check("重新渲染后仍然跑通", r2.status === 0 && /FAKE_GATEWAY_OK/.test(log2), (log2.match(/❌.*/) ?? [""])[0]);
+  fs.writeFileSync(yamlFile, before);
+}
+
 console.log("\n── 未实现的 harness 必须响亮失败，不许静默改用别的 ──");
 const other = spawnSync(process.execPath, [path.join(HERE, "run-local.mjs"), agent, "--harness", "nope"], { encoding: "utf8", cwd: REPO });
 check("未知 harness 非零退出并说明原因", other.status !== 0 && /(尚未实现|没有运行器)/.test(other.stderr ?? ""), (other.stderr ?? "").slice(-200));

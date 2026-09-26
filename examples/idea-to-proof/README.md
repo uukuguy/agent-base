@@ -29,47 +29,84 @@
 
 ## 构建与验证过程
 
-在**仓库根**执行（下面的命令都能直接粘）：
+**在这个目录里开发** —— 每个示例自带 Makefile，不用回仓库根：
 
 ```bash
-# ① 静态校验：定义合法、引用存在、命名与分层合规
-make validate AGENT_DIR=examples/idea-to-proof
-#   期望：闸门 1：全绿（38 项检查）；末尾没有 ❌
+cd examples/idea-to-proof
+```
 
-# ② 四道闸门：闸门 2 解析自证 → 3 集成探针 → 4 端到端冒烟
-node tools/verify.mjs examples/idea-to-proof --harness pi
-#   期望：✅ 可用：四道闸门全过（§6.8）—— 这个想法被证明走通了
-#   闸门 3/4 走基座自带的**零凭据假网关**，不需要任何密钥
+### 开发循环：改 → 查 → 跑 → 验
 
-# ③ 换一个运行时再验一次（同一份定义必须两边都可用）
-node tools/verify.mjs examples/idea-to-proof --harness dsh
-#   期望：同样「可用：四道闸门全过」
+```bash
+# ① 改完立刻查：秒级，不用网络、不用密钥（定义/引用/分层/增强声明都查）
+make validate
+#   期望：闸门 1：全绿，末尾没有 ❌（写错的地方会点名字段；**不写死项数**，免得数字一漂就过期）
 
-# ④ 跨运行时等价性：两边渲染出的能力集合必须一致，差异必须有声明
-node tools/compare.mjs examples/idea-to-proof
-#   期望：等价性通过
+# ② 真跑一次
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="客服响应慢，我觉得是人手不够"
+#   期望：一份表格（断言 / 证伪条件 / 证据等级 / 不可验证项），最后一句是「下一步先验第 N 条，因为……」；退出码 0
 
-# ⑤ 技能自带脚本的自检（改了脚本就跑）
-node examples/idea-to-proof/skills/evidence-grading/scripts/check-table.mjs --selftest
+# ③ 四道闸门 → 给一个「可用 / 不可用」的结论
+make verify
+#   期望：✅ 可用：四道闸门全过（§6.8）
+#   闸门 3/4 默认走基座自带的**零凭据假网关**，不需要任何密钥
+```
+
+### 端点与密钥怎么给（三选一）
+
+```bash
+# ① 命令行（临时用）
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="…"
+
+# ② 放这个目录下的 .env（之后不用再敲；**真实环境变量优先于它**）
+printf 'DEEPSEEK_BASE_URL=<端点>\nDEEPSEEK_API_KEY=<密钥>\n' > .env
+make run-local PROMPT="…"
+
+# ③ 凭据目录（CI / 生产）：AGENT_SECRETS_DIR=/dir，读 /dir/<参数名>
+```
+
+本示例的参数名：`ENDPOINT` → `DEEPSEEK_BASE_URL`；密钥 → `DEEPSEEK_API_KEY`
+
+### 不知道有哪些模型可用
+
+```bash
+make providers-init ENDPOINT=<端点> API_KEY=<密钥> 
+#   期望：打印该端点的模型名单，并写成 ./providers.yaml
+#   这个文件会被自动采用；`agent.yaml` 里的 model.name 写错了，闸门 1 当场拦住
+```
+
+### 换一个运行时再验一次 / 看等价性
+
+```bash
+make verify HARNESS=dsh     # 期望：同样「可用：四道闸门全过」
+make compare                # 期望：等价性通过（差异必须有声明，不许沉默）
+```
+
+### 零凭据地只看链路与边界
+
+```bash
+make probe    # 闸门 3：模型可达、工具字段没被吞、流式没被降级
+make smoke    # 闸门 4：真的干活、且没越界用工具
+```
+
+### 改了技能自带的脚本，就跑它的自检
+
+```bash
+node skills/evidence-grading/scripts/check-table.mjs --selftest
 #   期望：退出码 0
 ```
 
-四道闸门分别在证明：
+### 四道闸门分别在证明什么
 
 | 闸门 | 证明什么 | 本示例的看点 |
 |---|---|---|
-| 1 静态 | 定义合法、引用与分层合规 | 技能名与目录一致、`deny` 里的工具名是已知工具 |
-| 2 解析自证 | 运行时**实际加载**到的技能与声明一致 | 三个技能都真的进了产物（不是写在定义里就算） |
-| 3 集成探针 | 模型可达、工具字段没被吞、流式没被降级 | 与本地模型无关：探针指向零凭据假网关 |
-| 4 端到端冒烟 | 它真的能干活、且没越界用工具 | 声明了 `deny: [bash, write, edit]`，冒烟里只应出现 `read` |
+| 1 静态 | 定义合法、引用与分层合规 | 技能名与目录一致、模型名在该供应商名单内、增强声明合法 |
+| 2 解析自证 | 运行时**实际加载**到的东西与声明一致 | 技能/增强真的进了产物（不是写在定义里就算） |
+| 3 集成探针 | 模型可达、工具字段在、流式没降级 | 端点侧收到的请求里有工具字段 |
+| 4 端到端冒烟 | 它真的能干活、且没越界用工具 | 闸门 4 的看点：`deny: [bash, write, edit]` ⇒ 冒烟里只应出现 `read` |
 
-**真跑一次**（需要真实端点；想用本地模型见 `examples/local-model-dev/`）：
 
-```bash
-make run-local AGENT_DIR=examples/idea-to-proof PROMPT="客服响应慢，我觉得是人手不够"
-#   期望：输出一份表格（断言 / 证伪条件 / 证据等级 / 不可验证项），
-#        最后一句是「下一步先验第 N 条，因为 ……」；退出码 0
-```
+
 
 ## 改它
 

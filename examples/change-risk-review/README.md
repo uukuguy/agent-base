@@ -30,68 +30,77 @@
 
 ## 构建与验证过程
 
-在**仓库根**执行：
+**在这个目录里开发** —— 每个示例自带 Makefile，不用回仓库根：
 
 ```bash
-# ① 静态校验：定义、技能、**增强声明**（单一真源、不许重复表达中性定义字段）
-node tools/validate.mjs examples/change-risk-review
-#   期望：闸门 1：全绿（39 项检查）
-#   其中两条专盯本示例：
-#     ✅ enhance/single-source  业务级增强没有重复表达中性定义字段
-#     ✅ portability/report     本智能体可移植性：核心 + pi 增强（不可移植）
-
-# ② 渲染：确认扩展**进了产物**并被登记
-node adapters/pi/render.mjs examples/change-risk-review --out /tmp/crr
-node -e 'const s=require("/tmp/crr/agent-dir/settings.json");console.log(s.extensions)'
-#   期望：["extensions/risk-score.ts","extensions/trace.ts"]
-#   注意：extensions/ 目录里的**每个文件**都会被登记为扩展（只有基座发射器 _trace-emit.mjs 被排除）
-#   —— 别把帮助函数丢进这个目录
-
-# ③ 四道闸门（闸门 2 会**实测**扩展真的被加载）
-node tools/verify.mjs examples/change-risk-review --harness pi
-#   期望：✅ 可用：四道闸门全过
-#   其中闸门 2 的硬断言：✅ resolution/enhancements-set  集合相等（2 项）
-
-# ④ 另一侧：dsh 上仍然可用（本示例没有给 dsh 写增强，它照常跑）
-node tools/verify.mjs examples/change-risk-review --harness dsh
-#   期望：✅ 可用：四道闸门全过
-
-# ⑤ 等价性：中性定义层两侧一致，差异必须有声明
-node tools/compare.mjs examples/change-risk-review
-#   期望：✅ 等价性通过
-
-# ⑥ 全部示例一起跑（结构 + README + 两个运行时 + 等价性 + 技能脚本）
-make examples-check
+cd examples/change-risk-review
 ```
 
-## 实测证据（这个示例的意义就在这里）
+### 开发循环：改 → 查 → 跑 → 验
 
-**业务工具真的发给了模型 —— 两个运行时都是**（端点侧观测到的工具数）：
+```bash
+# ① 改完立刻查：秒级，不用网络、不用密钥（定义/引用/分层/增强声明都查）
+make validate
+#   期望：闸门 1：全绿，末尾没有 ❌（写错的地方会点名字段；**不写死项数**，免得数字一漂就过期）
 
-| 运行时 | 去掉 `harness/` 增强 | 带 `corp_risk_score` 增强 |
+# ② 真跑一次
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="复核这次变更的风险，给出可复算的评分"
+#   期望：一份可复算、可审计的风险分数（业务工具给出的确定值，不是模型编的）；退出码 0
+
+# ③ 四道闸门 → 给一个「可用 / 不可用」的结论
+make verify
+#   期望：✅ 可用：四道闸门全过（§6.8）
+#   闸门 3/4 默认走基座自带的**零凭据假网关**，不需要任何密钥
+```
+
+### 端点与密钥怎么给（三选一）
+
+```bash
+# ① 命令行（临时用）
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="…"
+
+# ② 放这个目录下的 .env（之后不用再敲；**真实环境变量优先于它**）
+printf 'CORP_GATEWAY_BASE_URL=<端点>\nCORP_GATEWAY_API_KEY=<密钥>\n' > .env
+make run-local PROMPT="…"
+
+# ③ 凭据目录（CI / 生产）：AGENT_SECRETS_DIR=/dir，读 /dir/<参数名>
+```
+
+本示例的参数名：`ENDPOINT` → `CORP_GATEWAY_BASE_URL`；密钥 → `CORP_GATEWAY_API_KEY`
+
+### 不知道有哪些模型可用
+
+```bash
+make providers-init ENDPOINT=<端点> API_KEY=<密钥> 
+#   期望：打印该端点的模型名单，并写成 ./providers.yaml
+#   这个文件会被自动采用；`agent.yaml` 里的 model.name 写错了，闸门 1 当场拦住
+```
+
+### 换一个运行时再验一次 / 看等价性
+
+```bash
+make verify HARNESS=dsh     # 期望：同样「可用：四道闸门全过」
+make compare                # 期望：等价性通过（差异必须有声明，不许沉默）
+```
+
+### 零凭据地只看链路与边界
+
+```bash
+make probe    # 闸门 3：模型可达、工具字段没被吞、流式没被降级
+make smoke    # 闸门 4：真的干活、且没越界用工具
+```
+
+### 四道闸门分别在证明什么
+
+| 闸门 | 证明什么 | 本示例的看点 |
 |---|---|---|
-| pi | **3** | **4** |
-| dsh | **19** | **20** |
+| 1 静态 | 定义合法、引用与分层合规 | 技能名与目录一致、模型名在该供应商名单内、增强声明合法 |
+| 2 解析自证 | 运行时**实际加载**到的东西与声明一致 | 技能/增强真的进了产物（不是写在定义里就算） |
+| 3 集成探针 | 模型可达、工具字段在、流式没降级 | 闸门 2 的硬断言：`resolution/enhancements-set 集合相等（2 项）`；`make smoke` 的看点是业务工具**真的被调用** |
+| 4 端到端冒烟 | 它真的能干活、且没越界用工具 | 被禁的工具不会出现在冒烟轨迹里（边界是**实测**的，不是约定的） |
 
-复现方法（两步对照，两个运行时各一遍）：
+它有**业务级增强**（`harness/`）：一个真的会调用的风险评分工具 + 两侧各自的接入件
 
-```bash
-B=$(mktemp -d); cp -r examples/change-risk-review/* $B/; rm -rf $B/harness
-node tools/verify.mjs $B --harness pi     # → tools=3      node tools/verify.mjs $B --harness dsh    # → tools=19
-node tools/verify.mjs examples/change-risk-review --harness pi   # → tools=4
-node tools/verify.mjs examples/change-risk-review --harness dsh  # → tools=20
-```
-
-**业务代码是同一份**：两侧的接入件都 import 产物里的 business/risk-score.mjs
-（渲染器把 `harness/shared/` 拷进产物：pi 落在 agent-dir/business/，dsh 落在 产物/harness/business/，
-所以两端接入件用的是**同一个相对路径** ../business/risk-score.mjs）。
-
-**接入件只做三件事**：把业务参数形状翻译成该运行时的参数 DSL、注册工具、转发结果。
-**一行业务规则都不该出现在接入件里** —— 这条由闸门 1 的 `enhance/shared-agnostic` 兜住：
-`harness/shared/` 里的代码一旦 import 运行时包或调用运行时 API，当场变红。
-
-**增强真的被加载**：闸门 2 的硬断言「已加载扩展 id 集合 == 声明集合」给出 `集合相等（2 项）`
-（`trace` 基座不变量 + `corp-risk-score` 业务增强）。
 
 ## 改它（加一个业务增强要动什么）
 

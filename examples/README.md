@@ -26,22 +26,31 @@
 
 ## 怎么跑
 
-每个示例的 README 里有完整的构建与验证过程；这里是速查：
+**开发调试在示例目录里做** —— 每个示例自带 Makefile，所以是同一套循环（改 → 查 → 跑 → 验）：
 
 ```bash
-# 单个示例：四道闸门（零凭据，不需要任何密钥）
-make verify AGENT_DIR=examples/idea-to-proof
-make verify AGENT_DIR=examples/idea-to-proof HARNESS=dsh
+cd examples/idea-to-proof
 
-# 跨运行时等价性比对
+make validate          # 改完先跑：秒级、不用网络、不用密钥
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="…"   # 真跑一次
+make verify            # 四道闸门 → 「可用 / 不可用」（零凭据）
+make compare           # 两个运行时是否等价（差异必须被声明）
+```
+
+不确定有哪些模型可用：`make providers-init ENDPOINT=<端点> API_KEY=<密钥>` → 写成 `providers.yaml`。
+
+根目录上的等价写法（会对**所有**示例生效的那几条）：
+
+```bash
+make verify AGENT_DIR=examples/idea-to-proof [HARNESS=dsh]
 make compare AGENT_DIR=examples/contract-review
-
-# 本地真跑一次（需要端点或本地模型，见各示例 README）
 make run-local AGENT_DIR=examples/idea-to-proof PROMPT="…"
 
 # 全部示例一起校验：结构 + README 完整性 + 两个运行时各四道闸门 + 等价性 + 技能脚本自检
 make examples-check
 ```
+
+每个示例 README 的「构建与验证过程」里都有**该示例**的参数名、示例提示词与期望产出。
 
 ## 示例的验收标准（由 `make examples-check` 强制）
 

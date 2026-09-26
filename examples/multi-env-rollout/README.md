@@ -51,181 +51,84 @@ examples/multi-env-rollout/
 
 ## 构建与验证过程
 
-下面所有 `node` 命令都在**基座仓库根目录**（`agent-base/`）执行；
-带 `make` 的命令在**示例目录**里执行（那才是 Makefile 所在）。
-
-**全程不需要任何真实密钥**：闸门 3/4 用基座自带的零凭据假网关，
-「换值换环境」那段用的是临时伪造值 —— 仓库里不出现真实凭据。
-
-### 第 0 步：闸门 1 —— 定义合法吗
-
-做什么：确认定义能过 schema、引用都存在、provider 覆盖生效。
-
-```bash
-node tools/validate.mjs examples/multi-env-rollout
-```
-
-看什么 / 期望结果：退出码 `0`，最后一行是 `闸门 1：全绿（39 项检查）`。特别看两行：
-
-- `providers/source` 显示 provider 目录来自「基座内置 + agent-local」—— 证明本目录的
-  `providers.yaml` 真的被读到了（没配的话这一行只有内置）。
-- `model/declared-in-provider` 显示 `corp-think` 在 `corp-gateway` 的模型名单内 ——
-  这个名单正是被本目录 `providers.yaml` 覆盖过的。
-
-也可以进示例目录跑同一件事（Makefile 是薄转发层）：
-
-```bash
-cd examples/multi-env-rollout && make validate
-```
-
-### 第 1 步：四道闸门 × 两个运行时，加一次等价性比对
-
-做什么：让两个运行时都**真的把这份定义跑起来**（渲染 → 自证 → 探针 → 冒烟）。
-
-```bash
-node tools/verify.mjs examples/multi-env-rollout --harness pi
-node tools/verify.mjs examples/multi-env-rollout --harness dsh
-node tools/compare.mjs examples/multi-env-rollout
-```
-
-同一组检查也可以走 Makefile（在示例目录里执行，是同一件事的薄封装）：
+**在这个目录里开发** —— 每个示例自带 Makefile，不用回仓库根：
 
 ```bash
 cd examples/multi-env-rollout
-make validate               # = 第 0 步那条
-make verify                 # = 上面 pi 那条
-make verify HARNESS=dsh     # = 上面 dsh 那条
-make compare                # = 上面 compare 那条
 ```
 
-看什么 / 期望结果：两条 `verify` 退出码 `0`，stderr 末行 `✅ 可用：四道闸门全过`；
-`compare` 退出码 `0`，输出 `✅ 等价性通过`。本仓库实测：
+### 开发循环：改 → 查 → 跑 → 验
 
-| 命令 | 退出码 | 关键实测 |
+```bash
+# ① 改完立刻查：秒级，不用网络、不用密钥（定义/引用/分层/增强声明都查）
+make validate
+#   期望：闸门 1：全绿，末尾没有 ❌（写错的地方会点名字段；**不写死项数**，免得数字一漂就过期）
+
+# ② 真跑一次
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="同一份制品要进 staging，给出环境差异核对与上线检查单"
+#   期望：环境差异核对表 + 制品一致证明 + 上线检查单与回滚判据；退出码 0
+
+# ③ 四道闸门 → 给一个「可用 / 不可用」的结论
+make verify
+#   期望：✅ 可用：四道闸门全过（§6.8）
+#   闸门 3/4 默认走基座自带的**零凭据假网关**，不需要任何密钥
+```
+
+### 端点与密钥怎么给（三选一）
+
+```bash
+# ① 命令行（临时用）
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="…"
+
+# ② 放这个目录下的 .env（之后不用再敲；**真实环境变量优先于它**）
+printf 'CORP_GATEWAY_BASE_URL=<端点>\nCORP_GATEWAY_API_KEY=<密钥>\n' > .env
+make run-local PROMPT="…"
+
+# ③ 凭据目录（CI / 生产）：AGENT_SECRETS_DIR=/dir，读 /dir/<参数名>
+```
+
+本示例的参数名：`ENDPOINT` → `CORP_GATEWAY_BASE_URL`；密钥 → `CORP_GATEWAY_API_KEY`
+
+### 不知道有哪些模型可用
+
+```bash
+make providers-init ENDPOINT=<端点> API_KEY=<密钥> 
+#   期望：打印该端点的模型名单，并写成 ./providers.yaml
+#   这个文件会被自动采用；`agent.yaml` 里的 model.name 写错了，闸门 1 当场拦住
+```
+
+### 换一个运行时再验一次 / 看等价性
+
+```bash
+make verify HARNESS=dsh     # 期望：同样「可用：四道闸门全过」
+make compare                # 期望：等价性通过（差异必须有声明，不许沉默）
+```
+
+### 零凭据地只看链路与边界
+
+```bash
+make probe    # 闸门 3：模型可达、工具字段没被吞、流式没被降级
+make smoke    # 闸门 4：真的干活、且没越界用工具
+```
+
+### 改了技能自带的脚本，就跑它的自检
+
+```bash
+node skills/artifact-consistency/scripts/check-artifact-identity.mjs --selftest
+#   期望：退出码 0
+```
+
+### 四道闸门分别在证明什么
+
+| 闸门 | 证明什么 | 本示例的看点 |
 |---|---|---|
-| `validate` | 0 | 39 项全绿；`providers/source` = 基座内置 + agent-local |
-| `verify --harness pi` | 0 | `probe/model.tools`：端点收到 `tools=3`；`smoke`：5 条轨迹过 schema，只用到 `read` |
-| `verify --harness dsh` | 0 | `probe/model.tools`：端点收到 `tools=19`；`smoke`：12 条轨迹过 schema，未触碰禁用清单 |
-| `compare` | 0 | 技能集合两侧一致（3 个）、连接器集合一致（空）、路由一致（`corp-gateway`）、协议形状一致（`openai-completions`），16 条差异均有声明 |
+| 1 静态 | 定义合法、引用与分层合规 | 技能名与目录一致、模型名在该供应商名单内、增强声明合法 |
+| 2 解析自证 | 运行时**实际加载**到的东西与声明一致 | 技能/增强真的进了产物（不是写在定义里就算） |
+| 3 集成探针 | 模型可达、工具字段在、流式没降级 | 闸门 1 的看点：环境差异只出现在**参数层**，不许写进中性定义 |
+| 4 端到端冒烟 | 它真的能干活、且没越界用工具 | 被禁的工具不会出现在冒烟轨迹里（边界是**实测**的，不是约定的） |
 
-带连接器的 `contract-review` 里，pi 与 dsh 的工具数差很多是**已声明**的机制差异；
-本示例不连外部系统，两边的差异都被 `adapters/<运行时>/exemptions.yaml` 覆盖，所以 `compare` 通过。
+它的看点是把**同一份产物**在不同环境参数下跑（见 `## 改它` 里的环境差异）
 
-### 第 2 步：同一份制品，给 dev / staging / prod 分别给值（四种给法都出现）
-
-先渲染**一次** pi 产物（后面几次实验都复用它，证明「制品只有一份」）：
-
-```bash
-node adapters/pi/render.mjs examples/multi-env-rollout --out /tmp/mer-render --json
-```
-
-> 为什么用 pi 做这个实验：pi 的配置（models.json）不做环境插值，参数由启动期渲染 ——
-> 于是 `startup prepare` 的 `--json` 里能直接看到每个值**从哪来**。
-> 四种给法与优先级见 `../../docs/06-deploy.md` 第六节：① > ② > ③ > ④。
-
-**dev —— ① 环境变量**（最直白，任何地方都能用）：
-
-```bash
-CORP_GATEWAY_BASE_URL=https://gw.dev.internal/v1 \
-CORP_GATEWAY_API_KEY="$DEV_KEY" \
-CORP_GATEWAY_MODEL=corp-think \
-node core/image/startup.mjs prepare --artifact /tmp/mer-render --run-dir /tmp/mer-run-dev --json
-```
-
-**staging —— ② 指向文件**（密钥文件由外部挂进来，不放进环境）：
-
-```bash
-printf '%s\n' "$STAGING_KEY" > /tmp/mer-staging.key      # 只在机器上，绝不 commit
-CORP_GATEWAY_BASE_URL=https://gw.staging.internal/v1 \
-CORP_GATEWAY_API_KEY_FILE=/tmp/mer-staging.key \
-CORP_GATEWAY_MODEL=corp-think-staging \
-node core/image/startup.mjs prepare --artifact /tmp/mer-render --run-dir /tmp/mer-run-staging --json
-```
-
-**prod —— ③ 凭据目录**（一次挂一整套：目录里的**文件名就是引用名**）：
-
-```bash
-install -d -m 700 /tmp/mer-secrets
-printf '%s\n' "$PROD_KEY" > /tmp/mer-secrets/CORP_GATEWAY_API_KEY
-CORP_GATEWAY_BASE_URL=https://gw.prod.internal/v1 \
-AGENT_SECRETS_DIR=/tmp/mer-secrets \
-CORP_GATEWAY_MODEL=corp-think-prod \
-node core/image/startup.mjs prepare --artifact /tmp/mer-render --run-dir /tmp/mer-run-prod --json
-```
-
-**④ 定义里的默认值**（④ 只有在该参数有默认值时才成立；这里不设模型名）：
-
-```bash
-CORP_GATEWAY_BASE_URL=https://gw.dev.internal/v1 \
-CORP_GATEWAY_API_KEY="$DEV_KEY" \
-node core/image/startup.mjs prepare --artifact /tmp/mer-render --run-dir /tmp/mer-run-default --json
-```
-
-看什么：`--json` 输出里的 `params.<引用名>.source`。**凭据只报来源、永不打印值。**
-本仓库实测（把四次输出里的 source 摘出来）：
-
-| 给法 | 环境 | 命令给的引用名 | `params.CORP_GATEWAY_API_KEY.source` | `params.CORP_GATEWAY_MODEL` |
-|---|---|---|---|---|
-| ① 环境变量 | dev | `CORP_GATEWAY_API_KEY` | `env` | source `env`，value `corp-think` |
-| ② `_FILE` | staging | `CORP_GATEWAY_API_KEY_FILE` | `file:/tmp/mer-key.XXXXXX` | source `env`，value `corp-think-staging` |
-| ③ `AGENT_SECRETS_DIR` | prod | `/tmp/mer-secrets/CORP_GATEWAY_API_KEY` | `secrets-dir:/tmp/mer-secrets.XXXXXX/CORP_GATEWAY_API_KEY` | source `env`，value `corp-think-prod` |
-| ④ 定义默认值 | （任意） | 不给 `CORP_GATEWAY_MODEL` | `env` | source `definition-default`，value `corp-think` |
-
-上面这些检查用的是零凭据模式（凭据是显式占位值），所以**不需要**任何一个真实密钥也能全绿。
-
-### 第 3 步：证明「同一份产物，换值就换环境」
-
-做什么：对照源产物与暂存副本，确认**制品没被改动**，改的只是可写副本。
-
-```bash
-# 源产物里仍是占位符（制品没动）
-grep -E 'baseUrl|"id"' /tmp/mer-render/agent-dir/models.json.tmpl
-# 暂存副本里已换成 staging 的值
-grep -E 'baseUrl|"id"' /tmp/mer-run-staging/agent-dir/models.json
-grep -E 'defaultProvider|defaultModel' /tmp/mer-run-staging/agent-dir/settings.json
-```
-
-看什么 / 期望结果（本仓库实测）：
-
-```
-源产物   models.json.tmpl : "baseUrl": "${CORP_GATEWAY_BASE_URL}"
-                            "id": "${CORP_GATEWAY_MODEL}"      ← 仍是占位
-暂存副本 models.json      : "baseUrl": "https://gw.staging.internal/v1"
-                            "id": "corp-think-staging"          ← 已换成 staging 的值
-暂存副本 settings.json    : "defaultModel": "corp-think-staging"
-```
-
-把 `--run-dir` 与值换成 prod 那一组，同样的产物就落到 prod。
-**结论**：同一份渲染产物 + 换一次值 = 换一个环境；制品本身一个字节都没改
-（`startup prepare` 只往 `/run/...` 复制一份可写副本再渲染）。
-
-顺带一提：两个运行时渲染出的 `artifactsDigest` **不同**（产物形状本就不同），
-但 `definitionDigest` **相同**（实测两边都是 `sha256:00398864…`）——
-这说明两边跑的是**同一份中性定义**，产物差异来自运行时机制，且都由各运行时的 exemptions.yaml 声明。
-
-### 第 4 步：技能脚本自检
-
-做什么：本示例的技能带一个可执行的自检脚本，验证制品一致性核对表。
-
-```bash
-node examples/multi-env-rollout/skills/artifact-consistency/scripts/check-artifact-identity.mjs --selftest
-```
-
-看什么 / 期望结果：退出码 `0`，最后一行 `check-artifact-identity 自检：全绿`。
-它内置了 7 个样本（合法表、摘要不一致、用了 `:latest`、缺列、环境为空、只有一个环境、缺来源），
-**非法样本必须逐个变红**。也可以拿它校验真实核对表：
-
-```bash
-node examples/multi-env-rollout/skills/artifact-consistency/scripts/check-artifact-identity.mjs 你的核对表.md
-```
-
-### 不要做：别把真实密钥写进仓库
-
-- 端点与凭据**只以引用名出现**（`CORP_GATEWAY_BASE_URL` / `CORP_GATEWAY_API_KEY`），
-  值在运行期按上面四种给法注入。定义里、示例目录里**不该有** `*_API_KEY=真实值`。
-- `.gitignore` 已忽略 `.render/`、`dist/`、`*.log`；临时密钥文件请放 `/tmp` 之类仓库之外的位置。
-- 真实模型名不要手抄：问端点拿实测名单，再写进 `providers.yaml`
-  （`make providers-init ENDPOINT=… PROVIDER=corp-gateway`，见 `../../docs/08-conventions.md`）。
 
 ## 改它
 

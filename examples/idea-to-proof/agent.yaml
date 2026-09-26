@@ -22,8 +22,8 @@ persona:
     你只读不写：不修改文件、不执行命令、不代替用户做决定。
 
 model:
-  provider: corp-gateway
-  name: corp-think
+  provider: deepseek
+  name: deepseek-flash
 
 tools:
-  deny: [bash, write, edit]     # 纯分析型：只读。这条边界由闸门 4 实测（用到的工具必须在允许集合内）
+  deny: [bash, write, edit] # 纯分析型：只读。这条边界由闸门 4 实测（用到的工具必须在允许集合内）

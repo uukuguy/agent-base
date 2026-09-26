@@ -31,7 +31,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { EXIT_CODES, parseArgs } from "../core/gates/index.mjs";
+import { EXIT_CODES, digestDirectory, parseArgs } from "../core/gates/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -58,7 +58,26 @@ const main = async () => {
   // ① 渲染（或复用）
   const renderDir = path.resolve(values["--render-dir"] ?? path.join(REPO, "dist", harness, path.basename(path.resolve(agentDir))));
   const manifestFile = path.join(renderDir, "render-manifest.json");
-  if (!fs.existsSync(manifestFile)) {
+  // **新鲜度**：产物存在不等于它是当前定义渲出来的。
+  // 旧产物会导致"我改了定义却没生效"，而且报错会指向你已经不用的供应商/参数名 ——
+  // 这类问题极其费时间，所以在复用前先比定义摘要（清单里记了它）。
+  let stale = false;
+  // 摘要计算故意放在 try 之外：**代码写错要当场炸**，不许被 catch 伪装成"旧产物清单读不出来"
+  // （刚才就是这样：漏了一个 import，结果报"清单坏了" —— 排查成本比直接崩高得多）。
+  const currentDigest = digestDirectory(path.resolve(agentDir));
+  if (fs.existsSync(manifestFile)) {
+    try {
+      const prev = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+      if (prev.definitionDigest && prev.definitionDigest !== currentDigest) {
+        stale = true;
+        process.stderr.write(`▶ 定义已变（${currentDigest.slice(0, 19)}… ≠ 产物的 ${String(prev.definitionDigest).slice(0, 19)}…）⇒ 重新渲染，不用旧产物\n`);
+      }
+    } catch (e) {
+      stale = true;
+      process.stderr.write(`▶ 旧产物清单解析失败（${e.message}）⇒ 重新渲染\n`);
+    }
+  }
+  if (!fs.existsSync(manifestFile) || stale) {
     process.stderr.write(`▶ 先渲染：${path.relative(REPO, renderDir)}\n`);
     // **agentDir 必须绝对化**：子进程的 cwd 是仓库目录，把调用方的 `.` 原样传过去，
     // 渲染器就会把仓库当智能体目录 —— 表现为一句没有上下文的"渲染失败"。

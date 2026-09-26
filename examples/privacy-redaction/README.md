@@ -37,88 +37,84 @@ skills/
 
 ## 构建与验证过程
 
-前提：本机已 `make dev-env`（按 `adapters/*/adapter.yaml` 的 pin 校验/安装两个运行时）。
-下面所有命令都在**仓库根目录**执行，每一步都给出期望结果。
-
-### 1. 闸门 1：定义合法吗
+**在这个目录里开发** —— 每个示例自带 Makefile，不用回仓库根：
 
 ```bash
-make validate AGENT_DIR=examples/privacy-redaction
-# 等价写法（不进 examples/ 目录时更直接）
-node tools/validate.mjs examples/privacy-redaction
+cd examples/privacy-redaction
 ```
 
-期望：退出码 `0`，stderr 末尾出现「闸门 1：全绿」，其中应包含
-`3 个技能的 frontmatter 合法`、`model.provider「corp-gateway」已声明`、
-`model.name「corp-think」在 provider corp-gateway 的模型名单内`。
-若这条失败，先改定义再往下走 —— 后面几道闸门都建立在定义合法之上。
-
-### 2. 四道闸门：两个运行时都必须给出「可用」
+### 开发循环：改 → 查 → 跑 → 验
 
 ```bash
-node tools/verify.mjs examples/privacy-redaction --harness pi
-node tools/verify.mjs examples/privacy-redaction --harness dsh
+# ① 改完立刻查：秒级，不用网络、不用密钥（定义/引用/分层/增强声明都查）
+make validate
+#   期望：闸门 1：全绿，末尾没有 ❌（写错的地方会点名字段；**不写死项数**，免得数字一漂就过期）
+
+# ② 真跑一次
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="清点这段数据里的敏感字段，并核对脱敏残留风险"
+#   期望：敏感字段清单 + 脱敏残留风险 + 按证据纪律给出的可核验结论；退出码 0
+
+# ③ 四道闸门 → 给一个「可用 / 不可用」的结论
+make verify
+#   期望：✅ 可用：四道闸门全过（§6.8）
+#   闸门 3/4 默认走基座自带的**零凭据假网关**，不需要任何密钥
 ```
 
-期望：两条都以退出码 `0` 结束，并打印「可用：四道闸门全过」。
-四道闸门分别在证：定义合法（1）、运行时**实际加载**的技能与声明一致（2）、
-模型与技能真的可达（3）、它真的能干活且没越界用工具（4）。
-
-第 4 道会**实测只读边界**：冒烟运行产生的轨迹里不得出现被禁的工具。
-判据是工具名的子串匹配，所以 `bash` / `write` / `edit` 三个词都不应出现在 `tool.call` 事件里。
-
-### 3. 跨运行时等价性
+### 端点与密钥怎么给（三选一）
 
 ```bash
-node tools/compare.mjs examples/privacy-redaction
+# ① 命令行（临时用）
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="…"
+
+# ② 放这个目录下的 .env（之后不用再敲；**真实环境变量优先于它**）
+printf 'CORP_GATEWAY_BASE_URL=<端点>\nCORP_GATEWAY_API_KEY=<密钥>\n' > .env
+make run-local PROMPT="…"
+
+# ③ 凭据目录（CI / 生产）：AGENT_SECRETS_DIR=/dir，读 /dir/<参数名>
 ```
 
-期望：退出码 `0`，输出「等价性通过」，四组集合两侧一致
-（技能集合、连接器集合、模型路由、路由协议形状）。
-任何差异都必须能被某个运行时的 exemptions 声明解释；解释不了的差异算失败 ——
-基座的纪律是「可以不一样，但不许悄悄不一样」。
+本示例的参数名：`ENDPOINT` → `CORP_GATEWAY_BASE_URL`；密钥 → `CORP_GATEWAY_API_KEY`
 
-### 4. 让业务标签生效（实测，不是"声明了"）
-
-业务标签分两层：**基座只管机械事实**（时间戳 / seq / 事件类型 / 工具的原始名），
-业务在 `trace-labels.yaml` 里写自己的说法，查看器只做**字符串查找**（不是语义推断）。
-所以顺序是：先跑出轨迹，再让查看器读它。
+### 不知道有哪些模型可用
 
 ```bash
-# ① 起一个零凭据假网关（不需要任何密钥），它会在 stdout 打印一行 base URL
-node tools/fake-gateway/server.mjs --port 0 &
-#    http://127.0.0.1:<port>/v1
-
-# ② 本地真跑一次，拿到轨迹文件（run-local 会把路径打印在 stderr 的「轨迹」一行）
-node tools/run-local.mjs examples/privacy-redaction --harness pi \
-  --endpoint http://127.0.0.1:<port>/v1 \
-  --zero-credential true \
-  --prompt "帮我清点这份数据清单里的敏感字段并分级"
-
-# ③ 用查看器把轨迹渲染成业务可读时间轴
-#    注意真实签名是：<AGENT_DIR> --timeline <轨迹文件>
-node tools/trace-view/labels.mjs examples/privacy-redaction --timeline <上一步打印的 trace.jsonl>
+make providers-init ENDPOINT=<端点> API_KEY=<密钥> 
+#   期望：打印该端点的模型名单，并写成 ./providers.yaml
+#   这个文件会被自动采用；`agent.yaml` 里的 model.name 写错了，闸门 1 当场拦住
 ```
 
-期望：第 ② 步 stderr 末尾出现「轨迹 N 条：…/trace.jsonl」（N > 0）；
-第 ③ 步每行前面的 `◆` 表示这一行用了**业务说法**、`·` 表示机械回退，
-stderr 还会打印「业务说法覆盖：N/M」。本仓库实测的一次输出是：
+### 换一个运行时再验一次 / 看等价性
 
-```
-    0 ◆ 隐私与敏感信息处理审查助手
-    1 ◆ 内网推理网关（携带 4 个工具，流式）
-    2 ◆ 读取待审查材料
-    3 ◆ 完成：读取待审查材料（1ms，耗时推算）
-    4 ◆ 内网推理网关（携带 4 个工具，流式）
-业务说法覆盖：5/5（其余 0 条为机械回退）
+```bash
+make verify HARNESS=dsh     # 期望：同样「可用：四道闸门全过」
+make compare                # 期望：等价性通过（差异必须有声明，不许沉默）
 ```
 
-对照一下就知道标签确实在起作用：同一份轨迹如果交给一个没有标签表的目录
-（例如 `examples/contract-review`），第 2/3 行会退回机械措辞「调用工具 read」「工具 read」——
-机械事实一直都在，业务说法是从 `trace-labels.yaml` 里**查表得来的**，不是模型编的。
+### 零凭据地只看链路与边界
 
-为什么查看器不自己"懂"这些词：它只知道"业务给 `agent` 起了这个名字"。
-换一个业务、换一套词，基座与查看器一行都不用改 —— 这是分层纪律的可执行形态。
+```bash
+make probe    # 闸门 3：模型可达、工具字段没被吞、流式没被降级
+make smoke    # 闸门 4：真的干活、且没越界用工具
+```
+
+### 改了技能自带的脚本，就跑它的自检
+
+```bash
+node skills/sensitive-field-inventory/scripts/check-inventory.mjs --selftest
+#   期望：退出码 0
+```
+
+### 四道闸门分别在证明什么
+
+| 闸门 | 证明什么 | 本示例的看点 |
+|---|---|---|
+| 1 静态 | 定义合法、引用与分层合规 | 技能名与目录一致、模型名在该供应商名单内、增强声明合法 |
+| 2 解析自证 | 运行时**实际加载**到的东西与声明一致 | 技能/增强真的进了产物（不是写在定义里就算） |
+| 3 集成探针 | 模型可达、工具字段在、流式没降级 | 端点侧收到的请求里有工具字段 |
+| 4 端到端冒烟 | 它真的能干活、且没越界用工具 | 闸门 4 的看点：只读边界被**实测**（被禁的工具不会出现在冒烟轨迹里） |
+
+它只读：`deny: [bash, write, edit]`
+
 
 ## 改它
 
