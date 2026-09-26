@@ -25,7 +25,7 @@ import YAML from "yaml";
 import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 // 路由目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/routes.mjs
-import { describeSource, findProvider, loadProviders } from "../../core/catalog/routes.mjs";
+import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");

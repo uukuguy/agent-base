@@ -44,7 +44,10 @@ const REQUIRED_CAPABILITIES = [
   "permissionModel", "traceEmit", "mcpClient", "runModes",
 ];
 const CAPABILITY_VALUES = ["supported", "partial", "unsupported", "extension"];
-const REQUIRED_TOP_KEYS = ["harness", "version", "adapterVersion", "renders", "capabilities", "failures", "exemptions"];
+// modelApis = 该运行时支持的模型协议形状（provider 里 api: 的合法取值）——
+// 放在顶层而不是 capabilities：capabilities 每项是 supported/partial/… 的枚举，
+// 而这个是**字符串列表**（早期放错层，被本用例当场拦下）。
+const REQUIRED_TOP_KEYS = ["harness", "version", "adapterVersion", "renders", "modelApis", "capabilities", "failures", "exemptions"];
 
 const cases = [
   // -------------------------------------------------------------------------

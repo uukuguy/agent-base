@@ -39,7 +39,7 @@ my-agent/
 | 我要改 | 改哪 |
 |---|---|
 | 人设、边界 | `agent.yaml` 的 `persona` / `tools` |
-| 换模型 | `agent.yaml` 的 `model.name`（`model.route` 是基座声明的路由，不能随便写） |
+| 换模型 | `agent.yaml` 的 `model.name`（`model.provider` 必须是 provider 目录里有的名字，写错会当场列出可用值） |
 | 加技能 | 新建 `skills/<名字>/SKILL.md`（frontmatter 必须有 `name`/`description`，且 `name` 与目录名一致） |
 | 接外部系统 | `connectors.yaml` |
 
@@ -97,7 +97,7 @@ make run-local PROMPT="说一句话"                      # 真跑：端点用�
 - **端点**：内置 provider 已带公开端点，不必给；要换成镜像/代理，就设 `DEEPSEEK_BASE_URL=…`
   （或写自己的 `providers.yaml` 覆盖同名条目 —— 那也是 `AGENT_PROVIDERS_FILE` 指一下的事）。
 - **模型名单**：内置目录里写的是常用名字；要确认端点实际提供哪些，用
-  `make routes-init ENDPOINT=https://api.deepseek.com API_KEY=sk-… --route deepseek` 问一次。
+  `make providers-init ENDPOINT=https://api.deepseek.com API_KEY=sk-… PROVIDER=deepseek` 问一次。
 - **换成别的供应商**：`model.provider` 改成 `openai` 就用 `OPENAI_API_KEY`，其余照旧。
 - **内部网关**：在 `providers.yaml` 里加一条（`baseUrlParam: CORP_GATEWAY_BASE_URL` 表示端点由部署给），
   或直接用内置的 `corp-gateway` 并设 `CORP_GATEWAY_BASE_URL`。

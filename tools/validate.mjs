@@ -34,7 +34,7 @@
 // ============================================================================
 
 import fs from "node:fs";
-import { findProvider, loadProviders } from "../core/catalog/routes.mjs";
+import { findProvider, loadProviders } from "../core/catalog/providers.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
@@ -284,7 +284,7 @@ function checkBase(report, agentDir = process.cwd()) {
       for (const h of HARNESS_NAMES) {
         try {
           const a = loadYaml(path.join(REPO, "adapters", h, "adapter.yaml"));
-          apiSupport[h] = new Set(a.capabilities?.modelApis ?? []);
+          apiSupport[h] = new Set(a.modelApis ?? []);
         } catch { apiSupport[h] = new Set(); }
       }
       const unsupported = [];
@@ -310,7 +310,8 @@ function checkBase(report, agentDir = process.cwd()) {
       // 真正的判据是：名字必须匹配 params.allowed 里某条**支撑模型组字段**的 pattern
       // （端点/凭据 backs model.route；模型名 backs model.name —— 三者都由路由前缀派生）。
       // 空转的检查比没有更糟 —— 它给了一种"已经管住了"的错觉。
-      const ROUTE_DERIVED_BACKS = ["model.route", "model.name", "model.reasoningEffort"];
+      // 模型组字段：provider（新）与 route（旧名）都算 —— 引用名由供应商名派生
+      const ROUTE_DERIVED_BACKS = ["model.provider", "model.route", "model.name", "model.reasoningEffort"];
       const routePats = (params.allowed ?? [])
         .filter((a) => (a.backs ?? []).some((b) => ROUTE_DERIVED_BACKS.includes(b)))
         .map((a) => ({ id: a.id, re: new RegExp(a.pattern) }));

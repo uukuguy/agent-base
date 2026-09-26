@@ -37,8 +37,8 @@ validate-selftest: ## 闸门 1 的注入式负向自检（非法样本必须全�
 	@node tools/validate.mjs core/spec/fixtures/valid --selftest
 
 # --- 基座自检（S1 已交付）---------------------------------------------------
-routes-selftest: ## 路由目录自检（解析优先级 / 覆盖失效要报错 / 从端点问模型）
-	@node tools/routes-selftest.mjs
+providers-selftest: ## provider 目录自检（解析优先级 / 覆盖失效要报错 / 从端点问模型）
+	@node tools/providers-selftest.mjs
 
 startup-selftest: ## 启动期准备（参数下放/暂存/渲染）自检
 	@node core/image/startup-selftest.mjs
@@ -87,8 +87,8 @@ verify: ## 四道闸门编排 → §6.7 报告 + usable（需 AGENT_DIR）
 compare: ## 跨运行时等价性比对（AGENT_DIR=… ：三组集合是否一致、差异是否都有声明）
 	@node tools/compare.mjs $(AGENT_DIR) $(if $(HARNESSES),--harnesses $(HARNESSES),) $(if $(JSON),--json,)
 
-routes-init: ## 从端点问出可用模型并写成路由目录（--endpoint 必填；本工具会 GET <endpoint>/models）
-	@node tools/routes-init.mjs --endpoint "$(ENDPOINT)" $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--route $(ROUTE),) $(if $(OUT),--out $(OUT),) $(if $(DRY_RUN),--dry-run,) $(if $(JSON),--json,)
+providers-init: ## 从端点问出可用模型并写成路由目录（--endpoint 必填；本工具会 GET <endpoint>/models）
+	@node tools/providers-init.mjs --endpoint "$(ENDPOINT)" $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--route $(ROUTE),) $(if $(OUT),--out $(OUT),) $(if $(DRY_RUN),--dry-run,) $(if $(JSON),--json,)
 
 gen-docs: ## 从 core/catalog 真源刷新生成的文档（改了 catalog 就跑）
 	@node tools/gen-capability-doc.mjs

@@ -1,6 +1,6 @@
 # 03 · 能力目录：有哪些东西可配
 
-> **本文件由脚本生成，不要手改。** 真源是 `core/catalog/{capabilities,params,routes}.yaml`；
+> **本文件由脚本生成，不要手改。** 真源是 `core/catalog/{capabilities,params,providers}.yaml`；
 > 改了真源就跑 `make gen-docs`。`make validate` 会检查二者同步 —— 不同步即失败。
 > 之所以这样安排：手写文档不会报错地过期，然后开始骗人。
 
@@ -41,8 +41,8 @@
 | 字段 | 类型 | 所属层 | 必填 | 取值 | dsh | pi | 说明 |
 |---|---|---|---|---|---|---|---|
 | `model.provider` | string | artifact | 是 | （参数层） | ✅ 支持 | ✅ 支持 | 模型供应商名。基座**内置**了常用供应商（deepseek / openai / corp-gateway …）， 智能体只写名字；端点、凭据引用名、模型名单都来自那份内置目录， 要改就用 `providers.yaml`（放智能体旁边或用 AGENT_PROVIDERS_FILE）覆盖同名条目。 |
-| `model.route` | string | artifact | 是 | `^[a-z][a-z0-9-]{1,30}$` | ✅ 支持 | ✅ 支持 | 基座声明的模型路由名。不是 URL、不是 provider（P-a 能力/选择分离）。 |
-| `model.name` | string | valueRefParameter | 是 | （参数层） | ✅ 支持 | ✅ 支持 | **默认**模型名。属环境属性 —— 同一份制品在不同环境常要指向不同模型名（端点不同、模型目录不同）。 运行期可用 `<路由前缀>_MODEL` 覆盖；覆盖值须在该路由声明的模型名单内，并会记进轨迹。 可配置 ≠ 随便配 ≠ 配了没人知道。 |
+| `model.route` | string | artifact | 否 | — | ✅ 支持 | ✅ 支持 | `model.provider` 的**旧名**（等价）。新定义请写 provider；两者都写时以 provider 为准。 保留它只为不让已写好的定义失效 —— 它不是独立能力，所以不占参数层引用名。 |
+| `model.name` | string | valueRefParameter | 是 | （参数层） | ✅ 支持 | ✅ 支持 | **默认**模型名。属环境属性 —— 同一份制品在不同环境常要指向不同模型名（端点不同、模型目录不同）。 运行期可用 `<供应商前缀>_MODEL` 覆盖；覆盖值须在该 provider 声明的模型名单内，并会记进轨迹。 可配置 ≠ 随便配 ≠ 配了没人知道。 |
 | `model.reasoningEffort` | enum | artifact | 否 | `low` / `medium` / `high` | ✅ 支持（未实测） | unknown（未实测） | 推理强度。harness 不支持时按 exemptions.yaml 处理（§5.4），三种合法处置：等效替代 / 豁免 / 拒绝；禁止静默降级。 |
 
 <sub>来源：agent.yaml</sub>
@@ -105,9 +105,7 @@
 | `connector-credential` | connector-credential | `^[A-Z][A-Z0-9_]*_(TOKEN\|SECRET\|KEY\|PASSWORD)$` | 是 | `mcpServers[].credentialRef` | 连接器凭据。§2.3 的表格未逐项列出连接器凭据，这里按 §4.3 的示例名（JIRA_TOKEN / GITLAB_TOKEN） 归纳出 v1 命名约定，使 validate 能判定 credentialRef 是否落在允许清单内。 **这是本清单里唯一由示例归纳、而非表格原文列出的条目**——若约定不合适，改这里即可。 |
 | `provider-credential` | model-provider-credential | `^[A-Z][A-Z0-9_]*_API_KEY$` | 是 | `model.provider` | 供应商凭据。内置 provider 目录里给出了每家的**通行名字** （DeepSeek → DEEPSEEK_API_KEY、OpenAI → OPENAI_API_KEY）， 所以用户不需要"照着 provider 名推一个变量名"。 |
 | `provider-endpoint` | model-provider-endpoint | `^[A-Z][A-Z0-9_]*_BASE_URL$` | 否 | `model.provider` | 端点覆盖。内置 provider 多数已带公开端点（此时不必给）；内部网关那种每环境不同的， 在 provider 条目里写 baseUrlParam 表示"由部署给"。 |
-| `route-api-key` | model-route-credential | `^[A-Z][A-Z0-9_]*_API_KEY$` | 是 | `model.route` | 模型路由凭据。路由名（制品层）决定用哪条路由，密钥属于部署期。 |
-| `route-base-url` | model-route-endpoint | `^[A-Z][A-Z0-9_]*_BASE_URL$` | 否 | `model.route` | 模型路由端点。pi 的 models.json.tmpl 在启动期渲染；dsh 走 apiKeyEnv / 路由字典。 |
-| `model-name` | model-route-model | `^[A-Z][A-Z0-9_]*_MODEL$` | 否 | `model.name` | 模型名的运行期覆盖。中性定义里的 `model.name` 是**默认值**，不是最终值。 同一份制品在不同环境常常要指向不同模型名（端点不同、模型目录不同）。 覆盖必须可校验、可追溯：启动期按路由声明的模型名单校验，并把它记进轨迹 —— 「可配置」不等于「随便配」，也不等于「配了没人知道」。 |
+| `model-name` | model-provider-model | `^[A-Z][A-Z0-9_]*_MODEL$` | 否 | `model.name` | 模型名的运行期覆盖。中性定义里的 `model.name` 是**默认值**，不是最终值。 同一份制品在不同环境常常要指向不同模型名（端点不同、模型目录不同）。 覆盖必须可校验、可追溯：启动期按 provider 声明的模型名单校验，并把它记进轨迹 —— 「可配置」不等于「随便配」，也不等于「配了没人知道」。 |
 | `probe-param` | probe-parameter | `^AGENT_PROBE_[A-Z0-9_]+$` | 否 |  | 探针参数（超时、目标）。只影响「怎么探测」，不影响智能体行为。 |
 | `log-level` | observability | `^AGENT_LOG_LEVEL$` | 否 |  | — |
 | `trace-dest` | observability | `^AGENT_TRACE_DEST$` | 否 |  | 轨迹输出位置。轨迹格式本身由 core/trace/schema.json 强制，不因目的地而变。 |
@@ -119,23 +117,26 @@
 这些内容**出现在中性定义里就是错的**（`make validate` 直接拒绝）：
 
 | id | 种类 | 禁止出现在 | 为什么 | 谁来拦 |
-|---|---|---|---|---|
+|---|---|---|---|---|---|
 | `persona-text` | behavior-content | `persona.instructions` / `persona.instructionsFile` | 人设文本改变行为，必须可评审、可回滚、可签名。 | gates/1,conformance/C8 |
 | `skills-manifest-or-content` | behavior-content | `skillsDir` | 技能是可执行内容（含 skills/<name>/scripts/ 下的业务代码），必须随制品烤入并参与 digest。 | gates/1,conformance/C8 |
 | `connector-enablement` | capability-declaration | `mcpServers[].enabled` / `mcpServers[].name` / `mcpServers[].transport` | 「它能连哪些系统」是能力声明，不是环境差异。同名系统换环境只换端点（见 allowed.connector-endpoint）。 | gates/1,conformance/C8 |
-| `model-route-selection` | route-choice | `model.route` / `model.provider` | **路由选择**留在制品层：路由名决定后面三个引用名（端点 / 凭据 / 模型名）， 是「这份制品跑在哪条路由上」的身份，不是环境属性。 | gates/1,conformance/C8 |
+| `model-provider-selection` | provider-choice | `model.route` / `model.provider` | **选哪家供应商**留在制品层：供应商名决定后面三个引用名（端点 / 凭据 / 模型名）， 是「这份制品连哪家」的身份，不是环境属性。（`model.route` 是 `model.provider` 的旧名） | gates/1,conformance/C8 |
 | `tool-boundary` | behavior-content | `tools.deny` | 工具白/黑名单是边界，属制品层。 | gates/1,conformance/C8 |
 | `harness-enhancement-content` | behavior-content | `harness/<h>/**` | 业务级增强是行为（§4.5），构建期烤进智能体镜像薄层，随 digest 可复现。 | gates/1,conformance/C8 |
 
-## 模型路由目录
+## 供应商（provider）目录
 
-`model.route` 写的必须是这里声明的路由（基座层能力，业务只选、不定义）。
+`model.provider` 写的必须是这里声明的供应商（基座**内置**常用供应商；业务只选、不定义）。
 
-| 路由 | 协议形状 | 端点引用名 | 凭据引用名 | 说明 |
-|---|---|---|---|---|
-| `corp-gateway` | `openai-completions` | `CORP_GATEWAY_BASE_URL` | `CORP_GATEWAY_API_KEY` | 企业内网直连的 OpenAI 兼容端点。验证期等价物是本仓库的零凭据假网关 （tools/fake-gateway），它实现的正是同一套协议，所以门 3/4 不需要真端点。 |
+| 供应商 | 协议形状 | 端点 | 凭据引用名 | 模型 | 说明 |
+|---|---|---|---|---|---|
+| `corp-gateway` | `openai-completions` | 由 `CORP_GATEWAY_BASE_URL` 给 | `CORP_GATEWAY_API_KEY` | `corp-think` | 内网网关（自带假网关是它的零凭据等价物） |
+| `deepseek` | `openai-completions` | `https://api.deepseek.com` | `—` | `deepseek-flash` `deepseek-v4-pro` | DeepSeek |
+| `openai` | `openai-completions` | `https://api.openai.com/v1` | `—` | `gpt-4o` `gpt-4o-mini` | OpenAI |
 
-换环境只改参数、不改定义；写错路由名 `make validate` 会当场拦下并列出可用取值。
+换环境通常只改一个引用名、不改定义；写错供应商名 `make validate` 会当场拦下并列出可用取值。
+要覆盖或新增供应商，写自己的 `providers.yaml`（放智能体旁边，或 `AGENT_PROVIDERS_FILE` 指过去）。
 
 ## 不变量
 

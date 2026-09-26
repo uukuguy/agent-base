@@ -1,9 +1,9 @@
 // ============================================================================
-// 路由目录的**解析**（唯一一处实现）
+// Provider（供应商）目录的**解析**（唯一一处实现）
 //
 // ## 为什么需要"可覆盖"
 //
-// 路由目录写的是"这次部署连哪个端点、端点服务哪些模型"—— 这是**环境属性**，
+// provider 目录写的是"这次部署连哪个端点、端点服务哪些模型"—— 这是**环境属性**，
 // 不该只存在于基座源码里。它放在 `core/` 只是**内置默认**（配合自带假网关，开箱能跑）；
 // 真实使用时由部署层提供自己的那份，**不必改基座代码**。
 //
@@ -27,67 +27,13 @@ import YAML from "yaml";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-/** 基座内置的路由目录路径（老名字，仍支持）。 */
-export const BUILTIN_ROUTES_PATH = path.join(HERE, "routes.yaml");
 /** 基座**内置的常用 provider**：让"只写一个通行名字就能用"成立（不必建任何文件）。 */
 export const BUILTIN_PROVIDERS_PATH = path.join(HERE, "providers.yaml");
 
-/**
- * 解析"这次该读哪份路由目录"。
- * @param {Record<string,string|undefined>} [env]
- * @returns {{path: string, source: "AGENT_ROUTES_FILE"|"AGENT_CATALOG_DIR"|"base-builtin", builtin: boolean}}
- */
-export function resolveRoutesSource({ env = process.env, agentDir = null } = {}) {
-  if (env.AGENT_ROUTES_FILE) {
-    return { path: path.resolve(env.AGENT_ROUTES_FILE), source: "AGENT_ROUTES_FILE", builtin: false };
-  }
-  if (env.AGENT_CATALOG_DIR) {
-    return { path: path.join(path.resolve(env.AGENT_CATALOG_DIR), "routes.yaml"), source: "AGENT_CATALOG_DIR", builtin: false };
-  }
-  // 智能体自带：把 routes.yaml 与 agent.yaml 放一起即可 —— 不必记环境变量、不必改基座。
-  // 这一级很关键：工具会切工作目录，靠 Makefile 里的 wildcard+export 只能覆盖"从 Makefile 走"的路径。
-  if (agentDir) {
-    const p = path.join(path.resolve(agentDir), "routes.yaml");
-    if (fs.existsSync(p)) return { path: p, source: "agent-local", builtin: false };
-  }
-  return { path: BUILTIN_ROUTES_PATH, source: "base-builtin", builtin: true };
-}
-
-/**
- * 读路由目录。
- * @returns {{path: string, source: string, builtin: boolean, routes: object[], error: string|null}}
- */
-export function loadRoutes({ env = process.env, agentDir = null } = {}) {
-  const src = resolveRoutesSource({ env, agentDir });
-  if (!fs.existsSync(src.path)) {
-    return {
-      ...src,
-      routes: [],
-      error: src.builtin
-        ? `基座内置路由目录缺失：${src.path}`
-        : `${src.source} 指向的文件不存在：${src.path}（设置了却读不到 ⇒ 直接失败，不静默回退到内置）`,
-    };
-  }
-  let doc;
-  try {
-    doc = YAML.parse(fs.readFileSync(src.path, "utf8"));
-  } catch (e) {
-    return { ...src, routes: [], error: `${src.path} 解析失败：${e.message}` };
-  }
-  const routes = doc?.routes ?? [];
-  if (!routes.length) return { ...src, routes: [], error: `${src.path} 里没有声明任何路由` };
-  return { ...src, routes, error: null };
-}
-
-/** 方便调用方拼提示语：说明这份目录是从哪来的。 */
-export function describeSource(loaded) {
-  return loaded.builtin ? `基座内置（${loaded.path}）` : `${loaded.source}（${loaded.path}）`;
-}
-
 // ============================================================================
-// Provider（供应商）—— 比"路由"更通行的说法，且**内置常用供应商**
+// Provider（供应商）—— 比"provider"更通行的说法，且**内置常用供应商**
 //
-// 解析顺序（与路由目录同一条链，只是多了一层"内置 provider 作为基础层"）：
+// 解析顺序（与provider 目录同一条链，只是多了一层"内置 provider 作为基础层"）：
 //   ① `AGENT_PROVIDERS_FILE` / `AGENT_ROUTES_FILE`（显式文件）
 //   ② `AGENT_CATALOG_DIR` 下的 providers.yaml / routes.yaml
 //   ③ `<智能体目录>/providers.yaml`（或 routes.yaml）
@@ -145,19 +91,19 @@ export function loadProviders({ env = process.env, agentDir = null } = {}) {
   for (const e of builtin ?? []) byId.set(e.id, { ...e, builtin: true });
   if (builtin?.length) sources.push(`基座内置（${BUILTIN_PROVIDERS_PATH}）`);
 
-  // 覆盖层：显式文件 > 目录 > 智能体自带（与路由目录同一条链）
+  // 覆盖层：显式文件 > 目录 > 智能体自带（与provider 目录同一条链）
   const candidates = [];
   const explicit = env.AGENT_PROVIDERS_FILE ?? env.AGENT_ROUTES_FILE ?? null;
-  if (explicit) candidates.push({ file: path.resolve(explicit), explicit: true, what: "AGENT_PROVIDERS_FILE/AGENT_ROUTES_FILE" });
+  if (explicit) {
+    const what = env.AGENT_PROVIDERS_FILE ? "AGENT_PROVIDERS_FILE" : "AGENT_ROUTES_FILE（旧名，建议改用 AGENT_PROVIDERS_FILE）";
+    candidates.push({ file: path.resolve(explicit), explicit: true, what });
+  }
   if (env.AGENT_CATALOG_DIR) {
     const dir = path.resolve(env.AGENT_CATALOG_DIR);
     candidates.push({ file: path.join(dir, "providers.yaml"), what: "AGENT_CATALOG_DIR" });
-    candidates.push({ file: path.join(dir, "routes.yaml"), what: "AGENT_CATALOG_DIR" });
   }
   if (agentDir) {
-    const d = path.resolve(agentDir);
-    candidates.push({ file: path.join(d, "providers.yaml"), what: "agent-local" });
-    candidates.push({ file: path.join(d, "routes.yaml"), what: "agent-local" });
+    candidates.push({ file: path.join(path.resolve(agentDir), "providers.yaml"), what: "agent-local" });
   }
 
   for (const c of candidates) {
@@ -177,6 +123,9 @@ export function loadProviders({ env = process.env, agentDir = null } = {}) {
     break;   // 只取**第一个存在**的覆盖层，避免多层无声叠加
   }
 
+  // **有错误就不交列表**：调用方（闸门 1 / 渲染器）只要看到空列表就会失败并报出 errors，
+  // 不会出现"我以为用的是自己那份，其实系统在用内置"——那正是本项目一直在治的静默回退。
+  if (errors.length) return { providers: [], sources, errors };
   return { providers: [...byId.values()].map(normalizeProvider), sources, errors };
 }
 

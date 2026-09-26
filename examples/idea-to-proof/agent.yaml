@@ -22,7 +22,7 @@ persona:
     你只读不写：不修改文件、不执行命令、不代替用户做决定。
 
 model:
-  route: corp-gateway
+  provider: corp-gateway
   name: corp-think
 
 tools:

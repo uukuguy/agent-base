@@ -35,6 +35,7 @@ node adapters/<h>/run-local.mjs …   # 由 tools/run-local.mjs 按 --harness �
 | `harness` / `version` / `adapterVersion` | 版本 pin（镜像构建与 `make dev-env` 从这读） |
 | `package` / `bin` | npm 安装坐标与可执行名 |
 | `renders` | 产物形态 + 是否确定性 |
+| `modelApis` | **支持的模型协议形状**（`provider.api` 的合法取值，从包内实测；闸门 1 据此校验） |
 | `capabilities` | 11 项能力声明（见下） |
 | `enhancementShape` | 业务级增强的**声明形态**：`file`（产物里的文件）或 `package`（npm 包） |
 | `failures` / `failureCases` / `exemptions` | 三个配套文件的路径 |

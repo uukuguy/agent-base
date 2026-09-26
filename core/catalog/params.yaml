@@ -69,24 +69,8 @@ allowed:
       端点覆盖。内置 provider 多数已带公开端点（此时不必给）；内部网关那种每环境不同的，
       在 provider 条目里写 baseUrlParam 表示"由部署给"。
 
-  - id: route-api-key
-    kind: model-route-credential
-    pattern: "^[A-Z][A-Z0-9_]*_API_KEY$"
-    secret: true
-    backs: ["model.route"]
-    design: "§2.3 / §11.4"
-    note: 模型路由凭据。路由名（制品层）决定用哪条路由，密钥属于部署期。
-
-  - id: route-base-url
-    kind: model-route-endpoint
-    pattern: "^[A-Z][A-Z0-9_]*_BASE_URL$"
-    secret: false
-    backs: ["model.route"]
-    design: "§2.3 / §10.2 约束 1 / §11.4"
-    note: 模型路由端点。pi 的 models.json.tmpl 在启动期渲染；dsh 走 apiKeyEnv / 路由字典。
-
   - id: model-name
-    kind: model-route-model
+    kind: model-provider-model
     pattern: "^[A-Z][A-Z0-9_]*_MODEL$"
     secret: false
     backs: ["model.name"]
@@ -94,7 +78,7 @@ allowed:
     note: >
       模型名的运行期覆盖。中性定义里的 `model.name` 是**默认值**，不是最终值。
       同一份制品在不同环境常常要指向不同模型名（端点不同、模型目录不同）。
-      覆盖必须可校验、可追溯：启动期按路由声明的模型名单校验，并把它记进轨迹 ——
+      覆盖必须可校验、可追溯：启动期按 provider 声明的模型名单校验，并把它记进轨迹 ——
       「可配置」不等于「随便配」，也不等于「配了没人知道」。
 
   - id: probe-param
@@ -167,13 +151,13 @@ forbidden:
     reason: 「它能连哪些系统」是能力声明，不是环境差异。同名系统换环境只换端点（见 allowed.connector-endpoint）。
     enforcedBy: ["gates/1", "conformance/C8"]
 
-  - id: model-route-selection
-    kind: route-choice
+  - id: model-provider-selection
+    kind: provider-choice
     pattern: "^AGENT_MODEL_.*$"
     definitionPaths: ["model.route", "model.provider"]
     reason: >
-      **路由选择**留在制品层：路由名决定后面三个引用名（端点 / 凭据 / 模型名），
-      是「这份制品跑在哪条路由上」的身份，不是环境属性。
+      **选哪家供应商**留在制品层：供应商名决定后面三个引用名（端点 / 凭据 / 模型名），
+      是「这份制品连哪家」的身份，不是环境属性。（`model.route` 是 `model.provider` 的旧名）
     note: >
       与 `model-name` 的分工 —— 早期这里把 `model.name` 也一并禁掉了，那是**判据用粗了**：
       端点与模型名在实际部署里是绑在一起的（内网网关只服务它有的那几个模型），

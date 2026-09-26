@@ -4,7 +4,7 @@
 //
 // ## 为什么要"生成"而不是手写
 //
-// 这篇文档的内容完全来自三份机器可读真源（`core/catalog/{capabilities,params,routes}.yaml`）。
+// 这篇文档的内容完全来自三份机器可读真源（`core/catalog/{capabilities,params,providers}.yaml`）。
 // 手写的问题不是"写起来累"，而是**它会烂**：真源加了一个字段、文档没跟上，
 // 两边都不会报错 —— 于是文档开始骗人，而且没人知道从哪一句开始骗的。
 //
@@ -38,13 +38,13 @@ const SUPPORT = { supported: "✅ 支持", partial: "⚠️ 有限制", unsuppor
 function build() {
   const caps = load("capabilities.yaml");
   const params = load("params.yaml");
-  const routes = load("routes.yaml");
+  const providers = load("providers.yaml");
   const harnesses = [...new Set(caps.groups.flatMap((g) => (g.fields ?? []).flatMap((f) => Object.keys(f.harnesses ?? {}))))].sort();
 
   const L = [];
   L.push("# 03 · 能力目录：有哪些东西可配");
   L.push("");
-  L.push("> **本文件由脚本生成，不要手改。** 真源是 `core/catalog/{capabilities,params,routes}.yaml`；");
+  L.push("> **本文件由脚本生成，不要手改。** 真源是 `core/catalog/{capabilities,params,providers}.yaml`；");
   L.push("> 改了真源就跑 `make gen-docs`。`make validate` 会检查二者同步 —— 不同步即失败。");
   L.push("> 之所以这样安排：手写文档不会报错地过期，然后开始骗人。");
   L.push("");
@@ -109,23 +109,23 @@ function build() {
   L.push("这些内容**出现在中性定义里就是错的**（`make validate` 直接拒绝）：");
   L.push("");
   L.push("| id | 种类 | 禁止出现在 | 为什么 | 谁来拦 |");
-  L.push("|---|---|---|---|---|");
+  L.push("|---|---|---|---|---|---|");
   for (const f of params.forbidden ?? []) {
     L.push(`| \`${cell(f.id)}\` | ${cell(f.kind)} | ${(f.definitionPaths ?? []).map((p) => `\`${cell(p)}\``).join(" / ")} | ${cell(f.reason)} | ${cell(f.enforcedBy)} |`);
   }
   L.push("");
 
-  L.push("## 模型路由目录");
+  L.push("## 供应商（provider）目录");
   L.push("");
-  L.push("`model.route` 写的必须是这里声明的路由（基座层能力，业务只选、不定义）。");
+  L.push("`model.provider` 写的必须是这里声明的供应商（基座**内置**常用供应商；业务只选、不定义）。");
   L.push("");
-  L.push("| 路由 | 协议形状 | 端点引用名 | 凭据引用名 | 说明 |");
-  L.push("|---|---|---|---|---|");
-  for (const r of routes.routes ?? []) {
-    L.push(`| \`${cell(r.id)}\` | \`${cell(r.api)}\` | \`${cell(r.baseUrlParam)}\` | \`${cell(r.credentialParam)}\` | ${cell(r.description)} |`);
+  L.push("| 供应商 | 协议形状 | 端点 | 凭据引用名 | 模型 | 说明 |");
+  L.push("|---|---|---|---|---|---|");
+  for (const r of providers.providers ?? []) {
+    L.push(`| \`${cell(r.id)}\` | \`${cell(r.api)}\` | ${r.baseUrl ? `\`${cell(r.baseUrl)}\`` : `由 \`${cell(r.baseUrlParam ?? "?")}\` 给`} | \`${cell(r.credentialEnv ?? r.credentialParam)}\` | ${(r.models ?? []).map((m) => `\`${cell(m)}\``).join(" ")} | ${cell(r.displayName ?? r.description)} |`);
   }
   L.push("");
-  L.push("换环境只改参数、不改定义；写错路由名 `make validate` 会当场拦下并列出可用取值。");
+  L.push("换环境通常只改一个引用名、不改定义；写错供应商名 `make validate` 会当场拦下并列出可用取值。\n要覆盖或新增供应商，写自己的 `providers.yaml`（放智能体旁边，或 `AGENT_PROVIDERS_FILE` 指过去）。");
   L.push("");
 
   L.push("## 不变量");

@@ -26,7 +26,7 @@ persona:
     最后必须写一句：「本表是条款识别辅助，不构成法律意见。」
 
 model:
-  route: corp-gateway
+  provider: corp-gateway
   name: corp-think
 
 tools:

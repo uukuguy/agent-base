@@ -248,4 +248,8 @@
 - 10:30 用户问"dsh 除了 DeepSeek 还能用别的模型吗" → 查清：dsh 自带两个 LLM 适配器（dsh-llm-deepseek 原生 / dsh-llm-pi-ai 后端），后者支持 5 种协议形状；pi 支持 7 种（多 Google 两种）
 - 10:30 顺带补掉一个真缺口：`provider.api` 此前**没人校验**，写错会渲染出适配器不认的配置。现在适配器声明 `capabilities.modelApis`，闸门 1 新增 `providers/model-api`（两个运行时都必须支持，负向已验）
 - 10:30 文档补"能用哪些模型 / 怎么加一家"（形状表 + 最小 providers.yaml 写法）
+- 10:55 🔴 用户指出：agent-base 该有**一个统一**的 provider/model 配置机制、直观标准、统一透传给 pi/dsh；而我引入的"routes"是个多余且难用的中间概念 —— 是我没把它当"给开发者用的东西"来设计
+- 10:55 统一：**routes 概念取消**，只留 provider。一个概念（供应商）· 一个文件（providers.yaml）· 一个字段（model.provider，旧名 route 仍收但不再占参数层引用名）。模块 routes.mjs→providers.mjs、内置 routes.yaml 删除、参数项 route-* 删除、工具与 Makefile 目标 routes-*→providers-*、自检重写为 providers-selftest（19 项）
+- 10:55 覆盖层读不到时**不再把内置列表交给上层**（否则"我以为用自己那份、其实用内置"又是静默回退）
+- 10:55 又两次自己造的回归被门槛抓住：删了 describeSource 但两个渲染器还在 import（渲染全崩）；C1 因为我把 modelApis 塞进 capabilities（那是枚举项，而它是字符串列表）→ 已挪到适配器顶层并写进契约
 

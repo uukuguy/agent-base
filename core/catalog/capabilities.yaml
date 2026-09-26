@@ -153,14 +153,14 @@ groups:
       - path: model.route
         source: agent.yaml
         type: string
-        required: true
-        values: { pattern: "^[a-z][a-z0-9-]{1,30}$" }
+        required: false
         layer: artifact
-        valueRef: parameter
         harnesses:
-          pi: { support: supported, verified: true, note: "路由名 → 参数层环境变量名；models.json.tmpl 启动期渲染（§10.2 约束 1）" }
-          dsh: { support: supported, verified: true, note: "路由**能力**在基座 home 层声明，智能体只选route（§11.4）" }
-        doc: 基座声明的模型路由名。不是 URL、不是 provider（P-a 能力/选择分离）。
+          pi: { support: supported, verified: true }
+          dsh: { support: supported, verified: true }
+        doc: >
+          `model.provider` 的**旧名**（等价）。新定义请写 provider；两者都写时以 provider 为准。
+          保留它只为不让已写好的定义失效 —— 它不是独立能力，所以不占参数层引用名。
         degradation: 路由名写错时 dsh 只在请求期暴露（MISSING_CREDENTIAL）→ 闸门 3 的模型探针为此存在（§14 风险 9）。
 
       - path: model.name
@@ -174,7 +174,7 @@ groups:
           dsh: { support: supported, verified: true, note: "profile 里以 !!js 取 process.env，原生插值" }
         doc: >
           **默认**模型名。属环境属性 —— 同一份制品在不同环境常要指向不同模型名（端点不同、模型目录不同）。
-          运行期可用 `<路由前缀>_MODEL` 覆盖；覆盖值须在该路由声明的模型名单内，并会记进轨迹。
+          运行期可用 `<供应商前缀>_MODEL` 覆盖；覆盖值须在该 provider 声明的模型名单内，并会记进轨迹。
           可配置 ≠ 随便配 ≠ 配了没人知道。
         degradation: 路由未声明模型名单时跳过成员资格校验（名字非空仍强制）；名单校验只覆盖"是否属于该路由"。
 

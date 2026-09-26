@@ -8,15 +8,15 @@
 AGENT_BASE_DIR ?= {{AGENT_BASE_DIR}}
 HARNESS ?= pi
 
-# 智能体自己的路由目录（可选）：旁边有 routes.yaml 就自动用它，**不必改基座代码**。
-# 没有就退回基座内置那份（配合自带假网关，开箱能跑）。
+# 智能体自己的**供应商配置**（可选）：旁边有 providers.yaml 就自动用它，
+# **不必改基座代码**、也不必记环境变量。没有就退回基座内置的常用供应商。
 #
 # **必须导出绝对路径**：基座工具会切自己的工作目录（verify 的子进程在仓库里跑），
 # 相对路径一过进程边界就指向别处 —— 实测导致 `make validate` 过、`make verify` 挂。
-ROUTES_FILE := $(wildcard ./routes.yaml)
-ifneq ($(ROUTES_FILE),)
-  AGENT_ROUTES_FILE := $(abspath $(ROUTES_FILE))
-  export AGENT_ROUTES_FILE
+PROVIDERS_FILE := $(wildcard ./providers.yaml)
+ifneq ($(PROVIDERS_FILE),)
+  AGENT_PROVIDERS_FILE := $(abspath $(PROVIDERS_FILE))
+  export AGENT_PROVIDERS_FILE
 endif
 RENDER_DIR ?= .render/$(HARNESS)
 JSON ?=
@@ -34,7 +34,7 @@ help: ## 列出可用命令
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "参数：HARNESS=pi|dsh   AGENT_ROUTES_FILE=<你的路由目录>   RENDER_DIR=<渲染输出>   JSON=1"
+	@echo "参数：HARNESS=pi|dsh   AGENT_PROVIDERS_FILE=<你的 provider 目录>   RENDER_DIR=<渲染输出>   JSON=1"
 
 validate: check-base ## 闸门 1：检查定义（改完先跑这个）
 	@node $(AGENT_BASE_DIR)/tools/validate.mjs .
@@ -60,9 +60,9 @@ run-local: check-base ## 本地真跑一次（ENDPOINT=https://… API_KEY=… [
 	  $(if $(MODEL),--model "$(MODEL)",) $(if $(PROMPT),--prompt "$(PROMPT)",) \
 	  $(if $(RENDER_DIR),--render-dir $(RENDER_DIR),)
 
-routes-init: ## 问端点有哪些模型，写成 routes.yaml（ENDPOINT=https://… [API_KEY=…] [ROUTE=…]）
-	@node $(AGENT_BASE_DIR)/tools/routes-init.mjs --endpoint "$(ENDPOINT)" \
-	  $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--route "$(ROUTE)",) \
+providers-init: ## 问端点有哪些模型，写成 routes.yaml（ENDPOINT=https://… [API_KEY=…] [PROVIDER=…]）
+	@node $(AGENT_BASE_DIR)/tools/providers-init.mjs --endpoint "$(ENDPOINT)" \
+	  $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--provider "$(PROVIDER)",) \
 	  $(if $(OUT),--out "$(OUT)",--out ./routes.yaml)
 
 verify: check-base ## 四道闸门全跑 → 给出「可用 / 不可用」（ENDPOINT=URL 可针对真实端点跑闸门 3/4）

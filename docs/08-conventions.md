@@ -59,14 +59,14 @@
 | 能力目录（字段/层/支持度） | `core/catalog/capabilities.yaml` | 闸门 1、文档 03 |
 | 参数层允许/禁止 | `core/catalog/params.yaml` | 闸门 1、conformance C8 |
 | **供应商（provider）内置** | `core/catalog/providers.yaml` | 闸门 1、两个渲染器 |
-| **供应商覆盖**（部署层/智能体） | `AGENT_PROVIDERS_FILE=<你的 providers.yaml>` · `AGENT_CATALOG_DIR=<目录>` · **`<智能体目录>/providers.yaml`**（`routes.yaml` 仍被接受） | 同上（优先级：环境变量文件 > 环境变量目录 > 智能体自带 > 基座内置；同名 id 按字段合并） |
+| **供应商覆盖**（部署层/智能体） | `AGENT_PROVIDERS_FILE=<你的 providers.yaml>` · `AGENT_CATALOG_DIR=<目录>` · **`<智能体目录>/providers.yaml`** | 同上（优先级：环境变量文件 > 环境变量目录 > 智能体自带 > 基座内置；同名 id 按字段合并） |
 | 预装清单 | `core/image/preinstall.yaml` | 镜像构建（经 `preinstall.lock.txt`）、连接器 `ref` |
 | 运行时版本 pin | `adapters/<h>/adapter.yaml` | 镜像构建、`make dev-env` |
 | 运行时能力声明 | 同上 `capabilities:` 段 | conformance C1、文档 10 |
 | 轨迹事件契约 | `core/trace/schema.json` | 两个映射器、查看器、conformance C7 |
 
-**反例**：模型路由在补 `routes.yaml` 之前**没有真源** —— 两个渲染器各自硬编码协议形状，
-智能体写错路由名时渲染照样成功，直到运行时才炸。凡"两边各写一份"的东西，迟早漂移。
+**反例**：供应商目录在成型之前**没有真源** —— 两个渲染器各自硬编码协议形状，
+智能体写错供应商名时渲染照样成功，直到运行时才炸。凡"两边各写一份"的东西，迟早漂移。
 
 ## 六、执法对照（哪条纪律由哪个检查拦）
 
@@ -75,7 +75,7 @@
 | 定义合法（未知字段是硬错误） | `schema/agent`、`schema/connectors`、`ref/*` |
 | 能力目录与 schema 不漂移 | `catalog/missing-field`、`catalog/stale-field` |
 | 参数层双向一致 | `params/backs`、`params/forbidden-layer` |
-| 路由必须已声明 | `route/declared`、`routes/present`、`routes/id`、`routes/param-convention`、`routes/param-allowed` |
+| 供应商必须已声明 | `provider/declared`、`providers/present`、`providers/id`、`providers/param-convention`、`providers/param-allowed`、`providers/model-api`（协议形状必须被两个运行时支持） |
 | 凭据引用必须在允许清单内 | `cred/not-in-params`、`preinstall/credential-ref` |
 | `core/` 不得出现运行时名 | `core/harness-name` |
 | 不得手写"跳过旗标值"的参数解析 | `cli/no-naive-flag-skip` |
@@ -86,32 +86,33 @@
 | 声明的 ≠ 实际加载的 | conformance **C4**（三条集合断言） |
 | 静默失败必须被检出 | conformance **C5**（每条失败模式配一个注入用例） |
 
-## 六之二、供应商（provider）是**配置**，不是基座代码
+## 六之二、供应商配置（providers.yaml）是**配置**，不是基座代码
 
-`core/catalog/routes.yaml` 写的是"这次部署连哪个端点、端点服务哪些模型"—— 那是**环境属性**。
-它放在 `core/` 只是**内置默认**（配合自带零凭据假网关，开箱能跑）；真实使用时由部署层提供自己的那份：
+`core/catalog/providers.yaml` 写的是"这次部署连哪个端点、端点服务哪些模型"—— 那是**环境属性**。
+它在 `core/` 里只是**内置的常用供应商**（deepseek / openai / corp-gateway，开箱就能用）；
+要新增一家或改端点/模型名单，写自己的那份，**不必动基座代码**：
 
 ```bash
 # ① 直接指一个文件
-AGENT_ROUTES_FILE=/path/to/your-routes.yaml make validate AGENT_DIR=<你的智能体>
+AGENT_PROVIDERS_FILE=/path/to/your-providers.yaml make validate AGENT_DIR=<你的智能体>
 # ② 或者一个目录（取其中的 routes.yaml）
 AGENT_CATALOG_DIR=/etc/agent-base make verify AGENT_DIR=<你的智能体>
 ```
 
-**派生出来的智能体**更省事：把 `routes.yaml` 放在定义旁边即可 —— Makefile 会认它，
+**派生出来的智能体**更省事：把 `providers.yaml` 放在定义旁边即可 —— Makefile 会认它，
 基座工具自己也会认（`agent-local` 那一级）。两条路径都覆盖，是因为工具会切工作目录：
 只靠 Makefile 的 `wildcard` 在"直接调工具"时就不生效了。
 
 **模型名单别手填**，问端点：
 
 ```bash
-make routes-init ENDPOINT=https://gw.internal/v1 API_KEY=…      # 会 GET <endpoint>/models
+make providers-init ENDPOINT=https://gw.internal/v1 API_KEY=…      # 会 GET <endpoint>/models
 ```
 
 它把端点实际提供的模型名写成一份目录 —— 名单于是**是实测的，不是记来的**，
 也就不会出现"闸门 1 说可用、运行时端点说不认识"。
 
-**一条硬规矩**：设了 `AGENT_ROUTES_FILE` / `AGENT_CATALOG_DIR` 却读不到文件 ⇒ **直接失败**，
+**一条硬规矩**：设了 `AGENT_PROVIDERS_FILE` / `AGENT_CATALOG_DIR` 却读不到文件 ⇒ **直接失败**，
 不静默回退到内置。否则"我明明配了"与"系统其实在用内置"会同时成立 —— 那是本项目一直在治的那类静默失败。
 
 ## 七、规则看着碍事时怎么办

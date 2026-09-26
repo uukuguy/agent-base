@@ -14,7 +14,7 @@
 `deepseek` / `openai` / `corp-gateway`），所以只写名字就能用；
 要改端点/模型名单，写自己的 `providers.yaml`（放智能体旁边，或 `AGENT_PROVIDERS_FILE` 指过去），
 同名条目**按字段合并**覆盖。
-名单别靠记：`make routes-init ENDPOINT=<baseUrl>` 会问端点 `GET <baseUrl>/models`，把实测结果写成目录。
+名单别靠记：`make providers-init ENDPOINT=<baseUrl>` 会问端点 `GET <baseUrl>/models`，把实测结果写成目录。
 | **它会什么** | `skills/<名字>/SKILL.md`（+ 可选 `scripts/`） | 技能；技能可以带业务代码，只进智能体镜像 |
 | **它能连什么** | `connectors.yaml` → `mcpServers[]` | MCP 连接器。推荐按名引用基座预装条目 |
 
@@ -28,7 +28,7 @@
 | 概念 | 中性定义 | **pi** 里变成什么 | **dsh** 里变成什么 |
 |---|---|---|---|
 | 人设 | `persona.instructions` | `agent-dir/AGENTS.md` | `workspace/AGENTS.md` —— 该运行时的 `agent-instructions` 是"**工作区指令文件发现器**"，会去读工作区的 `AGENTS.md`/`CLAUDE.md`，所以人设必须落在**工作区**，不是某个配置字符串 |
-| 模型选择 | `model.route` / `model.name` | `models.json.tmpl`（启动期渲染）+ `settings.json` 的 `defaultProvider`/`defaultModel` | patch 里的 `agent-default-model` + **provider 路由声明**（`llm-pi-ai` 的 `providers` 字典：`api`/`baseURL`/`apiKeyEnv`/`models`） |
+| 模型选择 | `model.provider` / `model.name` | `models.json.tmpl`（启动期渲染）+ `settings.json` 的 `defaultProvider`/`defaultModel` | patch 里的 `agent-default-model` + **provider 声明**（`llm-pi-ai` 的 `providers` 字典：`api`/`baseURL`/`apiKeyEnv`/`models`） |
 | 技能 | `skills/<名字>/` | `agent-dir/skills/` + 运行参数 `--skill <目录>` | `skill-filesystem.customSkillDirs`（指向**镜像内固定路径**）+ 启用 `tool-skill` |
 | 连接器 | `connectors.yaml` | **原生没有，靠基座种子扩展补上**（`pi-mcp-adapter`，构建期装好）→ 渲染成 `agent-dir/mcp.json` + `settings.json` 的 `packages` 声明 | 原生支持：每服务器 `insert` 一条 `@deepseek-ai/dsh-mcp-client` row（`serverName`/`transport`/`command` 或 `url`） |
 | 工具边界 | `tools.deny` | 运行参数 `--exclude-tools`（**手工直接启动会绕过**，闸门 4 会抓） | 禁用对应的 tool row。⚠️ **粒度更粗**：`read`/`write`/`edit` 是**同一个** `tool-fs` row，禁一个等于禁三个 |
@@ -92,26 +92,26 @@ DeepSeek 之外的模型走同一个 `providers` 字典。
 
 | 烤进制品 | 参数层（运行期注入） |
 |---|---|
-| 人设、技能、连接器、工具边界、**路由选择**（走哪条路由） | **端点**（`<PREFIX>_BASE_URL`）、**凭据**（`<PREFIX>_API_KEY`）、**模型名**（`<PREFIX>_MODEL`，默认取定义里的值） |
+| 人设、技能、连接器、工具边界、**选哪家供应商** | **端点**（`<PROVIDER>_BASE_URL`，provider 已给公开端点时不必给）、**凭据**（`<PROVIDER>_API_KEY`）、**模型名**（`<PROVIDER>_MODEL`，默认取定义里的值） |
 
 > **一条判据修正（写下来免得后人再踩）**：早期这里的判据是"改了它会不会改变行为"，于是模型名被归进制品层。
 > 那条判据对"环境属性"这一类不适用 —— **端点与模型名在实际部署里是绑在一起的**（内网网关只服务它有的那几个模型，dev/prod 的模型名往往不同），
 > 端点既然运行期给，模型名就没有理由烤死。判据已改为：**这个值是不是随部署环境而变**。是 → 参数层；否 → 制品层。
-> 「可配置」不等于「随便配」：模型名会按路由声明的名单校验，并记进轨迹。
+> 「可配置」不等于「随便配」：模型名会按 provider 声明的名单校验，并记进轨迹。
 
 所以你的 `agent.yaml` 里**永远不写 URL 和密钥**，只写引用名：
 
 ```yaml
 model:
-  route: corp-gateway        # 基座声明的路由名（core/catalog/routes.yaml）
+  provider: deepseek          # 供应商名（基座内置；也可用自己的 providers.yaml 覆盖/新增）
   name: corp-think
 ```
 
 引用名的约定（两个运行时共用，`make validate` 会校验）：
 
 ```
-<路由名转大写、非字母数字换下划线>_BASE_URL    端点
-<路由名转大写、非字母数字换下划线>_API_KEY     凭据
+<供应商名转大写、非字母数字换下划线>_BASE_URL    端点
+<供应商名转大写、非字母数字换下划线>_API_KEY     凭据
 ```
 
 连接器的凭据同理：`<名字>_(TOKEN|SECRET|KEY|PASSWORD)`。
