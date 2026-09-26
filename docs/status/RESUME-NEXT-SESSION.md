@@ -1,71 +1,69 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-25. **项目已达到设计目标（M1–M4 全部达成）—— 这是一份可交接的终态记录。**
+> Updated: 2026-09-26 20:30. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
-**基座已完整交付，且每一个承诺都有可执行的验证。**
-
-| 里程碑 | 状态 | 证据 |
-|---|---|---|
-| **M1** 运行时接入 | ✅ | `conformance` C1–C10 对 **pi 与 dsh 都 10/10 全绿** |
-| **M2** 文档 | ✅ | `docs/00`–`docs/11` 共 12 篇 + 索引（其中 03 由真源生成并有同步检查） |
-| **M3** 版本策略 | ✅ | `CHANGELOG.md`（三个版本号分工 / 破坏性变更定义 / 兼容承诺）+ 闸门 1 的版本纪律检查 |
-| **M4** 双运行时示例 | ✅ | `examples/contract-review`（带 MCP 连接器）两侧四道闸门均「可用」+ `make compare` 等价性通过 |
-
-一句判据：`make verify AGENT_DIR=<智能体>` 给出 **可用 = 四道闸门全过**（不是"能启动"）。
+1. 本轮打通**两层产品形态的起点**：接入缝（运行期加业务代码/钩子，不动产物）· 镜像内自证（离线零凭据）· 派生镜像（一条命令构建+自证）
+2. 收口 6 个实证缺陷（D1–D6）并让**钩子触发可验**（P4）；途中修掉的 `tools.deny` 交付入口失效是**真漏**（旧写法本地也没生效）
+3. 6 个示例 README 统一成同一条开发循环，并把"示例命令断链/参数名漂移"变成检查
 
 ## Where things stand
 
-- 分支 `main`，工作树干净。最近提交：`git log --oneline -12`。
-- **十一个自检目标全绿**：`validate-selftest` / `gates-selftest` / `trace-selftest` / `emit-selftest` /
-  `trace-view-selftest` / `gateway-selftest` / `pi-selftest` / `pi-trace-selftest` / `pi-trace-ext-selftest` /
-  `new-agent-selftest` / `local-selftest`。
-- `make validate` → 全绿（基座自洽 + 每个智能体定义）。**Makefile 里没有被 stub 掉的目标**（也不再有 `NOT_YET` 之类的占位宏）。
-- `make examples-check` → 全绿（**每个示例在每个运行时上都「可用」**，并跑跨运行时等价性比对）。
-- 双架构基座镜像（生产 + 调试变体）已交付；多架构 manifest 以 OCI 归档落盘。
+- 全绿：14 个自检 · 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`
+- 四个镜像变体 + 多架构归档**与源码同源**（C9 逐份核对）
+- 工作树干净；最近提交：`c612c7e`（README 参数名检查）· `9ffeb4f`（6 个 README + 3 缺陷）· `d2226c4`（示例命令断链）· `4ed49e9`（D1–D6 + P4）· `d750539`（派生镜像 P1–P3）
 
-## 走通一次（三条路径，都已实测）
+## What this session delivered
+
+- **派生镜像与接入缝（P1–P3）**：`core/image/derived/Dockerfile` · `tools/derived-image.mjs` · `core/image/verify-in-image.mjs` ·
+  `startup.mjs` 的 `applyOverlay`（只改暂存副本）· `make image-derived`
+- **钩子可验（P4）**：轨迹事件带 `emitter: hook|post-hoc`；闸门 3 的 `probe/hook-fired`；事后映射的运行时如实报"不适用"
+- **缺陷收口**：D1 增强 schema（`core/spec/enhancements.schema.json` + 负例 11/12）· D2 未声明接入件渲染期失败 ·
+  D3 增强进 `compare`（暴露并声明了 pi/dsh 的结构性差异）· D4 dsh 非法声明响亮失败 · D5 两个参数进参数层 ·
+  **D6 工具边界改为清单声明 + 两条启动路径都执行**（实测 `probe/model.tools` 4 → 1）
+- **开发循环可依**：6 个示例 README 统一（改→查→跑→验 + 参数名 + 查模型名单 + 换运行时 + 零凭据看边界）；
+  `run-local` 复用产物前比定义摘要；`examples-check` 校验 README 参数名与 Makefile 引用
+
+## Next steps (immediate, action-level)
+
+1. **E1 钩子事件名校验**：`adapter.yaml` 声明每运行时可订阅事件集合（版本 pin），`enhancements.yaml` 的 `event` 必须属于它；
+   负例：写错事件名必须红（当前某运行时有 39 个可订阅事件，写错不报）
+2. **E2b 钩子逐条自证**：声明 N 个钩子 ⇒ N 个都能指到自己的痕迹（现在只证明"发射路径在工作"）
+3. 之后才是新增大能力：**E5 服务形态契约**（长驻/多会话/审批）与 **E6 loop 策略声明**；先定主运行时（D-0014 §7.1 待决）
+4. 可选清理：`docs/status/` 若继续增长，跑 `harvest`（当前无 topic 文件堆积，未触发）
+
+## Don't go down these paths again (ruled out)
+
+- **不要靠"复用已有产物"省时间**：不校验定义摘要就复用 ⇒ "改了没生效"，而且报错会指向已改掉的供应商/参数名
+- **不要在 `try` 里算摘要/调外部函数**：漏 import 会被 catch 伪装成"旧产物清单读不出来"，排查成本翻倍（错要当场炸）
+- **不要把检查写成"只认特定后缀/固定名字"**：`_BASE_URL` 后缀过滤让 `DEEPSEEK_ENDPOINT_URL` 溜过去；
+  C9 容器检查写死 `CORP_GATEWAY_*` 而在示例换供应商后永远红 —— 名字一律**从产物契约读**
+- **不要按"文档说有"就当真**：本轮 7 处缺陷全是"文档声称 vs 实现不符"；能验的才写"已支持"
+- **不要用 `docker run --network none` 之外的方式跑镜像内自证**：离线是这条判据的前提（构件期才允许联网）
+
+## Ready-to-paste commands
 
 ```bash
-# ① 派生一个新智能体（落在基座之外，开箱可用）
-make new-agent NAME=my-agent DESCRIPTION="一句话说明"
-cd ../my-agent && make verify          # → 可用：四道闸门全过
+cd ~/sandbox/agentic-2026/agent-base
 
-# ② 示例（含带 MCP 连接器的双运行时示例）
-make verify  AGENT_DIR=examples/contract-review
-make verify  AGENT_DIR=examples/contract-review HARNESS=dsh
-make compare AGENT_DIR=examples/contract-review      # 跨运行时等价性
+# 回归（全部应为全绿）
+for t in validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest \
+         gateway-selftest providers-selftest startup-selftest pi-selftest pi-trace-selftest \
+         pi-trace-ext-selftest new-agent-selftest local-selftest; do printf "%-24s" $t; make -s $t >/dev/null 2>&1 && echo OK || echo FAIL; done
+node conformance/run.mjs --harness pi && node conformance/run.mjs --harness dsh
+make examples-check && make walkthrough
 
-# ③ 容器
-make image-all && make debug RENDER_DIR=.render/pi
+# 派生镜像（业务层起点）：渲染 → 构建 → 镜像内自证
+make image-derived AGENT_DIR=examples/idea-to-proof OVERLAY_DIR=./my-overlay IMAGE_REF=agent:mine
+
+# 镜像内自证（离线、零凭据）
+docker run --rm --network none -v <产物>:/opt/agent-base/artifact:ro -e HARNESS=pi <镜像> verify
+
+# 容器内确认工具边界真的生效（应 tools=1；旧写法是 4）
+docker run --rm --network none -e HARNESS=pi -e CORP_GATEWAY_BASE_URL=… -e CORP_GATEWAY_API_KEY=… \
+  --entrypoint /bin/sh <镜像> -c 'node /opt/agent-base/gates/tools/probe.mjs /opt/agent-base/artifact --harness pi | grep model.tools'
+
+# 示例里开发调试（每个示例 README 的「构建与验证过程」同此）
+cd examples/idea-to-proof && make validate && make verify
 ```
-
-判据都是**实测**的，不是声明：闸门 3 从**端点侧**取证（假网关记录它收到了几个工具 ——
-带连接器时实测 4 → 7/36），闸门 4 真跑一次任务并检查退出码、输出、轨迹合规与工具越界。
-
-## 若要继续推进（可选，非必需）
-
-设计目标已达成。以下是有价值但**不属于**已完成范围的事，按价值排序：
-
-| 项 | 为什么值得做 | 起点 |
-|---|---|---|
-| 第三个运行时接入 | 验证"准入成本 = conformance 十项"这句承诺 | `docs/09-harness-contract.md` 的九步 |
-| dsh 的 `model.reasoningEffort` 映射 | 目前是**已声明豁免**（provider 条目的取值形状未实测） | `adapters/dsh/exemptions.yaml` 的 `reasoning-effort-not-mapped` |
-| pi 增强"已加载"的观测 | 目前口径是「已进入产物」，离「已被运行时成功加载」差一步 | `adapters/pi/failures.md` F6 |
-| 镜像推送链路 | 多架构 manifest 已能产出；推送需要可用的内部 registry | `make image-push` |
-| 生产化能力 | 鉴权、审批流、多租户、SBOM 签名 —— **明确不在基座范围** | 见 `CHANGELOG.md` 的"本期不包含" |
-
-## 接手前请先读
-
-1. `docs/07-troubleshooting.md` —— **失败模式清单**（失败大多是静默的，这篇讲怎么看出来）
-2. `docs/08-conventions.md` —— 分层纪律（哪层能放什么，每条都标了执法项）
-3. `docs/status/DECISIONS.md` —— 关键决策与理由
-4. `docs/design/2026-09-25-unified-agent-base-design.md` —— 为什么这样设计
-
-## 一条纪律（贯穿整个项目）
-
-**做不到就说清楚做不到。** 两个运行时做不到等价的地方，逐条写在各自的 `exemptions.yaml` 里；
-未映射的字段声明为豁免并写明理由，而不是静默丢弃；检查发现的问题修在**检查侧**，
-而不是把产物改到能通过；能力变了就同步更新**用例的预期**（能力变了，静默失败面就变了）。
-`make compare` 会把所有已声明差异列出来 —— 可以不一样，但不许悄悄不一样。

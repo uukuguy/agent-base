@@ -304,3 +304,5 @@
 - 2026-09-26 D3 带出一个此前不可见的结构性差异：**基座轨迹在一侧是扩展形态、另一侧在内建插件树里** ⇒ 增强集合永远不同，已用豁免显式声明（不是"对齐"，而是"让差异可见"）
 - 2026-09-26 途中修自己的两处回归：`localInvocation` 里引用不到 `manifest`（作用域错，直接崩）；`core/image/startup-selftest.mjs` 夹具含运行时名（`core/harness-name` 抓到）
 
+## 2026-09-26
+- 20:50 /project-state update：CURRENT-STATE 结构层重写（两层产品形态、定制分层 L0–L4、接入缝与镜像内自证、已解决项移出开放问题、去掉会过期的镜像 ID 表）；RESUME 落后 5 个提交 → 同时做活动会话 checkpoint

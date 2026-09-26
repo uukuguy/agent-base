@@ -2,118 +2,156 @@
 
 ## Project Snapshot
 
-- Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，当前主力 pi）
+- Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，两侧均可用）
 - Current branch: `main`
-- Theme-level focus: **首个示例走通（S4 `examples/idea-to-proof` 四道闸门 → 可用）**；下一步是双 harness 示例与 dsh 比较轨
+- Theme-level focus: **harness 业务定制**（钩子、接入缝、派生镜像）—— 起点门槛已打通，剩余在深度定制与服务形态
 - Project route: managed
-- Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S7，派生自统一设计附录 B；关键路径 = B 轨 pi。§7 记 dsh 实现待定项，§8 记 S3 进展）
-- Active work package: **容器里配置 LLM**（运行期注入 + 启动期暂存/渲染 + 容器内端到端验证，见路线图 §21）
+- Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（包 S0–S8；**当前活跃待办在 §23/§24/§25**）
+- Active work package: **无在飞包**（上一包"派生镜像与接入缝 P1–P4"已闭合）；候选下一包 = 钩子声明契约（§23 E1/E2b）
 
 ## Current Architecture
 
-**五层模型**（统一设计 §2.1），自上而下：
+### 产品形态：两层（D-0014）
 
-- **应用层** `my-agent/`：中性定义 `agent.yaml` + `connectors.yaml` + `skills/`（+ 可选 `harness/<h>/` 业务级增强）；业务团队只碰这里
-- **制品层** `my-agent:<ver>`：`base:<ver>` + 构建期渲染出的 harness 原生定义（行为在此冻结）
-- **基座层** `base:<ver>`：`core`（不变量）+ `adapters/<h>`（harness 专有）
-- **适配层** `adapters/pi` / `adapters/dsh` + `conformance/`（新 harness 准入门槛 C1–C10）
-- **参数层**：部署期只注入不改变行为的东西（端点、凭据、探针参数）
+- **基座层**（本仓库）：不变量（轨迹 schema、参数分层、产物只读、不静默失败）+ 契约（定义/渲染/启动）+ 闸门 + 基座镜像
+- **业务层**（`FROM agent-base`，派生镜像）：业务代码、钩子、loop 定制、服务形态；**深度定制发生在这里**
 
-**三条贯穿原则**：P-a 能力/选择分离 · P-b 文件系统隔离（隔离靠 FS 不靠配置）· P-c 后验统一（不做先验抽象）。
+### 定制分层（基座对每层的承诺与判据）
 
-**核心判据（行为烤、参数下放）**：「这个字段改了，同一个输入会不会得到不同行为？会 → 烤进制品；不会 → 参数层」。
+| 层 | 内容 | 现状 |
+|---|---|---|
+| L0 | 声明式配置（定义/provider/连接器/技能） | ✅ 闭环（两侧） |
+| L1 | 薄接入（工具/命令注册） | ✅ 闭环（业务代码共享，接入各写各的） |
+| L2 | 钩子（生命周期介入） | ⚠️ 传输 + **发射路径可验**；事件名校验与逐条自证未做 |
+| L3 | loop 定制（轮次/终止/编排） | ❌ 空白（某运行时原生支持整体替换，基座无声明面） |
+| L4 | 服务形态（长驻/多会话/审批） | ❌ 空白 |
 
-### 验证体系（四道闸门已全部可执行）
+### 规范措辞原则：保证 / 允许 / 不管（D-0015、D-0016）
 
-四道闸门从「只有闸门 1」变为**全部可执行**，`usable` 由此成为可达且已实测通过的判定：
+- **保证并验证**：进 schema/契约，有判据，改动走闸门与 conformance
+- **允许但不保证**：开放命名空间（自定义字段/`kind`）原样透传进产物与清单，报告里标"未验证"
+- **不管**：业务逻辑、策略内容、审批/网关/审计实现 —— 给缝，不给判据
+- **唯一硬边界：不静默**（不认识的**声明**要保留并标注；不认识的**内容**不许静默行为）
+- 对外契约：`docs/13-developer-contract.md`（起点与保证）；`docs/14-how-to-verify.md`（能做什么/怎么做/怎么确认）
+
+### 五层模型（统一设计 §2.1）
+
+- **应用层** `my-agent/`：`agent.yaml` + `connectors.yaml` + `skills/`（+ 可选 `harness/<h>/`）；业务团队只碰这里
+- **制品层**：基座镜像 + 渲染产物（运行时原生形态），行为在此冻结
+- **基座层** `core/`：不变量；**适配层** `adapters/<h>` + `conformance/`（新 harness 准入门槛 C1–C10）
+- **参数层**：部署期只注入端点/凭据/模型名/权限模式/工作区根，不注入行为
+- 三条贯穿原则：P-a 能力/选择分离 · P-b 文件系统隔离 · P-c 后验统一
+- 核心判据：**行为烤进制品，参数下放运行期**
+
+### 接入缝与镜像内自证（P1–P3）
+
+- `AGENT_OVERLAY_DIR`（默认 `/opt/agent-base/overlay`）：启动期把上层镜像带的 `extensions/`、`business/`
+  与 `enhancements` 声明并进**暂存副本**（产物一字节不动），扩展路径登记进 `settings.json`
+- 装载形态由该运行时的产物布局决定：**只实现了"扩展目录 + settings 登记"这一种**，其余形态**响亮失败**
+- 镜像携带闸门源码与依赖（`/opt/agent-base/gates`）：`docker run <镜像> verify` 跑闸门 2/3/4（有定义连闸门 1），
+  离线零凭据；`validate --agent-only` 用于镜像内（镜像里没有基座 docs/布局）
+- 派生骨架 `core/image/derived/Dockerfile` + `tools/derived-image.mjs`（`make image-derived`）：渲染 → 组上下文 → 构建 → 镜像内自证
+
+### 验证体系（四道闸门）
 
 | 闸门 | 实现 | 退出码 |
 |---|---|---|
-| 1 静态校验 | `tools/validate.mjs` | 10 |
+| 1 静态校验 | `tools/validate.mjs`（基座自洽 27 项；带定义 39–42 项） | 10 |
 | 2 解析自证 | `adapters/<h>/doctor.mjs`（零凭据真跑 harness） | 20 |
 | 3 集成探针 | `tools/probe.mjs`（默认零凭据假网关） | 30 |
 | 4 端到端冒烟 | `tools/smoke.mjs` | 40 |
 
-`tools/verify.mjs` 只做**编排与汇总**、不重新实现任何检查 —— 保证「verify 说通过」与「单跑某道闸门说通过」永远一致。
+`tools/verify.mjs` 只做编排与汇总，不重新实现检查。**声明即契约**：落不了判据的能力一律标"未验证"。
 
 ### 轨迹：双来源、同一 schema
 
-统一轨迹（`core/trace/schema.json`，8 类事件）有两条产出路径，都给同一份形状：
+- 统一轨迹 `core/trace/schema.json`：**9 类事件**，每条带 `emitter: hook | post-hoc`
+- **回调式（主路径）**：扩展订阅 loop 回调，能拿到实际请求体（tools 数组、stream 标志）⇒ `emitter=hook`
+- **事后映射（兜底）**：解析原生事件流/会话文件 ⇒ `emitter=post-hoc`（离线可复盘，拿不到请求体）
+- 闸门 3 的 `probe/hook-fired`：声明了 `kind: hook` ⇒ 必须有钩子当场发出的事件；
+  事后映射的运行时**如实报"不适用"**（不算通过）
+- 业务可介入：`biz` 附加位 / `biz.event` / `trace-labels.yaml`；基座不懂业务语言
 
-- **回调式（主路径）**：`adapters/<h>/seed/extensions/` 里的基座扩展订阅 harness loop 回调，能拿到**实际发出去的请求体**（真实 tools 数组与 stream 标志）与原生调用 id
-- **事后映射（兜底）**：`adapters/<h>/trace.mjs` 解析原生事件流/会话文件；离线可复盘，拿不到请求体与判定
+### 仓库拓扑
 
-业务可介入轨迹（`biz` 附加位 / `biz.event` 业务日志 / `trace-labels.yaml` 标签表）；**基座不懂业务语言**，只提供协议与查看器（`tools/trace-view/`）。
+`core/`（91 文件）· `adapters/{pi,dsh}/`（24）· `tools/`（23）· `conformance/`（9）· `template/`（6）·
+`docs/`（16 篇 + `design/`、`plans/`、`status/`）；`dist/` 是构建产物（已 gitignore）。
+**Makefile 38 个目标全部已实现**（无 `NOT_YET` 桩）。
 
-### 仓库拓扑（现状）
+### 契约与检查（近期收紧，均带负例）
 
-`core/`（73 文件）· `adapters/{pi,dsh}/`（20）· `tools/`（13）· `conformance/`（6）· `template/`（6，派生源）· `docs/{design,plans,research,status}/`；`dist/` 是构建产物（已 gitignore）。
-
-Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
-
-**开箱可跑已成立**：`make new-agent NAME=x` 派生的智能体（落在基座之外的同级目录）立刻 `make verify` 即给出「可用」——判据由 `make new-agent-selftest` 逐条实测（跑的是**生成出来的 Makefile**，而非直接调基座工具）。
+- `core/spec/enhancements.schema.json`：`kind` 枚举、`kind=hook` 必填 `event`、`entry`/`package` 至少一个
+- 渲染期：未声明的接入件、非法的 dsh 增强声明 ⇒ **响亮失败**（不静默跳过/静默加载）
+- 参数层：`AGENT_PERMISSION_MODE` / `AGENT_WORKSPACE_ROOT` 已登记（适配器不许读未登记的名字）
+- 工具边界：**清单声明**（`runtimePlan.prependArgs`），本地与容器**两条启动路径都执行**（实测 `tools=1`）
+- 运行期复用产物前比**定义摘要**：定义变了就重渲（防"改了没生效"）
+- `examples-check`：README 参数名必须落在产物契约或基座平台变量里；示例 Makefile 引用的脚本必须存在
 
 ## Open Problems (theme-level)
 
-- **dsh 适配器：`render` + `doctor` 已交付并验证**；conformance **10/10 全绿**。C5 与 C4 的「按 pi 形状写死」问题已在检查侧治本修复（声明式注入 + 适配器声明增强形态）
-- **`tools/probe.mjs` / `smoke.mjs` 目前只走 pi**（依赖 `adapters/pi/run.mjs`）→ dsh 的 C6 要等 `adapters/dsh/run.mjs`
-- **G1 只剩一半**：回调能看到「harness 发了几个工具」，看不到「网关收到后有没有吞」。三条互补路径已定（链路观测 / 响应侧不一致检测 / 响应头回显对照，后者已实现但仅在网关回显时生效）
-- **G3 的真值需要「做决策的扩展」自己上报**：轨迹扩展观测不到别的 handler 是否阻断，因此 `tool.call.decision` 目前恒为 `unobserved`（诚实近似，不是等价）
-- **闸门 2 硬断言 3 的口径是「已进入产物」而非「已加载」**：纯钩子型扩展目前观测不到（`failures.md` F6 已记，补法是让增强自证 id）
-- **首个业务示例已走通**：`examples/idea-to-proof` 四道闸门 → 可用；`examples/` 可整体删除而基座仍绿（N5 由 `examples-check` 静态验证）
-- ✅ **J1 有双边证据**：`conformance` C1–C10 对 pi 与 dsh **都全绿**（同一份中性定义两侧都能渲染并跑通）
-- **业务开发者上手路径三段全通**：派生 → 本地开发 → 容器边界，各有可重复判据（`new-agent-selftest` / `local-selftest` / `conformance C9`）
-- **上手路径仍只有 pi 一侧**：派生的智能体开箱 `usable`，`HARNESS=dsh` 仍会因 dsh 适配器未实现而失败
-- **镜像只在本地产出、尚未推任何 registry**：多架构 manifest 已能落盘（OCI 归档），推送路径待 I2（内网能否直连镜像仓库）确认
-- **企业级 MCP 的每用户鉴权**与参数层模型（单一服务凭据 `credentialRef`）不匹配 —— 设计缺口，排在首个走通之后
-- **pi 的 MCP 客户端已选定并接入**（`pi-mcp-adapter@2.37.0`，基座种子依赖、构建期装好）→ 连接器在两侧都能用；实测工具数 4 → 7
-- **预装清单的服务器选择**仍未定稿：`core/image/preinstall.yaml` 已列出候选与 npm 实测存活表，但「预装哪些进镜像」是待定项；企业 SaaS 集与 per-user OAuth 的冲突同上
-- **上游版本漂移**：dsh `0.1.7-rc.1` 是预发布，pi 迭代快 —— pin 之外的回归保障（`conformance`）已建立但对 dsh 尚未生效
-- **业务级 harness 增强尚无最小示例**：`capabilities.yaml` 里该组字段仍是 `verified: false`，等首个真实增强验证其可写性
-- **外部输入已全部答复（2026-09-25）**：I1 无企业网关、直连 API（G1 后半降级为已记录风险）· I2 **仅运行期必须无外网**（构建期不严格）→ 架构为「构建期装齐、运行期断网」，收尾包 **S8** 只含三件小事（关静默联网 / 装齐的反向检查 / 端到端断网证据） · I3 暂无成熟业务场景（示例仅作参考实现）
-- **交付物标准（企业可接手）**：模板必须开箱可跑、无 TODO；`examples/` 可整删后基座仍须 `validate` + `conformance` 全绿
+- **钩子声明未校验事件名**：`event` 只要求"必须给"，未校验是否属于该运行时可订阅集合（某运行时有 39 个）
+- **钩子只能证明"发射路径在工作"**：逐条自证（每个声明的钩子都留痕）未做
+- **L3 loop 定制与 L4 服务形态无声明面与判据**：长驻会话、多会话并发、审批通道、成本/网关
+- **dsh 侧接入缝未实现**：overlay 只支持"扩展目录 + settings 登记"这一种装载形态，其余响亮失败
+- **多语言共享业务代码未实现**（D-0012/D-0013 已登记）：语言中立的描述符 + 进程边界执行 + 通用桥
+- **pi 的"已加载"口径仍不到"已加载"**：已堵住"未声明的接入件被加载"，但"声明了却没加载"仍观测不到
+- **`tool.call.decision` 恒为 `unobserved`**：轨迹观测不到别的 handler 是否阻断（诚实近似，非等价）
+- **每用户鉴权与参数层模型不匹配**：连接器只有单一服务凭据 `credentialRef`，per-user OAuth 无表达
+- **镜像未推任何 registry**：多架构归档可落盘；推送路径仍待确认（I2 已答"仅运行期无外网"）
+- **预装清单未定稿**：`core/image/preinstall.yaml` 有候选与 npm 存活表，"预装哪些进镜像"待定
+- **上游版本漂移**：dsh `0.1.7-rc.1` 为预发布、pi 迭代快；pin 之外的回归网已建立（两侧 conformance 均生效）
+- **`CLAUDE.md` 尚未创建**：技术不变量/结构事实尚无按会话自动加载的落地处
 
 ## Key Files
 
 ### Loaded every Claude session
-- `CLAUDE.md` —— **尚未创建**（设计中；落地后承载「技术不变量 / 结构事实」）
-- 运行时记忆（mnemon 托管，会话自动注入）—— 本仓库**无** `MEMORY.md` 文件，协作元信息由运行时记忆层承载
+
+- `CLAUDE.md` —— **尚未创建**（落地后承载"技术不变量 / 结构事实"）
+- 运行时记忆（mnemon 托管，会话自动注入）—— 本仓库**无** `MEMORY.md` 文件
 
 ### State / handoff
+
 - `docs/status/RESUME-NEXT-SESSION.md` —— 当前会话交接
 - `docs/status/CURRENT-STATE.md` —— 本文件
 - `docs/status/INDEX.md` —— `docs/status/` 发现入口（含外部锚点表）
 - `docs/status/JOURNAL.md` —— 只追加事件日志
+- `docs/status/DECISIONS.md` —— D-0001–D-0016（D-0012/13 登记未实现；D-0014 两层模型；D-0015 保证/允许/不管；D-0016 开发者契约）
 
 ### Design truth source
-- `docs/README.md` —— 文档索引（12 篇全套，标了每篇面向谁）
-- `docs/design/2026-09-25-unified-agent-base-design.md` —— **最终稿 v2.4**；含 5 处「实现期实测修正/增补」小节（§2.3 / §6.4 / §8.3 / §10.1–§10.2 / §12.1 / §14 / §15.1），**那些是实测修正，视同正文，不要当注释略过**
-- `docs/design/2026-09-25-{pi,dsh}-harness-design.md` —— 各自 harness 专有实测约束的唯一事实来源（上位依据）
-- `docs/plans/IMPLEMENTATION-ROADMAP.md` —— 唯一权威工作清单 + §7 dsh 待定项 + §8 S3 进展
-- `docs/research/2026-09-25-mcp-ecosystem-survey.md` —— MCP 生态调研（企业常用、npm 实测存活表、pi 客户端生态）
+
+- `docs/README.md` —— 文档索引（16 篇，标了每篇面向谁）
+- `docs/design/2026-09-25-unified-agent-base-design.md` —— **最终稿 v2.4**；含 5 处"实现期实测修正/增补"小节（视同正文）
+- `docs/design/2026-09-25-{pi,dsh}-harness-design.md` —— 各自 harness 专有实测约束的唯一事实来源
+- `docs/design/2026-09-26-harness-customization.md` —— **可定制点实测调研**（两侧钩子/loop/服务形态、层次模型 L0–L4、7 处实证缺陷）
+- `docs/design/2026-09-26-base-value-and-openness.md` —— 基座价值定义（保证/允许/不管三段式、全生命周期表）
+- `docs/13-developer-contract.md` —— 开发者契约（起点与保证、跨版本稳定性承诺、不约束清单）
+- `docs/14-how-to-verify.md` —— 能做什么 / 怎么做 / 怎么确认（每条的期望与边界、负例表）
+- `docs/06-deploy.md` —— 部署与派生镜像（接入缝、镜像内自证、权限坑）
+- `docs/plans/IMPLEMENTATION-ROADMAP.md` —— 唯一权威工作清单（§23 缺陷/演进、§24 开放性、§25 起点缺口）
+- `docs/research/2026-09-25-mcp-ecosystem-survey.md` —— MCP 生态调研（企业常用、npm 存活表、pi 客户端生态）
 - `README.md` —— 对外定位、基座/应用边界、四类标记的阅读方式
 
 ### Implementation entry points
-- `Makefile` —— 全部命令的唯一边界（22 个目标，实现 17 / 未实现 5）
+
+- `Makefile` —— 全部命令的唯一边界（38 个目标，全部已实现）
 - `tools/{validate,probe,smoke,verify}.mjs` —— 闸门 1/3/4 与四道闸门编排
-- `tools/{dev-env,run-local}.mjs` —— 本地开发环境（按 pin 对齐版本；临时 HOME 跑制品）
-- `examples/` —— 示例项目（**不是基座的一部分，可整体删除**）：**6 个示例全部两侧"可用"**（纯技能 / MCP 连接器 / 本地模型 / 多环境参数 / 只读+观测 / harness 业务增强），`make examples-check` 全绿
-- `tools/examples-check.mjs` —— 示例校验（结构 + 四道闸门 + 技能脚本自检 + 不变量 N5）
-- `tools/new-agent.mjs` + `template/` —— 派生入口与派生源（`new-agent-selftest` 验证「开箱可跑」）
-- `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用的运行器）
-- `adapters/pi/seed/` —— 基座不变量：`settings.json` 安全姿态 + `enhancements.yaml` 声明 + `extensions/trace.ts` 轨迹扩展
-- `adapters/dsh/` —— **`render`/`doctor`/`run`/`trace` 已交付**，conformance 10/10；核心/容器/等价性均已验证
-- `core/gates/` —— 四闸门框架：编排 / 断言语言（12 种）/ §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / 统一 CLI 解析
-- `core/trace/` —— 统一轨迹：`schema.json`（真源）· `emit.mjs`（会被拷进产物，故自包含）· 业务级 logger · 两份自检 · `README.md` 分层与协议
-- `core/spec/` —— 中性定义 schema（**public contract**，`additionalProperties: false`）+ fixtures（1 合法 + 10 注入式非法）
-- `core/catalog/{capabilities,params,routes}.yaml` —— 三个执法点：字段所属层 · 参数层允许/禁止清单 · **模型路由目录**（`model.route` 的合法取值 + 协议形状；闸门 1 会校验智能体写的 route 确实已声明）
-- `core/image/preinstall.yaml` —— 独立可升级的预装清单（开发者面向引用名 + 精确 pin + 存活实测 + 排除项理由）
-- `conformance/` —— **pi 侧 C1–C10 全绿（10/10）**；准入门槛全阻断，未实现记 pending 并非零退出；`--harness` 可单独断言某适配器
-- 本机容器环境：**OrbStack 2.2.3** 管理 Docker（context `orbstack`，只有 `docker` 驱动 ⇒ 多架构打包需自建 `docker-container` builder `ab-multi`；x86_64 走 Rosetta）。详见路线图 §10.2
-- `core/image/` —— 基座镜像与调试变体：`Dockerfile`/`Dockerfile.debug`/`entrypoint.sh`/`gen-preinstall-lock.mjs`/`build.mjs`；按架构分开构建 + 一步合并多架构 manifest；`conformance/image-checks.mjs` 做容器内实测
-- `tools/fake-gateway/` —— 零凭据假网关（协议无关核心 + 协议适配；已含会话终止语义）
+- `tools/{dev-env,run-local}.mjs` —— 本地开发环境（按 pin 对齐版本；临时 HOME 跑制品；复用前校验定义摘要）
+- `tools/derived-image.mjs` —— 派生镜像构建 + 镜像内自证（`make image-derived`）
+- `tools/examples-check.mjs` —— 示例校验（结构 + README 完整性/参数名 + 四道闸门 + 技能脚本自检 + N5）
+- `tools/new-agent.mjs` + `template/` —— 派生入口与派生源（`new-agent-selftest` 验证"开箱可跑"）
+- `examples/` —— 6 个示例项目（**不是基座的一部分，可整体删除**），两侧"可用"，各自 README 载同一条开发循环
+- `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用运行器）
+- `adapters/{pi,dsh}/seed/` 与 `enhancements.yaml` —— 基座不变量：安全姿态 + 增强声明 + 轨迹扩展
+- `core/gates/` —— 四闸门框架：编排 / 断言语言 / §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / CLI 解析
+- `core/trace/` —— 统一轨迹：`schema.json`（真源，9 类事件 + `emitter`）· `emit.mjs` · 业务级 logger · 自检
+- `core/spec/` —— 中性定义 schema（**public contract**）+ **增强 schema** + fixtures（1 合法 + **12** 注入式非法）
+- `core/catalog/{capabilities,params,providers}.yaml` —— 三个执法点：字段所属层 · 参数层清单 · provider 目录
+- `core/image/` —— 基座镜像与调试变体 + `verify-in-image.mjs`（镜像内自证）+ `derived/Dockerfile`（派生骨架）
+- `core/config/dotenv.mjs` —— 环境文件加载（真实环境变量优先；永不打印值）
+- `tools/fake-gateway/` —— 零凭据假网关（协议无关核心 + 协议适配）
 - `tools/trace-view/` —— 轨迹查看器参考实现（业务附加协议 + 机械回退；源码不含业务词汇）
-- `package.json` / `package-lock.json` —— 基座工具链依赖（`ajv`、`yaml`，精确 pin；`node_modules/` 已 gitignore）
+- `conformance/` —— 准入门槛 C1–C10（**两侧全绿**），含容器安全下限与"参数名从产物契约读取"的容器能力检查
+- `package.json` / `package-lock.json` —— 基座工具链依赖（`ajv`、`yaml`，精确 pin）
 
 ## Resume Instructions
 
@@ -121,22 +159,15 @@ Makefile 共 31 个目标，**全部已实现**（不再有 `NOT_YET` 桩）。
 2. Read `RESUME-NEXT-SESSION.md`（在飞意图 + 下一个具体动作）。
 3. `git status --short` 与 `git log --oneline -5`。
 4. CLAUDE.md（若已创建）+ 运行时记忆自动加载。
-5. 自检全貌：`make -s help`；十个自检目标 + `make conformance`（后者对 dsh 预期非零）。
-6. 需要实现细节时按需读统一设计正文（1600+ 行，**勿全文加载**）：§0.2 决策、§2 架构、§4 定义单元、§5 适配契约、§6 四闸门、§8 交付契约与轨迹、§12 落地、附录 B 实施顺序。
+5. 自检全貌：`make -s help`；十四个自检目标 + `make conformance`（两侧都预期全绿）。
+6. 需要实现细节时按需读统一设计正文（勿全文加载）：§0.2 决策、§2 架构、§4 定义单元、§5 适配契约、§6 四闸门、§8 交付契约与轨迹、§12 落地。
 
-## 当前镜像快照（2026-09-26）
+## 镜像与同源校验（不记逐次构建的 ID）
 
-四份交付镜像 + 一份多架构归档，**全部与当前源码同源**（`conformance` C9 的 `images-same-source` 逐份核对）。
+交付四份变体（arm64/amd64 × 普通/调试）+ 一份多架构 OCI 归档。
 
-| 镜像 | 架构 | ID（前 16 位） | 大小 |
-|---|---|---|---|
-| `agent-base:0.1.0-arm64` | arm64 | `268c25667ef316bd` | 2.46 GB |
-| `agent-base:0.1.0-amd64` | amd64 | `97c3ea290d4c3395` | 2.44 GB |
-| `agent-base:0.1.0-debug-arm64` | arm64 | `4a28dbf9e730d23d` | 2.47 GB |
-| `agent-base:0.1.0-debug-amd64` | amd64 | `c27c7762ea58a28e` | 2.45 GB |
-| `dist/image/agent-base-0.1.0.oci.tar` | arm64 + amd64 | 1.83 GB（多架构 manifest） | — |
-
-**同源指纹**：`core/image/inputs-digest.mjs` 对构建输入（两个 Dockerfile / entrypoint / 启动脚本 / 两份锁）
-算一个 sha256，构建期烤进镜像 LABEL `agent-base.inputs-digest`；C9 用**同一份实现**重算比对。
-**改了这些输入却不重建镜像 ⇒ C9 直接红**（这是补一个真实漏检：此前只验"存在 + 平台对"）。
-
+- **同源指纹**：`core/image/inputs-digest.mjs` 对构建输入算 sha256，构建期烤进 LABEL `agent-base.inputs-digest`；
+  C9 用同一份实现重算比对 —— **改了输入不重建镜像 ⇒ C9 直接红**
+- 查当前值：`node -e "import('./core/image/inputs-digest.mjs').then(m=>console.log(m.imageInputsDigest('dist/image/context')))"`
+  与 `docker image inspect <镜像> --format '{{index .Config.Labels "agent-base.inputs-digest"}}'`
+- 不在此处记录逐次构建的镜像 ID：它每次重建都变，记在这里只会变成过期数字
