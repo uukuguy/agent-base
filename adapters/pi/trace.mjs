@@ -82,6 +82,9 @@ export function mapEventStream(records, ctx, opts = {}) {
     events.push({
       ts,
       seq: seq++,
+      // 发射者形态：**事后**从会话文件映射（钩子路径由 core/trace/emit.mjs 标记为 hook）。
+      // 这条区分让"声明了钩子但实际没触发"可以被断言（见 probe/hook-fired）。
+      emitter: "post-hoc",
       run: ctx.run,
       agent: ctx.agent,
       harness: ctx.harness,

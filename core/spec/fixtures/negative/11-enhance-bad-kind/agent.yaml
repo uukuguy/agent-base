@@ -1,0 +1,6 @@
+apiVersion: agent-base/v1
+name: enhance-bad-kind
+description: 负例：增强 kind 不合法
+persona: { instructions: 负例。 }
+model: { provider: corp-gateway, name: corp-think }
+connectorsFile: connectors.yaml

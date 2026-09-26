@@ -1,0 +1,6 @@
+apiVersion: agent-base/v1
+name: enhance-hook-no-event
+description: 负例：hook 漏 event
+persona: { instructions: 负例。 }
+model: { provider: corp-gateway, name: corp-think }
+connectorsFile: connectors.yaml

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-base/spec/enhancements.schema.json",
+  "title": "enhancements.yaml —— 业务级增强声明（harness 层）",
+  "description": "缺陷 D1 的修法：此前 kind/event/entry 的要求只写在 core/catalog/capabilities.yaml（文档生成器的目录），闸门 1 只查顶层 key —— 于是写错 kind、漏 event、写不存在的 entry 都能过。本 schema 是唯一真源。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "harness",
+    "enhancements"
+  ],
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "agent-base/v1"
+    },
+    "harness": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,30}$"
+    },
+    "note": {
+      "type": "string"
+    },
+    "enhancements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "tool",
+              "hook",
+              "command",
+              "middleware",
+              "subagent",
+              "provider",
+              "other"
+            ]
+          },
+          "entry": {
+            "type": "string",
+            "minLength": 1,
+            "description": "相对产物配置目录的接入件路径（文件形态的运行时用它）"
+          },
+          "package": {
+            "type": "string",
+            "minLength": 1,
+            "description": "插件包名或相对路径（包形态的运行时用它）"
+          },
+          "event": {
+            "type": "string",
+            "minLength": 1,
+            "description": "kind=hook 时必填：订阅哪个事件"
+          },
+          "config": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "hook"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "required": [
+                "event"
+              ]
+            }
+          },
+          {
+            "anyOf": [
+              {
+                "required": [
+                  "entry"
+                ]
+              },
+              {
+                "required": [
+                  "package"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

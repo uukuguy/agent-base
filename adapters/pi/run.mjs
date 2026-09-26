@@ -183,7 +183,10 @@ export async function runAgent({
   const args = ["--mode", "json", "-p", prompt, "--no-skills"];
   const skills = path.join(staging, "skills");
   if (fs.existsSync(skills)) args.push("--skill", skills);
-  for (const t of manifest.runArgs?.excludeTools ?? []) args.push("--exclude-tools", t);
+  // 工具边界：**声明在产物清单里**（runtimePlan.prependArgs），两条启动路径都按同一份执行 ——
+  // 容器由 startup 拼装，本地由这里拼装。规则只有一份（清单），
+  // 避免"本机生效、容器不生效"（D6 的真问题）或反过来。
+  args.push(...(manifest.runtimePlan?.prependArgs ?? []));
 
   const child = spawn("pi", args, { env, cwd });
   let stdout = "";
@@ -299,10 +302,12 @@ export async function observeLoaded(renderDir, { timeoutMs = 20000 } = {}) {
  * 本地交互/一次性调用的启动方式（harness 专有 —— 参数形态归这里，不归基座工具）。
  * 与 probe/smoke 用的 runAgent 共用同一套运行期契约（暂存可写副本 + 中立 HOME/cwd + 关 stdin）。
  */
-export function localInvocation({ staging, prompt }) {
+export function localInvocation({ staging, prompt, prependArgs = [] }) {
   const args = ["--no-skills"];
   const skills = path.join(staging, "skills");
   if (fs.existsSync(skills)) args.push("--skill", skills);
+  // 工具边界等"产物声明的运行参数"由**调用方从清单里取**传进来（这里拿不到清单，只有暂存目录）。
+  args.push(...prependArgs);
   if (prompt) args.push("-p", prompt);
   return { bin: "pi", args };
 }

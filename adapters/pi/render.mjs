@@ -247,6 +247,9 @@ function main() {
     fs.readFileSync(path.join(REPO, "core/trace/emit.mjs"), "utf8"));
 
   const declaredEnhancements = [...new Set([...baseEnh, ...agentEnh].map((e) => e.id))].sort();
+  // 哪些声明是**钩子**：闸门 3 的 probe/hook-fired 靠它判断"要不要断言钩子真的触发了"
+  const hookEnhancements = [...new Set([...baseEnh, ...agentEnh]
+    .filter((e) => e.kind === "hook").map((e) => e.id))].sort();
   writeFile(path.join(agentOut, "enhancements.yaml"), stableJson({
     apiVersion: "agent-base/v1",
     harness: HARNESS,
@@ -255,6 +258,22 @@ function main() {
   }));
 
   const extDir = path.join(agentOut, "extensions");
+  // 缺陷 D2：本运行时把 `extensions/` 下的**每个文件**都登记为扩展 ⇒ 往目录里丢一个未声明的文件，
+  // 它会被**真的加载**，而闸门 2 的"声明 == 进产物"只看声明过的 —— 查不出来。
+  // 在渲染期把这条堵上：登记的每个文件（基座发射器除外）都必须被某条 declared entry 认领。
+  if (fs.existsSync(extDir)) {
+    const declaredEntries = new Set([...baseEnh, ...agentEnh]
+      .map((e) => String(e.entry ?? "").replace(/^extensions\//, ""))
+      .filter(Boolean));
+    const orphans = fs.readdirSync(extDir)
+      .filter((f) => f !== "_trace-emit.mjs")          // 基座发射器由渲染器注入，不属增强声明
+      .filter((f) => !declaredEntries.has(f));
+    if (orphans.length) {
+      throw new Error(`extensions/ 里有未声明的接入件：${orphans.join(", ")}`
+        + ` —— 本运行时会加载它们，但没有任何增强声明认领（等价于"偷偷加载"）。`
+        + ` 修法：在 harness/${HARNESS}/enhancements.yaml（或基座 seed 的清单）里声明 entry，或把文件移出该目录。`);
+    }
+  }
   settings.extensions = fs.existsSync(extDir)
     ? fs.readdirSync(extDir).filter((f) => f !== "_trace-emit.mjs").sort().map((f) => `extensions/${f}`)
     : [];
@@ -351,6 +370,7 @@ function main() {
     agent: agent.name,
     declaredSkills,
     declaredEnhancements,
+    hookEnhancements,
     connectors: enabledConnectors.map((c) => ({ serverName: c.name, transport: c.transport })),
     // 连接器的包坐标：闸门 3 据此断言"运行期能离线启动它"（不是"我们写了配置"）
     connectorPackages: enabledConnectors.filter((c) => c.pin).map((c) => `${c.pin.package}@${c.pin.version}`),
@@ -381,6 +401,9 @@ function main() {
      */
     runtimePlan: {
       argvPrefix: [],   // 本 harness 的调用形态不含位置参数（只有选项）
+      // 工具边界必须由**产物声明**、由启动期拼装：否则本地运行器传了、交付入口没传，
+      // 就成了"文档说边界生效、容器里其实没生效"（实测踩过 —— 见路线图 D6）。
+      prependArgs: runArgs.excludeTools.length ? ["--exclude-tools", runArgs.excludeTools.join(",")] : [],
       copy: ["agent-dir"],
       env: { PI_CODING_AGENT_DIR: "agent-dir" },
       cwd: null,

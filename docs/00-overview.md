@@ -97,3 +97,4 @@ docs/          本套文档 + 设计正文 + 调研
 
 > 从基座开始做业务开发？先读 [`13-developer-contract.md`](13-developer-contract.md)：
 > **起点、保证、不约束**（每条保证都指向一条真实判据）。
+> 要亲手确认能做到什么？直接看 [`14-how-to-verify.md`](14-how-to-verify.md)（命令 + 期望 + 边界）。

@@ -72,6 +72,8 @@ function survey(h) {
     skills: [...(manifest.declaredSkills ?? [])].sort(),
     connectors: (manifest.connectors ?? []).map((c) => c.serverName ?? c.name).filter(Boolean).sort(),
     routes: [...(manifest.modelProviders ?? [])].sort(),
+    // 增强（业务级定制）：两侧各自声明了什么。D3 之前它完全不在比对范围内。
+    enhancements: [...(manifest.declaredEnhancements ?? [])].sort(),
     doctorOk: d.status === 0,
     doctorError: d.status === 0 ? null : (d.stderr ?? d.stdout ?? "").slice(-200),
     connectorsScope: doctor?.doctor?.connectorsObservationScope ?? null,
@@ -92,6 +94,9 @@ const fields = [
   ["skills", "技能集合"],
   ["connectors", "连接器集合"],
   ["routes", "模型路由"],
+  // 增强允许单边存在（业务级定制本来就是按运行时做的），但**必须被豁免解释** ——
+  // 否则"同一份定义在两个运行时上跑的东西不一样"这件事就没有人知道。
+  ["enhancements", "业务级增强"],
 ];
 const compared = [];
 for (const [key, label] of fields) {
@@ -102,7 +107,9 @@ for (const [key, label] of fields) {
   compared.push({ key, label, same, values: Object.fromEntries(vals) });
   if (!same) {
     // 不一致时：必须能被某个豁免解释（scope 命中该字段）
-    const covered = harnesses.some((h) => exemptionsOf(h).some((e) => String(e.scope ?? "").includes(key === "routes" ? "model" : key)));
+    const covered = harnesses.some((h) => exemptionsOf(h).some((e) => String(e.scope ?? "").includes(key === "routes" ? "model" : key)))
+      // 增强集合的单边差异：只要**至少有一个运行时**在豁免里声明过增强作用域，就算已知差异。
+      || (key === "enhancements" && harnesses.some((h) => exemptionsOf(h).some((e) => /enhance/i.test(`${e.scope ?? ""} ${e.id ?? ""} ${e.note ?? ""}`))));
     if (!covered) problems.push(`${label}两侧不一致且**没有任何运行时声明豁免**：${vals.map(([h, v]) => `${h}=[${v.join(",")}]`).join(" vs ")}`);
   }
 }
@@ -136,7 +143,7 @@ if (asJson) {
   if (!asymmetries.length) process.stdout.write("  （无）\n");
   process.stdout.write(problems.length
     ? `\n❌ 比对未通过：\n${problems.map((p) => `  · ${p}`).join("\n")}\n`
-    : `\n✅ 等价性通过：中性定义层的三组集合两侧一致，差异均有声明。\n`);
+    : `\n✅ 等价性通过：中性定义层与增强层的集合两侧一致（差异均有声明），差异均有声明。\n`);
 }
 
 process.exit(problems.length ? EXIT_CODES.static : EXIT_CODES.ok);

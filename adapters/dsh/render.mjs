@@ -230,9 +230,18 @@ function buildPatch({ agent, connectors, enhancements, route }) {
     p.push({ insert: [{ id: `mcp-${c.name}`, name: "@deepseek-ai/dsh-mcp-client", config }] });
   }
 
-  // ⑦ 业务级增强：dsh 的形态是"cordis 插件 npm 包 + insert row"（§4.5）
+  // ⑦ 业务级增强：dsh 的形态是"cordis 插件（npm 包或相对路径）+ insert row"（§4.5）
   for (const e of enhancements) {
-    if (!e.package) continue;
+    // **不许静默跳过**：声明里既没有 package 也没有可解析的入口 ⇒ 响亮失败。
+    // 早先这里 `if (!e.package) continue;` —— 写错一个字就"声明了但什么都没发生"，
+    // 而产物照旧渲染成功（闸门 1 只看顶层 key，闸门 2 只看 dsh 组合树里有没有那行）。
+    if (!e.package) {
+      throw new Error(`dsh 增强「${e.id ?? "(缺 id)"}」没有 package —— 本运行时的增强必须是 cordis 插件`
+        + `（npm 包名或以 . 开头的相对路径）。要么写对，要么删掉；静默跳过是不允许的。`);
+    }
+    if (!e.id) {
+      throw new Error(`dsh 增强缺少 id（package=${e.package}）—— 组合树靠 id 索引，没有它无法展开`);
+    }
     p.push({ insert: [{ id: e.id, name: e.package, ...(e.config ? { config: e.config } : {}) }] });
   }
 
@@ -361,6 +370,8 @@ function main() {
     bundles: BUNDLES,
     declaredSkills,
     declaredEnhancements: enhancements.map((e) => e.id).sort(),
+    // 哪些声明是钩子：闸门 3 的 probe/hook-fired 靠它判断"要不要断言钩子真的触发"（P4）
+    hookEnhancements: [...new Set(enhancements.filter((e) => e.kind === "hook").map((e) => e.id))].sort(),
     connectors: enabled.map((c) => ({ serverName: c.name, transport: c.transport })),
     // 连接器的包坐标：闸门 3 据此断言"运行期能离线启动它"
     connectorPackages: enabled.filter((c) => c.pin).map((c) => `${c.pin.package}@${c.pin.version}`),
@@ -459,7 +470,7 @@ function main() {
   const result = {
     harness: HARNESS, agent: agent.name, out: outRoot,
     definitionDigest: manifest.definitionDigest, artifactsDigest,
-    declaredSkills, declaredEnhancements: manifest.declaredEnhancements,
+    declaredSkills, declaredEnhancements: manifest.declaredEnhancements, hookEnhancements: manifest.hookEnhancements,
     connectors: manifest.connectors, denyRows, paramNames,
   };
   if (json) process.stdout.write(JSON.stringify(result, null, 2) + "\n");

@@ -298,4 +298,9 @@
 - 2026-09-26 实测链路：`make image-derived AGENT_DIR=examples/idea-to-proof OVERLAY_DIR=<带业务钩子> IMAGE_REF=ab-derived:0.1.0` → 构建成功；镜像内 `config-check`（无挂载）✅ · 缺凭据 fail-fast ✅ · `verify` 闸门 1（agent-only）/2/3/4 全过 ✅；闸门 2 把 overlay 的声明计入（集合相等 2 项：corp-audit + trace）
 - 2026-09-26 途中修两个真缺陷：① **COPY 保留权限位** —— 种子 `trace.ts` 等文件在仓库里是 0600，烤进镜像后非 root 读不到（EACCES），修法：仓库内改 0644 + 派生骨架 `chmod -R a+rX`；② `core/image/startup.mjs` 注释里写了运行时名，被 `core/harness-name` 当场抓到
 - 2026-09-26 新增 `validate --agent-only`（只校验智能体定义）；**P4（钩子触发即证据）留待下一轮**，不做半成品
+- 2026-09-26 用户要求"整体做完再给验证说明" → 收口 D1–D6 缺陷 + 实施 P4，并写 `docs/14-how-to-verify.md`（能做什么/怎么做/怎么确认，逐条给命令+期望+边界）
+- 2026-09-26 **D6 是真缺陷且比记录更严重**：`tools.deny` 旧写法（`args.push("--exclude-tools", t)`）**本地也没生效** —— 改前实测 `probe/model.tools=4`（deny 三个工具后仍 4），改成清单声明（`runtimePlan.prependArgs`）+ 两条启动路径都执行后 = **1**（只剩 read）。日志如实记下"原来一直是坏的"
+- 2026-09-26 P4：轨迹事件增加 `emitter: hook|post-hoc`（写入器=hook、事后映射=post-hoc），闸门 3 加 `probe/hook-fired`；pi 侧实测"5 条钩子当场发出的事件"，dsh 侧如实报"事后映射⇒不适用"
+- 2026-09-26 D3 带出一个此前不可见的结构性差异：**基座轨迹在一侧是扩展形态、另一侧在内建插件树里** ⇒ 增强集合永远不同，已用豁免显式声明（不是"对齐"，而是"让差异可见"）
+- 2026-09-26 途中修自己的两处回归：`localInvocation` 里引用不到 `manifest`（作用域错，直接崩）；`core/image/startup-selftest.mjs` 夹具含运行时名（`core/harness-name` 抓到）
 

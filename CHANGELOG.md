@@ -109,6 +109,22 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 > 已改为按「值是否随部署环境而变」判定 —— 模型名是环境属性，进参数层；`model.route` 仍是制品层
 > （它决定后面三个引用名）。
 
+### 缺陷收口（D1–D6）与「钩子确实触发」的证据（P4）
+
+- **D6 工具边界**（影响交付正确性）：`tools.deny` 改为**清单声明**（`runtimePlan.prependArgs`），
+  本地与容器**两条启动路径都按同一份执行**。实测 `probe/model.tools`：**4 → 1**
+  —— 也就是说**旧写法根本没生效**（本地与容器都没有），只是没人断言过
+- **D1 增强 schema**：`core/spec/enhancements.schema.json` 接进闸门 1（`kind` 枚举、`kind=hook` 必填 `event`、
+  `entry`/`package` 至少一个）；负例 `11-enhance-bad-kind` / `12-enhance-hook-no-event` 各自只因目标原因红
+- **D2 未声明接入件**：本运行时会加载 `extensions/` 下的每个文件 ⇒ 渲染期要求每个文件都被某条声明认领
+  （负例：丢一个未声明文件 ⇒ 渲染失败）
+- **D3 增强进比对**：`compare` 现在把两边的增强集合摆出来，差异必须被豁免解释；基座轨迹在一侧是扩展形态
+  这件事因此第一次**显式**写进 `adapters/pi/exemptions.yaml`
+- **D4 dsh 静默跳过**：非法增强声明（缺 `package`/`id`）改为渲染期响亮失败
+- **D5 参数层**：`AGENT_PERMISSION_MODE` / `AGENT_WORKSPACE_ROOT` 登记进 `params.yaml`（基础设施类）
+- **P4 钩子可验**：轨迹事件带 `emitter: hook|post-hoc`；闸门 3 新增 `probe/hook-fired`
+  —— 声明了钩子就必须有"钩子当场发出"的事件（实测 5 条）；另一运行时是事后映射 ⇒ **如实报"不适用"**，不算通过
+
 ### 派生镜像：起点门槛打通（P1–P3）
 
 - **接入缝**（P3）：`/opt/agent-base/overlay/`（`AGENT_OVERLAY_DIR`）——上层镜像把业务代码与钩子放这里，

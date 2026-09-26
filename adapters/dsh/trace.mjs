@@ -50,6 +50,8 @@ export function mapEventStream(records, ctx, opts = {}) {
     // 原生事件没有时间戳 ⇒ 用到达时刻估算，并明确标注是估算值
     ts: new Date(arrivals[i] ?? opts.now ?? Date.now()).toISOString(),
     seq: seq++,
+    // 本运行时这条路径是**事后**从会话文件映射的（钩子/插件当场发出的那条由写入器标 hook）
+    emitter: "post-hoc",
     run: ctx.run,
     effectiveConfigDigest: ctx.effectiveConfigDigest,
     ...(ctx.agent ? { agent: ctx.agent } : {}),

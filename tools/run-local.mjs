@@ -157,7 +157,12 @@ const main = async () => {
     ...(manifest.modelProviders?.[0] ? { AGENT_MODEL_ROUTE: manifest.modelProviders[0] } : {}),
   };
 
-  const { bin, args } = localInvocation({ staging, prompt: values["--prompt"] ?? null });
+  const { bin, args } = localInvocation({
+    staging,
+    prompt: values["--prompt"] ?? null,
+    // 工具边界等运行参数：**唯一真源是产物清单**（本地与容器两条路径都按它执行，见 D6）
+    prependArgs: JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8")).runtimePlan?.prependArgs ?? [],
+  });
 
   process.stderr.write([
     "── 本地运行 ──",

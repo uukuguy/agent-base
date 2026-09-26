@@ -62,6 +62,14 @@
         },
         "biz": {
           "$ref": "#/$defs/bizBag"
+        },
+        "emitter": {
+          "type": "string",
+          "enum": [
+            "hook",
+            "post-hoc"
+          ],
+          "description": "这条事件的**发射者形态**：hook = 由运行时的扩展/插件回调在事件发生时发出；post-hoc = 运行结束后从会话文件映射出来。它让\"钩子声明了但没生效\"可断言（见 tools/probe.mjs 的 probe/hook-fired）。"
         }
       }
     },

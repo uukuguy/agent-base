@@ -568,6 +568,14 @@ function checkAgent(report, ctx, agentDir) {
 
   // B1 schema
   const vAgent = ajv.compile(agentSchema);
+
+  const enhSchemaPath = path.join(REPO, "core/spec/enhancements.schema.json");
+
+  const enhSchema = fs.existsSync(enhSchemaPath)
+
+    ? ajv.compile(JSON.parse(fs.readFileSync(enhSchemaPath, "utf8")))
+
+    : null;
   if (vAgent(agent)) report.pass(GATE, "schema/agent", "agent.yaml 通过 schema");
   else report.fail(GATE, "schema/agent", `agent.yaml schema 校验失败：${ajvErrors(vAgent.errors)}`);
 
@@ -655,7 +663,7 @@ function checkAgent(report, ctx, agentDir) {
     else if (skillFiles.length) report.pass(GATE, "skill/frontmatter", `${skillFiles.length} 个技能的 frontmatter 合法`);
   }
 
-  // B6 单一真源
+  // B6 单一真源 + **schema 校验**（缺陷 D1：此前只在文档里写要求，写错都能过）
   const dupes = [];
   for (const h of HARNESS_NAMES) {
     const enhFile = path.join(agentDir, "harness", h, "enhancements.yaml");
@@ -664,6 +672,20 @@ function checkAgent(report, ctx, agentDir) {
     try { enh = loadYaml(enhFile); } catch (e) {
       report.fail(GATE, "enhance/yaml", `harness/${h}/enhancements.yaml 不是合法 YAML：${e.message}`);
       continue;
+    }
+    // schema：kind 枚举、hook 必填 event、entry/package 至少一个、id 形状
+    if (enhSchema) {
+      const ok = enhSchema(enh);
+      if (!ok) {
+        const first = (enhSchema.errors ?? [])[0] ?? {};
+        const at = (first.instancePath || "(根)").replace(/^\//, "");
+        report.fail(GATE, "enhance/schema",
+          `harness/${h}/enhancements.yaml 不符合 core/spec/enhancements.schema.json：`
+          + `${at} ${first.message ?? "校验失败"}`
+          + `（kind 必须合法；kind=hook 必须给 event；entry 与 package 至少给一个）`);
+      } else {
+        report.pass(GATE, "enhance/schema", `harness/${h}/enhancements.yaml 符合增强 schema`);
+      }
     }
     for (const key of Object.keys(enh ?? {})) {
       if (NEUTRAL_KEYS_FORBIDDEN_IN_ENHANCEMENTS.includes(key)) dupes.push(`harness/${h}/enhancements.yaml:${key}`);

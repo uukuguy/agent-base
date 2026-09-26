@@ -1,0 +1,6 @@
+apiVersion: agent-base/v1
+harness: pi
+enhancements:
+  - id: bad-kind
+    kind: not-a-kind
+    entry: extensions/x.ts

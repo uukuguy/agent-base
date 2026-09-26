@@ -1,0 +1,2 @@
+# 这个负例**只应**因为增强声明不合法而红（其余检查必须全绿）
+expectFailure: enhance/schema

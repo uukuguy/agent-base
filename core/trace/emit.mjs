@@ -104,6 +104,9 @@ export class TraceWriter {
     const rec = {
       ts: new Date().toISOString().replace(/(\.\d{3})\d*Z$/, "$1Z"),
       seq: this.seq++,
+      // 发射者形态：写入器只在**事件发生时由扩展/插件回调**里被调用，
+      // 所以它写出的每条事件都标记为 hook（事后映射的路径另行标记 post-hoc）。
+      emitter: "hook",
       run: this.run,
       effectiveConfigDigest: this.effectiveConfigDigest,
       ...(this.agent ? { agent: this.agent } : {}),

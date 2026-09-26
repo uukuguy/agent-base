@@ -116,6 +116,26 @@ allowed:
       debug 只在 agent-base:<h>-debug 变体里有效；生产基座 entrypoint 遇到
       AGENT_RUN_MODE=debug 即以退出码 2 退出（§8.5）。
 
+  - id: permission-mode
+    kind: sandbox-mode
+    pattern: "^AGENT_PERMISSION_MODE$"
+    secret: false
+    backs: []          # 基础设施类参数：不绑定某个定义字段（与 run-mode / secrets-dir 同类）
+    design: "§4.3 工具边界；各运行时的权限模型见 adapter.yaml 的 permissionModel"
+    note: >
+      权限模式。**它是部署输入**：同一个产物在开发机与生产上可以用不同的权限模型，
+      因此它必须是参数层里登记过的名字 —— 适配器不许读未登记的环境变量
+      （否则"参数层是唯一可注入面"这句话就不成立）。
+
+  - id: workspace-root
+    kind: workspace-root
+    pattern: "^AGENT_WORKSPACE_ROOT$"
+    secret: false
+    backs: []          # 基础设施类参数：同上
+    design: "§4.3 隔离靠文件系统（P-b）"
+    note: >
+      工作区根。同样是部署输入（挂载点可能变），登记进来以免适配器绕过参数层。
+
   - id: secrets-dir
     kind: runtime
     pattern: "^AGENT_SECRETS_DIR$"

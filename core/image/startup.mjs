@@ -457,7 +457,10 @@ if (sub === "run") {
   // 脚本路径。若这里再塞一次 exe，参数里就多出一个自身路径 —— 有的运行时容忍（看不出问题），
   // 有的会把它当第一个位置参数（报出「profile 名是 /usr/local/bin/…」这种看不懂的错）。
   const prefix = (r.plan?.argvPrefix ?? []).map((a) => (a === "@agent" ? (r.manifest.agent ?? "") : a));
-  const child = spawn(exe, [...prefix, ...rest], { stdio: "inherit", env, cwd: r.cwd });
+  // 产物声明的"前置运行参数"（如工具边界）—— 由清单驱动，不在启动脚本里写 case。
+  // 顺序：argvPrefix → prependArgs → 调用方参数（调用方仍可覆盖/追加）。
+  const prepend = r.plan?.prependArgs ?? [];
+  const child = spawn(exe, [...prefix, ...prepend, ...rest], { stdio: "inherit", env, cwd: r.cwd });
   // 交互式使用要能 Ctrl-C：转发信号（否则信号只到本进程，子进程变孤儿）
   for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(sig, () => { try { child.kill(sig); } catch { /* 已退出 */ } });

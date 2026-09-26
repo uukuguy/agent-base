@@ -1,0 +1,6 @@
+apiVersion: agent-base/v1
+harness: pi
+enhancements:
+  - id: hook-no-event
+    kind: hook
+    entry: extensions/x.ts

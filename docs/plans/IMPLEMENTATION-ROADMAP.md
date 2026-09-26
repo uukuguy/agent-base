@@ -865,20 +865,21 @@ M4 的地基已就位：可以做 `examples/contract-review`（带连接器、�
 
 | # | 缺陷 | 证据 | 修好的判据 | 风险 | 状态 |
 |---|---|---|---|---|---|
-| D1 | `enhancements.yaml` **没有 schema**：`kind`/`event`/`entry` 要求只写在 `capabilities.yaml`（文档生成器的目录） | `tools/validate.mjs` B6 段；无 `core/spec/enhancements.schema.json` | 立 schema 并接进闸门 1；两个负例（未知 kind、hook 漏 event）变红 | 低 | `pending` |
-| D2 | pi 侧"硬断言 3"**不是集合相等**：比的是"声明 ∩ entry 存在"的数量，而渲染器把 `extensions/` 下每个文件都登记为扩展 | `adapters/pi/doctor.mjs`；`adapters/pi/render.mjs` | 未声明的 extensions 文件判失败；"已加载"另立可观测口径 | 中 | `pending` |
-| D3 | `compare` **不比增强**（只比 skills/connectors/routes） | `tools/compare.mjs` | 增强进比对：要么进集合，要么显式声明为单边差异 | 低 | `pending` |
-| D4 | dsh 渲染**静默跳过**非 `package` 声明；profile `dependencies: {}` 写死、无安装步骤 | `adapters/dsh/render.mjs` | 非法声明响亮失败；npm 包形态有实测或被标"未验证" | 低 | `pending` |
-| D5 | **参数层纪律被适配器绕过**：直接读 `AGENT_PERMISSION_MODE` / `AGENT_WORKSPACE_ROOT`，不在 allowed 清单 | `adapters/dsh/render.mjs`；`core/catalog/params.yaml` | 要么进参数层清单，要么改走 `runtimeParams`，没有例外 | 低 | `pending` |
-| D6 | **`tools.deny` 在交付入口不生效**：只有本地运行器传 `--exclude-tools` | `adapters/pi/run.mjs`；`core/image/entrypoint.sh` | 容器入口实测"被禁工具真的调不到"；走 `runtimePlan` 契约而非 case | 中 | `pending` |
+| D1 | `enhancements.yaml` 没有 schema ✅ | 立了 `core/spec/enhancements.schema.json` 并接进闸门 1；负例 11/12 各自只因目标原因红 | 闸门 1 `enhance/schema` | 低 | `done` |
+| D2 | pi 侧未声明接入件会被静默加载 ✅ | **渲染期**拦住：`extensions/` 里每个文件都必须被某条声明认领（负例：丢一个 `sneaky.ext` ⇒ 渲染失败） | 渲染期断言 | 中 | `done` |
+| D3 | `compare` 不比增强 ✅ | 增强已进比对；结构性差异（基座轨迹在一侧是扩展形态）写进 `adapters/pi/exemptions.yaml` | 差异必须被豁免解释 | 低 | `done` |
+| D4 | dsh 渲染静默跳过非法声明 ✅ | 改为响亮失败并点明原因（负例：缺 `package` ⇒ 渲染抛错）；npm 包形态仍标"未验证" | 渲染期抛错 | 低 | `done` |
+| D5 | 参数层被绕过 ✅ | 两个变量已登记进 `core/catalog/params.yaml`（基础设施类，`backs: []`） | 闸门 1 `params/backs-orphan` | 低 | `done` |
+| D6 | `tools.deny` 交付入口不生效 ✅ | 改为**清单声明**（`runtimePlan.prependArgs`）**两条启动路径都执行**；实测本地与容器内 `tools=1`（旧写法下是 4，即根本没生效） | `probe/model.tools` 计数 | 中 | `done` |
 | D7 | `CURRENT-STATE.md` **已过期**（称 C3 按 pi 形状写死、dsh run 待做） | `docs/status/CURRENT-STATE.md` vs conformance 与 dsh run | 文档与实现一致（本轮已修） | 低 | `done` |
 
 ### 23.2 演进项（按改动面从小到大）
 
 | # | 项 | 判据 | 依赖 | 状态 |
 |---|---|---|---|---|
-| E1 | 钩子声明契约：`adapter.yaml` 声明**可订阅事件集合**（版本 pin），`enhancements.yaml` 的 `event` 必须属于它 | 错事件名变红；事件名有 pin 与豁免口径 | D1 | `pending` |
-| E2 | 新增闸门：**钩子确实触发**（假网关触发 `tool_call`，断言钩子留痕/拦截生效） | 新闸门绿 + 负例红 | E1 | `pending` |
+| E1 | 钩子声明契约（事件名集合 + 版本 pin） | 尚未做：`event` 目前只被 schema 要求"必须给"，**没校验名字是否属于该运行时可订阅集合**（实测某运行时有 **39** 个可订阅事件，写错名字今天不会红） | D1 | `pending` |
+| E2b | 钩子**逐条**自证：每个声明的钩子都要留痕（否则只能证明发射路径在工作） | 声明 N 个钩子 ⇒ N 个都能指到自己的痕迹 | E2 | `pending` |
+| E2 | **钩子确实触发** ✅（部分） | `probe/hook-fired`：轨迹事件带 `emitter: hook\|post-hoc`；声明了钩子就必须有钩子当场发出的事件（实测 5 条）。⚠️ 另一运行时的轨迹是事后映射 ⇒ 如实报"不适用" | E1 | `done` |
 | E3 | 上层镜像**接入缝**：镜像内可加钩子（运行时覆盖目录 或 镜像内渲染，二者选一并声明） | 上层镜像里钩子生效有证据 | D-0014 | `pending` |
 | E4 | 上层镜像**自证能力**：携带闸门工具（或 slim 验证器）+ 一条容器内跑四闸门的实测 | 上层镜像内 `verify` 全绿 | D-0014 | `pending` |
 | E5 | 服务形态契约（L4）：会话生命周期/并发上限/状态外置/审批通道的声明面 | 多会话并发与审批留痕各一条实测 | 主运行时选型 | `pending` |
