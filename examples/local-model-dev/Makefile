@@ -60,10 +60,10 @@ run-local: check-base ## 本地真跑一次（ENDPOINT=https://… API_KEY=… [
 	  $(if $(MODEL),--model "$(MODEL)",) $(if $(PROMPT),--prompt "$(PROMPT)",) \
 	  $(if $(RENDER_DIR),--render-dir $(RENDER_DIR),)
 
-providers-init: ## 问端点有哪些模型，写成 routes.yaml（ENDPOINT=https://… [API_KEY=…] [PROVIDER=…]）
+providers-init: ## 问端点有哪些模型，写成 providers.yaml（ENDPOINT=https://… [API_KEY=…] [PROVIDER=…]）
 	@node $(AGENT_BASE_DIR)/tools/providers-init.mjs --endpoint "$(ENDPOINT)" \
 	  $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--provider "$(PROVIDER)",) \
-	  $(if $(OUT),--out "$(OUT)",--out ./routes.yaml)
+	  $(if $(OUT),--out "$(OUT)",--out ./providers.yaml)
 
 walkthrough: ## 开发场景演练（在基座工作区跑：派生→闸门→渲染→真跑→容器→比对）
 	@node $(AGENT_BASE_DIR)/tools/walkthrough.mjs $(if $(LIVE),--live,)

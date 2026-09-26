@@ -134,6 +134,24 @@ const main = () => {
     }
   }
 
+  // ---- 示例 Makefile 引用的基座脚本必须存在 ----
+  // 为什么加这条：`routes` 改名 `provider` 之后，两个示例的 `make routes-init` 变成了
+  // **调一个不存在的脚本**（另三个写出的默认文件名也还是旧的）——
+  // 而当时的检查只看 README 与闸门，没人敲那条命令就发现不了。断链要在检查里拦住。
+  process.stderr.write("\n── 示例 Makefile → 基座脚本的引用必须有效 ──\n");
+  {
+    const broken = [];
+    for (const dir of fs.readdirSync(EXAMPLES, { withFileTypes: true }).filter((e) => e.isDirectory())) {
+      const mf = path.join(EXAMPLES, dir.name, "Makefile");
+      if (!fs.existsSync(mf)) { broken.push(`${dir.name}/Makefile 不存在`); continue; }
+      const text = fs.readFileSync(mf, "utf8");
+      for (const m of text.matchAll(/\$\(AGENT_BASE_DIR\)\/([A-Za-z0-9._\/-]+\.mjs)/g)) {
+        if (!fs.existsSync(path.join(REPO, m[1]))) broken.push(`${dir.name}: 引用了不存在的 ${m[1]}`);
+      }
+    }
+    line(broken.length === 0, `所有示例 Makefile 引用的脚本都存在${broken.length ? `（${broken.join("；")}）` : ""}`);
+  }
+
   // ---- N5：examples/ 可整体删除，基座仍绿 ----
   process.stderr.write("\n── 不变量 N5：基座不依赖 examples/ ──\n");
   const baseValidate = run([path.join(HERE, "validate.mjs")]);
