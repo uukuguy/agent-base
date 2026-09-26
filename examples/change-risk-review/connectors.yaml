@@ -1,0 +1,5 @@
+apiVersion: agent-base/v1
+
+# 本示例不连外部系统：业务能力来自 **harness 层增强**（见 harness/pi/enhancements.yaml），
+# 不是来自 MCP 连接器。两者的区别见 README「这个示例在演示什么」。
+mcpServers: []

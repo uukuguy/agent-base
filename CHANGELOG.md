@@ -109,7 +109,21 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 > 已改为按「值是否随部署环境而变」判定 —— 模型名是环境属性，进参数层；`model.route` 仍是制品层
 > （它决定后面三个引用名）。
 
-### 示例升级为「完整可跑的项目样本」，并把 README 变成验收项
+### 新增示例：harness 层「业务级增强」（`examples/change-risk-review/`）
+
+- 中性定义只承诺"用风险评分工具"，工具**由 harness 层增强提供**：`harness/pi/enhancements.yaml` 声明 +
+  `harness/pi/extensions/risk-score.ts` 实现（`pi.registerTool()`、零依赖、确定性规则、可审计）
+- 证据链：闸门 1 报告可移植性降级（核心 + 某运行时增强）→ 渲染把扩展登记进 `settings.extensions` →
+  **闸门 2 硬断言「声明集合 == 进入产物集合」** → **闸门 3 工具数 3→4**（业务工具真的发给了模型）
+- README 写清"加一个业务增强要动什么"（实现契约、参数用普通 JSON Schema、jiti 免编译，
+  以及"`extensions/` 里每个文件都会被登记成扩展"这个坑），并说明 dsh 侧的增强形态是 cordis 插件包
+  （本示例不编造不存在的 npm 包，因此 dsh 侧如实"没有"）
+
+写这个示例时又抓到一个**判据错误**（不是示例的问题）：闸门 2 判断"声明的增强是否进入产物"用的是
+`文件名.includes(增强 id)` 子串匹配 —— íd `corp-risk-score` + 文件 `risk-score.ts` 完全合法却被判"没进产物"
+（假阴），而 id `trace` 会被 `extensions/my-trace-helper.ts` 满足（假阳）。已改成**按声明的 entry 精确匹配**。
+
+
 
 - `examples/` 扩到 5 个**完整项目**（定义 + 技能 + 轨迹标签 + Makefile + README），覆盖主要场景：
   纯技能 · MCP 连接器 · **本地模型（无凭据）** · **同一制品多环境** · **只读 + 多技能 + 观测**

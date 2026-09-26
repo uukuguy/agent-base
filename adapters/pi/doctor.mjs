@@ -341,12 +341,28 @@ async function main() {
         }
         const renderedExtensions = (JSON.parse(fs.readFileSync(path.join(staging, "settings.json"), "utf8")).extensions ?? []);
         ctx.declaredEnhancements = declaredEnhancements;
-        // 「进入产物」= 实体文件已打包 且 已登记到 settings.extensions。
-        // 诚实说明：这离设计措辞的「**已加载**扩展 id 集合」还差一步 —— 真正的"已加载"要由扩展自己
-        // 向 harness 登记后才能被枚举（见 failures.md F6 的待补项）。这里不假装做到了。
-        ctx.packagedEnhancements = declaredEnhancements.filter((id) =>
-          !missingEntries.some((m) => m.startsWith(`${id}→`)) &&
-          renderedExtensions.some((p) => String(p).includes(id)));
+        // 「进入产物」= 声明的 entry 文件确实被打包，并已登记到 settings.extensions。
+        //
+        // 判据必须是**按声明的 entry 精确匹配**，不能用 `文件名.includes(增强 id)`：
+        //   · 假阴：id `corp-risk-score` + `extensions/risk-score.ts` 是合法的，
+        //     但子串匹配判它"没进产物"（实测撞到）
+        //   · 假阳：id `trace` 会被 `extensions/my-trace-helper.ts` 满足
+        // 精确匹配两个方向都对。诚实说明：这仍离设计措辞的「**已加载**扩展 id 集合」差一步 ——
+        // 真正的"已加载"要由扩展自己向 harness 登记后才能枚举（见 failures.md F6 的待补项）。
+        const entryOf = new Map();
+        if (fs.existsSync(enhFile)) {
+          for (const e of YAML.parse(fs.readFileSync(enhFile, "utf8")).enhancements ?? []) {
+            if (e.id && e.entry) entryOf.set(e.id, String(e.entry));
+          }
+        }
+        const renderedSet = new Set(renderedExtensions.map((p) => String(p)));
+        ctx.packagedEnhancements = declaredEnhancements.filter((id) => {
+          const entry = entryOf.get(id);
+          if (!entry) return false;
+          if (missingEntries.some((m) => m.startsWith(`${id}→`))) return false;
+          return renderedSet.has(entry) || renderedSet.has(entry.replace(/^\.\//, ""));
+        });
+        ctx.enhancementEntryMap = Object.fromEntries(entryOf);
         ctx.observedEnhancements = ctx.packagedEnhancements;
         ctx.renderedExtensions = renderedExtensions;
         ctx.observableEnhancements = commands

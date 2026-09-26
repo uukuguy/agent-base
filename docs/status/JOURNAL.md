@@ -269,4 +269,8 @@
 - 13:35 示例扩到 5 个完整项目（纯技能 / MCP 连接器 / 本地模型无凭据 / 同一制品多环境 / 只读+多技能+观测），每个都有 README 的构建与验证过程；`examples-check` 把 README 完整性变成验收项（缺节/太空/幽灵文件/某运行时不可用 → 红）
 - 13:35 三个子代理各写一个示例时暴露三个真问题：`run-local` 不消费产物端点默认值（与 quickstart 自相矛盾）、`auth: none` 渲染出的配置让运行时判 provider 不可用、模板 Makefile 的 providers-init 判错旗标且默认旧名 → 全部已修并实测
 - 13:35 清掉误提交的 .render 产物（进 .gitignore）；docs/12 重新定位为"演练 vs 示例项目"两个不同的东西
+- 14:25 用户问"harness 业务强化的例子呢" → 确实是缺口：新增 examples/change-risk-review（harness 层业务增强：声明 + pi 扩展实现 + 完整 README）
+- 14:25 证据链：闸门 1 报可移植性降级 → 渲染登记扩展 → 闸门 2 硬断言"声明==进产物" → 闸门 3 工具数 3→4（业务工具真的发给了模型）→ dsh 侧虽然不可用该工具，但**仍四道闸门全过**且 compare 等价（中性定义层）
+- 14:25 抓到一个判据错误：闸门 2 用"文件名.includes(增强 id)"子串匹配 → id corp-risk-score + 文件 risk-score.ts 被判"没进产物"（假阴；同时 id trace 会被 my-trace-helper.ts 满足=假阳）。改成按声明 entry 精确匹配
+- 14:25 顺带记录：pi 的工具参数 schema 用**普通 JSON Schema 对象**即可（加载器只要求是对象），扩展由 jiti 直接加载、无编译步骤；`extensions/` 目录里每个文件都会被登记为扩展（只有 _trace-emit.mjs 除外）—— 已写进示例 README 的已知坑
 

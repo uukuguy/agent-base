@@ -1,0 +1,14 @@
+apiVersion: agent-base/v1
+
+# 业务给"机械轨迹"起的说法。基座不解释这些词，只按定位符机械查找后原样呈现。
+# 本示例特意给**业务工具**也起一个说法：轨迹里能看到它被真的调用过。
+labels:
+  "agent":                        变更风险复核助手
+  "model:corp-gateway":           内网推理网关
+  "tool:corp_risk_score":         企业风险评分工具（业务级增强）
+  "tool:read":                    读取待复核材料
+  "skill:risk-factor-checklist":  算分之前先问清事实
+  "skill:score-interpretation":   分数怎么读、哪些话不许说
+  "log:risk":                     风险复核过程
+  "gate:probes":                  连通性检查
+  "gate:smoke":                   端到端冒烟

@@ -18,9 +18,11 @@
 | [`local-model-dev/`](local-model-dev/) | 本地模型（无凭据） | `auth: none` 供应商（Ollama / vLLM / 任意自建 OpenAI 兼容服务）· 零密钥开发循环 · 离线验证 |
 | [`multi-env-rollout/`](multi-env-rollout/) | 同一制品多环境 | 运行期参数**四种给法**与优先级 · 自带 `providers.yaml` 覆盖内置（不改基座）· 部署层取值 |
 | [`privacy-redaction/`](privacy-redaction/) | 只读 + 多技能 + 观测 | 多技能协作 · 只读边界 · 业务轨迹标注（换业务只换词，基座与查看器一行不改） |
+| [`change-risk-review/`](change-risk-review/) | **业务级增强**（harness 层） | 中性定义管不到的业务能力怎么加：`harness/<运行时>/enhancements.yaml` + 扩展实现 · 闸门 2 实测"声明==加载" · 闸门 3 工具数 3→4 证明工具真的发给了模型 · 可移植性降级被显式报告 |
 
 **这些示例合计覆盖的机制**：中性定义与 schema · 技能目录发现与技能自带脚本 · 工具边界 · 连接器（MCP）·
-模型供应商与三种凭据模式 · 运行期参数分层 · 统一轨迹与业务标签 · 四道闸门 · 跨运行时等价性。
+**harness 层业务增强（工具扩展）** · 模型供应商与三种凭据模式 · 运行期参数分层 · 统一轨迹与业务标签 ·
+四道闸门 · 跨运行时等价性与可移植性等级。
 
 ## 怎么跑
 
