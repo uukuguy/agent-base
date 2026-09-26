@@ -254,7 +254,7 @@ function main() {
     fs.readFileSync(path.join(REPO, "core/introspect/_container-only.mjs"), "utf8"));
 
   const declaredEnhancements = [...new Set([...baseEnh, ...agentEnh].map((e) => e.id))].sort();
-  // 哪些声明是**钩子**：闸门 3 的 probe/hook-fired 靠它判断"要不要断言钩子真的触发了"
+  // 哪些声明是**钩子**：闸门 3 的 probe/hooks-evidenced 靠它判断"要不要断言钩子真的触发了"
   const hookEnhancements = [...new Set([...baseEnh, ...agentEnh]
     .filter((e) => e.kind === "hook").map((e) => e.id))].sort();
   writeFile(path.join(agentOut, "enhancements.yaml"), stableJson({

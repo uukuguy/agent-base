@@ -67,13 +67,12 @@ const layoutEnv = manifest.runtimePlan?.env ?? {};
 const configRel = Object.values(layoutEnv)[0];
 const productDir = configRel ? path.join(renderDir, configRel) : renderDir;
 
-// ---- 镜像输入摘要（可选：需要构建上下文；拿不到就如实 null）----
+// ---- 镜像输入摘要（现在按**源码树**算，不再需要构建上下文）----
 let imageInputsDigest = null;
 try {
   const mod = await import("../core/image/inputs-digest.mjs");
-  const ctx = path.join(REPO, "dist/image/context");
-  if (fs.existsSync(ctx)) imageInputsDigest = mod.imageInputsDigest(ctx);
-} catch { /* 没构建过镜像就拿不到，如实写 null */ }
+  imageInputsDigest = mod.imageInputsDigest(REPO);
+} catch { /* 拿不到就如实写 null */ }
 
 const facts = collect({ productDir, artifactDir: renderDir, gatesDir: REPO });
 const plan = verifyPlan(facts, {

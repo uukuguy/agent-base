@@ -34,7 +34,7 @@ make verify-all               # 全部示例 × 两个运行时，四道闸门
 | **自证** | **镜像内**跑闸门（离线、零凭据） | `docker run <镜像> verify` |
 | **接入缝** | 上层镜像在**运行期**加业务代码与钩子（不动产物） | `make image-derived … OVERLAY_DIR=…` |
 | **派生镜像** | `FROM agent-base` + 业务层，一条命令构建并自证 | `make image-derived AGENT_DIR=…` |
-| **钩子可验** | 声明了钩子 ⇒ 断言"钩子发射路径真的在工作" | `make verify` 里的 `probe/hook-fired` |
+| **钩子逐条可验** | 声明了钩子 ⇒ 断言"**每条**钩子各自留下带自己 id 的痕迹" | `make verify` 里的 `probe/hooks-evidenced`（哑掉的钩子会点名） |
 
 **现在还不能做**（诚实清单，见路线图）：
 loop 定制（L3）· 服务形态与多会话（L4）· 审批通道 · 成本/网关 · 多语言业务代码（D-0012）·
@@ -115,7 +115,7 @@ docker run --rm --network none \
 | 渲染确定、跨运行时差异有声明 | `make compare AGENT_DIR=…` | 「集合两侧一致（差异均有声明）」 |
 | 工具边界**真的**生效 | `make verify AGENT_DIR=examples/idea-to-proof` | `probe/model.tools` 显示 `tools=1`（deny 了 bash/write/edit 只剩 read）⚠️ 这条以前是坏的：旧写法下是 4 |
 | 端点真的收到带工具的流式请求 | 同上 | `probe/model.reachable` + `model.tools` + `model.stream` |
-| **钩子确实在工作** | 同上 | `probe/hook-fired`：「钩子发射路径确实在工作：轨迹里有 N 条钩子当场发出的事件」⚠️ 证明的是发射路径；业务钩子要自证需自己留痕 |
+| **钩子确实在工作（逐条）** | 同上 | `probe/hooks-evidenced`：「N 个声明的钩子各自留痕：trace(5 条) · audit-hook(1 条)」；哑掉的会红并点名 |
 | 另一个运行时的钩子 | `make verify … HARNESS=dsh` | 如实报「事后映射 ⇒ 该断言在此运行时不适用」（**不算通过**） |
 | 钩子订阅的**事件名真的存在** | `make validate AGENT_DIR=…` | `enhance/events`：声明的每个事件名都在 `adapters/<h>/adapter.yaml` 的 `hookEvents` 里（pi 39 个，逐个对名字）⚠️ dsh 侧事件集合**未穷举** ⇒ 如实标「未验证」，不做假校验 |
 | 被禁的工具真的调不到 | `make smoke AGENT_DIR=…` | `smoke/no-denied-tools` |
@@ -127,6 +127,7 @@ docker run --rm --network none \
 | **会话里能问到项目真相** | `make local` 然后 `/project`（或 `make pi-project-info-selftest`） | 命令真的注册（source=extension）· 输出每项指到产物来源 · 补全项随项目变 · 事件名写错标 ❌ |
 | **要验什么、哪些只能容器验** | `make verify-plan AGENT_DIR=…`（`JSON=1` 给 AI）/ 会话内 `/project plan` | 四个身份摘要 + 本地四道闸门的命令与期望 + 容器断言逐条带 `why` + 本次未覆盖清单；`make project-info-selftest` 全绿 |
 | **容器内验证（受控入口）** | `make verify-container AGENT_DIR=…`（`DRY=1` 只看参数、`JSON=1` 给 AI） | 绑定面**恰好两处只读**（项目 + 产物）· 网络 none · 根只读 · 能力全丢 · 容器内闸门 1(agent-only)/2/3/4 全过；**交付结论以它为准**（宿主结论不含安全下限/双架构/同源） |
+| **镜像是过期的那份吗** | `make verify-container …`（前置自动比指纹） | 镜像 LABEL ≠ 当前源码指纹 ⇒ **拒绝执行**并给出重建命令（闸门判据是烤进镜像的，用旧镜像验新产物会得到「容器挂、本地过」的假差异）；确实要用旧镜像加 `--allow-stale-image` |
 | **会话里请求容器验证（需审批）** | 会话内 `/verify-container`（`make local` 之后） | 先摊开将要执行的 docker 参数 → 你放行/拒绝 → 只有放行才跑；决定记进轨迹 `approval.decision`；无应答者时 **fail-closed 不执行**；自检 `make pi-verify-container-selftest` |
 | **同上（另一侧）** | 该运行时会话内 `/verify-container`（同一套判据的另一个落地形态） | 走它的原生审批接缝（四种结果；无应答者/无审批服务 ⇒ **fail-closed 放弃**）；事件同样进轨迹；自检 `make dsh-verify-container-selftest` |
 | **容器挂的时候是不是缺陷** | 同上（失败时自动归因） | 五类：本地可复现（真缺陷）/ 已声明差异（不是缺陷）/ 容器专有断言失败（真缺陷，改镜像）/ 本地没跑到（先修前面那条）/ **未声明的差异（响亮上报，不许猜）** |
@@ -156,13 +157,13 @@ docker run --rm --network none \
 1. **闸门 3/4 默认走零凭据假网关**：它证明"链路通、工具到位、流式没降级"，
    **不证明**"真实模型答得好"。要后者：`LIVE=1`（会真的调用，花你自己的额度）。
 2. **订阅型 provider（如 `openai-codex`）无 LIVE 时报"不适用"**，不假装通过。
-3. **`probe/hook-fired` 的强度有限**（读准再用）：
-   · 它证明的是「**钩子发射路径在工作**」（基座轨迹自己就是一个钩子，实测 5 条事件）；
+3. **`probe/hooks-evidenced` 的强度**（读准再用）：
+   · 它证明的是「**每条声明的钩子各自留痕**」：声明 N 条，就要有 N 条带 `enhancement=<声明 id>` 的钩子事件；
+   · 业务钩子自证只有一行：写事件时用 `new TraceWriter({ enhancement: "<声明 id>" })`（基座把写入器放到扩展同目录）；
+   · 哑掉的钩子**会被点名并红**（不再是"有钩子事件就算过"）；订阅的事件在本场景不发生，也应在加载期留一条；
    · 断言用的是**烤进产物的**声明（`hookEnhancements`）；**接入缝（overlay）新加的钩子**由闸门 2 验"已进产物且集合相等"，
-     但"我这条是否触发"要**它自己留痕**（用 `core/trace/emit.mjs` 写事件即会被计入）；
-   · **接入缝里的钩子事件名还没进判据**：事件名校验目前只覆盖定义层与基座 seed（闸门 1 `enhance/events`），
-     overlay 声明的事件名无人对 —— 缺口记在路线图 §23 的 **E1b**（把集合写进产物清单，启动期/闸门 2 用同一份判）。
-   · 想逐条证明"每个声明都跑了"，需要钩子自证 + 更细的断言 —— 见路线图 §23 的 **E2b**（逐条自证）。
+     事件名由启动期校验（E1b 已落地）；"我这条是否触发"同样要它自己留痕；
+   · 另一运行时（轨迹事后映射）如实报「不适用」，不假装通过。
 4. **深度定制不跨运行时等价**：钩子的失败语义在两侧甚至相反（一处阻断、一处不阻断）——
    差异写进 `exemptions.yaml`，不假装等价。
 5. **dsh 侧的接入缝还是"未实现"**（overlay 只支持扩展目录 + settings 的装载形态）；

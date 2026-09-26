@@ -7,7 +7,7 @@
 - Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **L1 余项 = E2b（钩子逐条自证）**；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
+- Active work package: **L5 小活 = O1/O3/O2（未验证声明进报告）+ P5（契约表带实测日期）+ `CLAUDE.md`（新会话入口）**；E2b 已完成；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
 
 ## Current Architecture
 
@@ -68,7 +68,7 @@
 - 统一轨迹 `core/trace/schema.json`：**10 类事件**（含 `approval.decision`：谁、对哪个动作、放行/拒绝/无应答者），每条带 `emitter: hook | post-hoc`
 - **回调式（主路径）**：扩展订阅 loop 回调，能拿到实际请求体（tools 数组、stream 标志）⇒ `emitter=hook`
 - **事后映射（兜底）**：解析原生事件流/会话文件 ⇒ `emitter=post-hoc`（离线可复盘，拿不到请求体）
-- 闸门 3 的 `probe/hook-fired`：声明了 `kind: hook` ⇒ 必须有钩子当场发出的事件；
+- 闸门 3 的 `probe/hooks-evidenced`：**每条**声明的 `kind: hook` 都要留下带自己 id 的痕迹（事件字段 `enhancement`）⇒ 声明 N 个就有 N 条可指认证据；哑掉的钩子会被点名（纯函数 `core/gates/hooks.mjs`，自检 `probe-selftest` 含真跑负例）；
   事后映射的运行时**如实报"不适用"**（不算通过）
 - 业务可介入：`biz` 附加位 / `biz.event` / `trace-labels.yaml`；基座不懂业务语言
 
@@ -147,7 +147,7 @@
 - `core/verify/attribution.mjs` —— **失败归因**（容器挂≠缺陷：本地可复现 / 已声明差异 / 容器专有 / **本地没跑到** / 未声明差异）
 - `adapters/dsh/approval-probe.mjs` —— 探针：另一侧原生流/会话文件里有没有审批记录、相对路径插件 row 能不能加载（`make dsh-approval-probe`）
 - `adapters/dsh/seed/` —— **基座不变量插件**（声明 + `plugins/verify-container/`）：渲染器拷进 profile、row 指向入口文件、注入事件写入器
-- `tools/verify-container.mjs` —— **受控容器验证入口**（docker 参数全由基座生成、调用方不能追加：绑定面=当前项目只读、网络 none、根只读、能力全丢；`DRY=1` 可审阅）
+- `tools/verify-container.mjs` —— **受控容器验证入口**（docker 参数全由基座生成、调用方不能追加：绑定面=当前项目只读、网络 none、根只读、能力全丢；`DRY=1` 可审阅；**镜像与源码不同源 ⇒ 先拒绝并要求重建**，D13）
 - `tools/project-info.mjs` —— **项目自省的命令行出口**（与会话内 `/project` 共用 `core/introspect/` 的同一份逻辑）；`--plan` 给验证计划
 - `core/introspect/{project-info,_container-only}.mjs` —— 自省与"只能在容器验"的**声明**（后者被自检盯着与 C9 实现一致）
 - `tools/{dev-env,run-local}.mjs` —— 本地开发环境（按 pin 对齐版本；临时 HOME 跑制品；复用前校验定义摘要）
@@ -158,7 +158,7 @@
 - `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用运行器）
 - `adapters/{pi,dsh}/seed/` 与 `enhancements.yaml` —— 基座不变量（**两种落地形态**：一侧是扩展 `extensions/*.ts`，另一侧是 cordis 插件 `plugins/*/index.js` + insert row，都由渲染器注入事件写入器）：安全姿态 + 轨迹 + 会话内自省命令 `project-info` + **受控容器验证入口 `verify-container`（需审批）**
 - `core/gates/` —— 四闸门框架：编排 / 断言语言 / §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / CLI 解析
-- `core/trace/` —— 统一轨迹：`schema.json`（真源，10 类事件 + `emitter`）· `emit.mjs` · 业务级 logger · 自检
+- `core/trace/` —— 统一轨迹：`schema.json`（真源，10 类事件 + `emitter` + `enhancement`[哪个声明写的]）· `emit.mjs` · 业务级 logger · 自检
 - `core/spec/` —— 中性定义 schema（**public contract**）+ **增强 schema** + fixtures（1 合法 + **12** 注入式非法）
 - `core/catalog/{capabilities,params,providers}.yaml` —— 三个执法点：字段所属层 · 参数层清单 · provider 目录
 - `core/image/` —— 基座镜像与调试变体 + `verify-in-image.mjs`（镜像内自证）+ `derived/Dockerfile`（派生骨架）

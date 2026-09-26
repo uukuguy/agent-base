@@ -51,6 +51,8 @@ export function apply(ctx) {
         run: process.env.AGENT_RUN_ID ?? `run-${Date.now()}`,
         effectiveConfigDigest: DIGEST,
         agent: process.env.AGENT_NAME ?? null,
+        // 声明 id：与本插件在 seed 清单里的 id 一致（闸门 3 逐条核对用）
+        enhancement: "verify-container",
         harness: "dsh",
         harnessVersion: process.env.AGENT_HARNESS_VERSION ?? null,
         dest: process.env.AGENT_TRACE_DEST || null,

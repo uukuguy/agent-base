@@ -53,7 +53,7 @@
 | 容器**安全下限** | C9 **16** 项（非 root、只读根、能力全丢、断网可用…） | ✅ |
 | 升级**可回归** | **13** 个自检 + conformance **C1–C10** + `make examples-check` | ✅ |
 | 工具边界**真的生效**（本地与容器同一条契约） | 清单声明 `runtimePlan.prependArgs`，两条启动路径都执行；实测 `probe/model.tools` = 1（deny 三个只剩 read） | ✅ |
-| **钩子确实在工作** | `probe/hook-fired`：轨迹事件带 `emitter`；声明了钩子就必须有钩子当场发出的事件 | ✅ ⚠️ 证明的是发射路径；业务钩子要自证需自己留痕 |
+| **钩子确实在工作（逐条）** | `probe/hooks-evidenced`：声明了几条钩子，就要有对应条带 `enhancement=<声明 id>` 的钩子事件；哑掉的钩子会被点名 | ✅ 声明 N 个 ⇒ N 条可指认证据（业务钩子用 `new TraceWriter({ enhancement: "<id>" })` 自证） |
 | 声明写错**响亮失败** | 渲染期：未声明接入件 / 缺 `package`；启动期：overlay 不匹配 / 缺清单；校验期：`enhance/schema`（负例 11/12）+ `enhance/events`（负例 13） | ✅ |
 | 契约**跨版本稳定**（见 §3） | 见 §3 的稳定性清单 | ✅（本轮首次明确） |
 

@@ -32,7 +32,7 @@ import YAML from "yaml";
 import { EXIT_CODES } from "../gates/index.mjs";
 import { parseArgs } from "../gates/cli.mjs";
 // 输入指纹：构建端与检查端**共用同一份实现**（core/image/inputs-digest.mjs）
-import { imageInputsDigest } from "./inputs-digest.mjs";
+import { imageInputsDigest, IMAGE_CONTEXT_EXCLUDES, IMAGE_SOURCE_DIRS } from "./inputs-digest.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -148,10 +148,11 @@ function prepareContext(specs) {
   }
   // 闸门源码进上下文（P2：镜像内自证）。保持相对布局 —— 各工具靠**自身位置**推 REPO，
   // 所以在 /opt/agent-base/gates/ 下同样成立。不含 node_modules；依赖在 Dockerfile 里装。
-  for (const dir of ["core", "tools", "adapters"]) {
+  // 拷哪几棵树、排除什么：与指纹实现**同一份清单**（各写一份迟早漂移 —— D13 就是这么来的）
+  for (const dir of IMAGE_SOURCE_DIRS) {
     fs.cpSync(path.join(REPO, dir), path.join(ctx, "gates", dir), {
       recursive: true,
-      filter: (src) => !src.includes("node_modules") && !src.includes(`${path.sep}dist${path.sep}`),
+      filter: (src) => !IMAGE_CONTEXT_EXCLUDES.some((x) => src.includes(`${path.sep}${x}`)),
     });
   }
   fs.copyFileSync(path.join(REPO, "core/image/verify-in-image.mjs"), path.join(ctx, "gates", "verify-in-image.mjs"));
@@ -262,7 +263,8 @@ function main() {
 
   if (!flags.has("--manifest")) {
     for (const arch of arches) {
-      const inputsDigest = imageInputsDigest(ctx);
+      // 指纹按**源码树**算（不是按上下文）：这样「改了闸门代码但没重建镜像」一定会被发现（D13）
+      const inputsDigest = imageInputsDigest(REPO);
       const base = buildArch({ arch, tag: tagFor(arch, false), debug: false, specs, ctx, noCache: flags.has("--no-cache"), inputsDigest });
       if (!base.ok) { log(`\n❌ ${arch} 基础镜像构建失败`); process.exit(EXIT_CODES.crash); }
       results.push(base);
@@ -315,7 +317,7 @@ function main() {
       "-f", path.join(ctx, "Dockerfile"),
       // 归档里的镜像也要带**输入指纹**：实测漏过一次 —— 本地镜像带指纹、归档里却是 unknown，
       // 于是"归档是否与当前源码同源"无从判断。
-      "--build-arg", `IMAGE_INPUTS_DIGEST=${imageInputsDigest(ctx)}`,
+      "--build-arg", `IMAGE_INPUTS_DIGEST=${imageInputsDigest(REPO)}`,
       "--output", `type=oci,dest=${dest}`,
       ctx,
     ], { capture: true });

@@ -37,14 +37,18 @@ function walk(rootDir, excludes) {
 /**
  * 目录内容的确定性摘要。
  * @param {string} dir
- * @param {{excludes?: string[]}} [opts]
+ * @param {{excludes?: string[], filter?: (relPath: string) => boolean}} [opts]
+ *        `filter` 收到**相对路径**（`/` 分隔），返回 false 则该文件不进摘要。
+ *        用途：镜像输入指纹要覆盖"能影响判据的代码"，但不该被测试文件牵着走
+ *        （改一个自检就要求重建镜像，是把指纹用成了绊脚石）。
  * @returns {string} `sha256:<64 hex>`
  */
-export function digestDirectory(dir, { excludes = DEFAULT_EXCLUDES } = {}) {
+export function digestDirectory(dir, { excludes = DEFAULT_EXCLUDES, filter = null } = {}) {
   const root = path.resolve(dir);
   const hash = createHash("sha256");
   for (const file of walk(root, excludes)) {
     const rel = path.relative(root, file).split(path.sep).join("/");
+    if (filter && !filter(rel)) continue;
     hash.update(rel, "utf8");
     hash.update("\0", "utf8");
     hash.update(fs.readFileSync(file));
@@ -82,7 +86,8 @@ export function digestFile(file) {
  * 角色（role）进摘要而不是绝对路径：换台机器、换个目录，同一组输入必须得到同一个摘要（N19）。
  * 传 `kind: "file"` 时按文件内容算；否则按目录内容算。
  *
- * @param {Array<{role: string, path: string, kind?: "dir"|"file", optional?: boolean}>} entries
+ * @param {Array<{role: string, path: string, kind?: "dir"|"file", optional?: boolean,
+ *                excludes?: string[], filter?: (relPath: string) => boolean}>} entries
  */
 export function digestInputs(entries) {
   const hash = createHash("sha256");
@@ -96,7 +101,9 @@ export function digestInputs(entries) {
       if (!e.optional) throw new Error(`渲染输入不存在：${e.role} → ${e.path}`);
       hash.update("absent", "utf8");
     } else {
-      hash.update(e.kind === "file" ? digestFile(e.path) : digestDirectory(e.path), "utf8");
+      hash.update(e.kind === "file"
+        ? digestFile(e.path)
+        : digestDirectory(e.path, { ...(e.excludes ? { excludes: e.excludes } : {}), ...(e.filter ? { filter: e.filter } : {}) }), "utf8");
     }
     hash.update("\0", "utf8");
   }

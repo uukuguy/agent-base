@@ -45,9 +45,9 @@ const die = (msg, code = EXIT_CODES.usage) => { log(`❌ ${msg}`); process.exit(
 
 const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), {
   valueFlags: ["--harness", "--arch", "--render-dir"],
-  booleanFlags: ["--dry-run", "--json", "--no-cache", "--help"],
+  booleanFlags: ["--dry-run", "--json", "--no-cache", "--allow-stale-image", "--help"],
 });
-const ALLOWED_FLAGS = new Set(["--dry-run", "--json", "--no-cache", "--help"]);
+const ALLOWED_FLAGS = new Set(["--dry-run", "--json", "--no-cache", "--allow-stale-image", "--help"]);
 const unknown = [...flags].filter((f) => !ALLOWED_FLAGS.has(f));
 if (unknown.length) die(`未知旗标：${unknown.join(", ")} —— 可用：${[...ALLOWED_FLAGS].join(" / ")}。`
   + `（docker 参数不接受调用方拼：绑定面由基座生成，见本文件顶部）`);
@@ -120,6 +120,10 @@ const argv = [
   image, "verify",
 ];
 
+let imageSameSource = null;
+let imageInputsDigestOfTag = null;
+let expectedInputsDigest = null;
+
 const mounts = [
   { src: real, dst: "/work/agent", mode: "ro", role: "project" },
   { src: artifactDir, dst: "/opt/agent-base/artifact", mode: "ro", role: "artifact" },
@@ -147,6 +151,31 @@ if (dryRun) {
 if (!imageExists) {
   die(`本地没有镜像 ${image} —— 拒绝让 docker 去远端拉（那等于静默换了要验的东西）。\n`
     + `   先构建：node core/image/build.mjs --arch ${arch}（或 make image-all）`, EXIT_CODES.usage);
+}
+
+// ---------------------------------------------------------------------------
+// ③′ **镜像过期就拒绝**（D13 的教训）
+//
+// 闸门源码是**烤进镜像**的。改了闸门判据但没重建镜像时，镜像里跑的是旧判据，
+// 于是会出现"容器挂、本地过"的**假差异** —— 看起来像环境问题，其实是被验对象与验证者不同版本。
+// 所以这里先比一次指纹（与构建端同一份实现）：不同源 ⇒ 拒绝，并给出重建命令。
+// 确实要用旧镜像时显式 `--allow-stale-image`（把决定留痕在输出里）。
+// ---------------------------------------------------------------------------
+{
+  const { imageInputsDigest } = await import("../core/image/inputs-digest.mjs");
+  const expected = imageInputsDigest(REPO);
+  const lbl = spawnSync("docker", ["image", "inspect", image, "--format", '{{index .Config.Labels "agent-base.inputs-digest"}}'],
+    { encoding: "utf8", timeout: 60000 }).stdout.trim();
+  imageSameSource = lbl === expected;
+  imageInputsDigestOfTag = lbl || null;
+  expectedInputsDigest = expected;
+  if (!imageSameSource && !flags.has("--allow-stale-image")) {
+    die(`镜像 ${image} 与当前源码**不同源**（镜像 LABEL ${lbl ? `${lbl.slice(0, 15)}…` : "缺失"} ≠ 当前源码 ${expected.slice(0, 15)}…）。\n`
+      + `   闸门判据是烤进镜像的 ⇒ 用旧镜像验新产物会得到"容器挂、本地过"的假差异，结论不可比。\n`
+      + `   先重建：node core/image/build.mjs --arch ${arch}（或 make image-all）；确实要用旧镜像时加 --allow-stale-image。`,
+      EXIT_CODES.usage);
+  }
+  if (!imageSameSource) log(`⚠️ 用旧镜像（inputs-digest 不同源，已显式放行）—— 结论不与当前源码可比。`);
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +236,9 @@ const report = {
   exitCode: run.status,
   usable,
   cached: false,                 // 本次是真跑的（命中缓存时在上面直接返回，标 cached: true）
+  imageSameSource,               // 镜像与当前源码是否同源（D13：不同源必须显式放行才跑）
+  imageInputsDigest: imageInputsDigestOfTag,
+  expectedInputsDigest,
   durationMs,                    // 真实耗时（"不无效重跑"的证据）
   cacheKey,
   steps,

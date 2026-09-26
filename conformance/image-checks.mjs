@@ -242,25 +242,22 @@ export function runImageChecks({ version, arch = hostArch() } = {}) {
   // 而当时所有检查只看"镜像存在 + 平台对" ⇒ 全绿。指纹由构建端烤进 LABEL（core/image/build.mjs），
   // 这里用**同一份实现**重算比对。
   {
-    const ctx = path.join(REPO, "dist/image/context");
-    if (!fs.existsSync(path.join(ctx, "Dockerfile"))) {
-      add("images-same-source", false, "缺构建上下文 dist/image/context —— 无法判断镜像是否与当前源码同源（先跑一次 make image）");
-    } else {
-      const expected = imageInputsDigest(ctx);
-      const tags = [base, debug, `agent-base:${version}-amd64`, `agent-base:${version}-debug-amd64`];
-      const seen = [];
-      const stale = [];
-      for (const t of tags) {
-        const lbl = spawnSync("docker", ["image", "inspect", t, "--format", '{{index .Config.Labels "agent-base.inputs-digest"}}'],
-          { encoding: "utf8" }).stdout.trim();
-        if (!lbl) continue;                    // 该变体不存在（有专门的 dual-arch 检查负责报）
-        seen.push(t);
-        if (lbl !== expected) stale.push(`${t}(${lbl.slice(0, 15)}…)`);
-      }
-      if (!seen.length) add("images-same-source", false, "没有可核对的镜像变体");
-      else if (stale.length) add("images-same-source", false, `镜像与当前源码**不同源**（改过 Dockerfile/entrypoint/startup/lock 后没重建）：${stale.join(", ")}`);
-      else add("images-same-source", true, `${seen.length} 个变体与当前源码同源（inputs-digest ${expected.slice(0, 15)}…）`);
+    // 指纹按**源码树**重算（不再依赖构建上下文是否存在）：
+    // 「改了闸门代码但没重建镜像」必须在这里被抓住 —— 否则会表现为"容器挂、本地过"的假差异（D13）。
+    const expected = imageInputsDigest(REPO);
+    const tags = [base, debug, `agent-base:${version}-amd64`, `agent-base:${version}-debug-amd64`];
+    const seen = [];
+    const stale = [];
+    for (const t of tags) {
+      const lbl = spawnSync("docker", ["image", "inspect", t, "--format", '{{index .Config.Labels "agent-base.inputs-digest"}}'],
+        { encoding: "utf8" }).stdout.trim();
+      if (!lbl) continue;                    // 该变体不存在（有专门的 dual-arch 检查负责报）
+      seen.push(t);
+      if (lbl !== expected) stale.push(`${t}(${lbl.slice(0, 15)}…)`);
     }
+    if (!seen.length) add("images-same-source", false, "没有可核对的镜像变体");
+    else if (stale.length) add("images-same-source", false, `镜像与当前源码**不同源**（改过 Dockerfile/entrypoint/startup 或**闸门源码**后没重建）：${stale.join(", ")}`);
+    else add("images-same-source", true, `${seen.length} 个变体与当前源码同源（inputs-digest ${expected.slice(0, 15)}…）`);
   }
 
   // ⑤ 交付价值的最终检验：容器里能配好 LLM 并真跑通（含负向）

@@ -158,9 +158,11 @@ console.log("\n── F. 真跑一个**会失败**的项目 ⇒ 归因必须给�
     const items = doc2?.attribution?.items ?? [];
     check("归因指出闸门 1 是**本地可复现**的真缺陷",
       items.some((i) => i.id === "static" && i.verdict === "local-reproducible"), JSON.stringify(items));
-    check("归因不把'本地没跑到'说成'本地通过'",
-      items.filter((i) => i.verdict === "local-reproducible").every((i) => i.id === "static")
-      && items.some((i) => i.verdict === "local-unverified"), JSON.stringify(items));
+    // 镜像内自证也是**首败即停**（D12 修好后与宿主同一条规矩）⇒ 容器侧只会报闸门 1，
+    // 于是归因里不该凭空多出别的闸门。"没跑到 ≠ 通过"这一条由 E 段的纯逻辑用例覆盖。
+    check("不再凭空造出别的闸门（不会把'没跑到'说成'本地通过'）",
+      items.every((i) => i.id === "static") && !items.some((i) => i.verdict === "declared-env-difference"),
+      JSON.stringify(items));
     check("没有未声明的差异（unknown 为空）", (doc2?.attribution?.unknown ?? []).length === 0, JSON.stringify(doc2?.attribution?.unknown));
   }
 }

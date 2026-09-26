@@ -102,7 +102,8 @@ export function validateShape(rec) {
 export class TraceWriter {
   /**
    * @param {{run:string, effectiveConfigDigest:string, agent?:string, harness?:string,
-   *          harnessVersion?:string, dest?:string|null, stream?:{write:Function}, validate?:boolean}} opts
+   *          harnessVersion?:string, enhancement?:string, dest?:string|null,
+   *          stream?:{write:Function}, validate?:boolean}} opts
    */
   constructor(opts) {
     if (!opts?.run) throw new Error("TraceWriter 需要 run");
@@ -114,6 +115,9 @@ export class TraceWriter {
     this.agent = opts.agent ?? null;
     this.harness = opts.harness ?? null;
     this.harnessVersion = opts.harnessVersion ?? null;
+    // **哪个已声明的增强在写**：让闸门 3 能逐条核对"声明的钩子各自留痕"（§23 E2b），
+    // 而不是笼统地"有钩子事件就算过"。
+    this.enhancement = opts.enhancement ?? null;
     this.dest = opts.dest ?? process.env.AGENT_TRACE_DEST ?? null;
     this.stream = opts.stream ?? process.stderr;
     this.validate = opts.validate !== false; // 默认自检：宁可这里报错，也不让坏事件进审计流
@@ -134,6 +138,7 @@ export class TraceWriter {
       ...(this.agent ? { agent: this.agent } : {}),
       ...(this.harness ? { harness: this.harness } : {}),
       ...(this.harnessVersion ? { harnessVersion: this.harnessVersion } : {}),
+      ...(this.enhancement ? { enhancement: this.enhancement } : {}),
       ...event,
     };
     if (this.validate) {

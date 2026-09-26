@@ -93,6 +93,8 @@ export default function (pi) {
     run: RUN_ID,
     effectiveConfigDigest: DIGEST,
     agent: process.env.AGENT_NAME ?? null,
+    // 声明 id：闸门 3 据此逐条核对「声明的钩子各自留痕」（§23 E2b）
+    enhancement: "trace",
     harness: "pi",
     harnessVersion: process.env.AGENT_HARNESS_VERSION ?? null,
     dest: process.env.AGENT_TRACE_DEST || null,

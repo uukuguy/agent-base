@@ -69,7 +69,12 @@
             "hook",
             "post-hoc"
           ],
-          "description": "这条事件的**发射者形态**：hook = 由运行时的扩展/插件回调在事件发生时发出；post-hoc = 运行结束后从会话文件映射出来。它让\"钩子声明了但没生效\"可断言（见 tools/probe.mjs 的 probe/hook-fired）。"
+          "description": "这条事件的**发射者形态**：hook = 由运行时的扩展/插件回调在事件发生时发出；post-hoc = 运行结束后从会话文件映射出来。它让\"钩子声明了但没生效\"可断言（见 tools/probe.mjs 的 probe/hooks-evidenced）。"
+        },
+        "enhancement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "这条事件是**哪个已声明的增强**写的（增强的 id）。它让「声明了 N 个钩子」变成「N 个钩子各自留下可指认的痕迹」—— 否则只能证明'发射路径在工作'（路线图 §23 E2b）。由发射方在构造写入器时声明（TraceWriter({ enhancement: '<id>' })）；事后映射的事件没有这个字段（它不是任何钩子写的）。"
         }
       }
     },

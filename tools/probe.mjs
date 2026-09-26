@@ -19,7 +19,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { EXIT_CODES, GateReport, parseArgs, runGates } from "../core/gates/index.mjs";
+import { EXIT_CODES, GateReport, hookEvidence, parseArgs, runGates } from "../core/gates/index.mjs";
 // 运行器按 harness 分派：probe 不该知道"哪个 harness 怎么跑"（那是适配器的事）
 async function loadRunner(harness) {
   const p = path.join(REPO, `adapters/${harness}/run.mjs`);
@@ -160,28 +160,19 @@ async function main() {
             rep.fail(GATE, "probe/model.stream", "没有观测到流式请求（可能被降级）");
           }
 
-          // ---- probe/hook-fired（P4）----
-          // 声明了 kind=hook 的增强 ⇒ 轨迹里必须出现**由钩子当场发出**的事件（emitter=hook）。
-          // 此前只验到"声明进了产物"（闸门 2），"配了没生效"无人报错 —— 这是"看起来有"的典型。
-          const declaredHooks = manifest.hookEnhancements ?? [];
-          const hookEvents = (run.events ?? []).filter((e) => e?.emitter === "hook");
-          if (!declaredHooks.length) {
-            rep.pass(GATE, "probe/hook-fired",
-              "本产物未声明钩子型增强 ⇒ 无可断言（不把它算成通过，也不假装验过）");
-          } else if (hookEvents.length) {
-            // 证据边界要写清：这证明的是"**钩子发射路径确实在工作**"（基座轨迹本身就是一个钩子）。
-            // 业务钩子若要被证明"我这条也跑了"，它得自己留痕（写轨迹/日志）—— 见 docs/13 §2 的说明。
-            rep.pass(GATE, "probe/hook-fired",
-              `钩子发射路径确实在工作：轨迹里有 ${hookEvents.length} 条钩子当场发出的事件`
-              + `（声明含：${declaredHooks.join(", ")}；首个事件类型 ${hookEvents[0].type}）`);
-          } else if (!(run.events ?? []).some((e) => e?.emitter === "post-hoc")) {
-            rep.fail(GATE, "probe/hook-fired",
-              `声明了钩子（${declaredHooks.join(", ")}）却没有任何钩子发出的轨迹事件，`
-              + `也无法区分"轨迹不是钩子写的" —— 无法证明它生效`);
+          // ---- probe/hooks-evidenced（P4 + §23 E2b）----
+          // E2 只证明"发射路径在工作"；E2b 要求**每条声明的钩子各自留痕**（事件带 `enhancement` = 声明 id）。
+          // 判据是纯函数（core/gates/hooks.mjs），自检直接断言它的每个分支。
+          const evidence = hookEvidence({
+            declaredHooks: manifest.hookEnhancements ?? [],
+            events: run.events ?? [],
+          });
+          if (evidence.status === "silent" || evidence.status === "no-hook-events") {
+            rep.fail(GATE, "probe/hooks-evidenced", evidence.detail);
           } else {
-            rep.pass(GATE, "probe/hook-fired",
-              `本运行时的轨迹为**事后映射**（emitter=post-hoc），无法证明钩子当场触发 ⇒ 该断言在此运行时不适用`
-              + `（不假装通过；需要各自的验证手段 —— 见路线图 §23 的 E2）`);
+            // none-declared / evidenced / not-applicable 都算"这条断言不构成失败"，
+            // 但 each 的理由写在 detail 里 —— 读报告的人能分清"验过了"和"没验"。
+            rep.pass(GATE, "probe/hooks-evidenced", evidence.detail);
           }
 
           // 网关动了手脚的可观测信号（响应头回显与发出请求不一致）
