@@ -24,6 +24,8 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
+// 路由目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/routes.mjs
+import { describeSource, loadRoutes } from "../../core/catalog/routes.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -34,8 +36,6 @@ const HARNESS = "pi";
  * 用的是 node 基础镜像里 `npm install -g` 的落地位置 —— 于是**复用既有的预装清单机制**，
  * 不需要为扩展包新造一条安装通道。本地运行时由运行器把该路径改写成本地安装路径。
  */
-/** 基座声明的模型路由目录（`model.route` 的合法取值 + 协议形状）。 */
-const ROUTES_PATH = path.join(HERE, "../../core/catalog/routes.yaml");
 const MCP_ADAPTER_IN_IMAGE = "/usr/local/lib/node_modules/pi-mcp-adapter";
 
 // ---------------------------------------------------------------------------
@@ -177,10 +177,11 @@ function main() {
   }
   const prefix = envPrefixFor(agent.model.route);
   // 路由必须由基座声明（闸门 1 已校验）；渲染器据此取协议形状并记录到清单
-  const routesDoc = fs.existsSync(ROUTES_PATH) ? readYaml(ROUTES_PATH) : { routes: [] };
-  const activeRoute = (routesDoc.routes ?? []).find((r) => r.id === agent.model?.route);
+  const catalog = loadRoutes();
+  const activeRoute = (catalog.routes ?? []).find((r) => r.id === agent.model?.route);
   if (!activeRoute) {
-    log(`❌ model.route「${agent.model?.route}」不在基座路由目录里（core/catalog/routes.yaml）—— 先跑 make validate 看可用取值`);
+    log(`❌ model.route「${agent.model?.route}」不在路由目录里（${describeSource(catalog)}）。`);
+    log(`   路由目录里的可用路由：${(catalog.routes ?? []).map((r) => r.id).join(", ") || "(空)"} —— 用 AGENT_ROUTES_FILE 指到你自己的那份，或改这里列出的路由名。`);
     process.exit(EXIT_CODES.static);
   }
   const routeApi = activeRoute.api;

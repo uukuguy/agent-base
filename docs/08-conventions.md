@@ -58,7 +58,8 @@
 | 中性定义契约 | `core/spec/{agent,connectors}.schema.json` | 闸门 1、两个渲染器 |
 | 能力目录（字段/层/支持度） | `core/catalog/capabilities.yaml` | 闸门 1、文档 03 |
 | 参数层允许/禁止 | `core/catalog/params.yaml` | 闸门 1、conformance C8 |
-| **模型路由** | `core/catalog/routes.yaml` | 闸门 1、两个渲染器 |
+| **模型路由**（默认） | `core/catalog/routes.yaml` | 闸门 1、两个渲染器 |
+| **模型路由**（部署层覆盖） | `AGENT_ROUTES_FILE=<你的 routes.yaml>` 或 `AGENT_CATALOG_DIR=<目录>` | 同上（优先级：文件 > 目录 > 内置） |
 | 预装清单 | `core/image/preinstall.yaml` | 镜像构建（经 `preinstall.lock.txt`）、连接器 `ref` |
 | 运行时版本 pin | `adapters/<h>/adapter.yaml` | 镜像构建、`make dev-env` |
 | 运行时能力声明 | 同上 `capabilities:` 段 | conformance C1、文档 10 |
@@ -84,6 +85,33 @@
 | 运行时声明不得夸大 | conformance **C1**（声明完整性）+ **C9**（与容器内实测一致） |
 | 声明的 ≠ 实际加载的 | conformance **C4**（三条集合断言） |
 | 静默失败必须被检出 | conformance **C5**（每条失败模式配一个注入用例） |
+
+## 六之二、路由目录是**部署输入**，不是基座代码
+
+`core/catalog/routes.yaml` 写的是"这次部署连哪个端点、端点服务哪些模型"—— 那是**环境属性**。
+它放在 `core/` 只是**内置默认**（配合自带零凭据假网关，开箱能跑）；真实使用时由部署层提供自己的那份：
+
+```bash
+# ① 直接指一个文件
+AGENT_ROUTES_FILE=/path/to/your-routes.yaml make validate AGENT_DIR=<你的智能体>
+# ② 或者一个目录（取其中的 routes.yaml）
+AGENT_CATALOG_DIR=/etc/agent-base make verify AGENT_DIR=<你的智能体>
+```
+
+**派生出来的智能体**更省事：把 `routes.yaml` 放在定义旁边，生成的 Makefile 会**自动认它**
+（`AGENT_ROUTES_FILE ?= $(wildcard ./routes.yaml)`）—— 不改基座代码、也不用手记环境变量。
+
+**模型名单别手填**，问端点：
+
+```bash
+make routes-init ENDPOINT=https://gw.internal/v1 API_KEY=…      # 会 GET <endpoint>/models
+```
+
+它把端点实际提供的模型名写成一份目录 —— 名单于是**是实测的，不是记来的**，
+也就不会出现"闸门 1 说可用、运行时端点说不认识"。
+
+**一条硬规矩**：设了 `AGENT_ROUTES_FILE` / `AGENT_CATALOG_DIR` 却读不到文件 ⇒ **直接失败**，
+不静默回退到内置。否则"我明明配了"与"系统其实在用内置"会同时成立 —— 那是本项目一直在治的那类静默失败。
 
 ## 七、规则看着碍事时怎么办
 

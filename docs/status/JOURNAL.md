@@ -233,4 +233,8 @@
 - 07:56 一处 Dockerfile 细节：`ARG` 声明在 `FROM` 之前**在后续指令里不可见**，LABEL 拿到空值（生产镜像没指纹、调试镜像有）→ FROM 后重声明
 - 07:56 ✅ 重建全部：四个变体 + 多架构归档（两个平台都带正确指纹）；容器内离线端到端复跑通过（端点侧 tools=5 stream=true model=corp-think）；C9 十六项全绿
 - 07:56 清掉遗留实验镜像 `pi-agent-base:dev`
+- 08:54 🔴 用户指出：`routes.yaml` 放在 `core/` 里 ⇒ **业务换个端点/模型就得改基座代码**，这是"能不能用"的问题而不是"顺手加个工具"
+- 08:54 修法：路由目录解析抽成 `core/catalog/routes.mjs`（四处硬编码收敛成一处），支持 `AGENT_ROUTES_FILE` / `AGENT_CATALOG_DIR` 覆盖基座内置；**设了却读不到直接失败、不静默回退**
+- 08:54 派生智能体：把 `routes.yaml` 放定义旁边即自动生效（生成的 Makefile 用 wildcard 认它），不必改基座、不必记环境变量
+- 08:54 新增 `make routes-init ENDPOINT=…`：问端点 `/v1/models` 把实测模型名写成路由目录；新增 `make routes-selftest`（11 项：优先级 / 覆盖失效报错 / 闸门 1 真的按覆盖判 / routes-init 对着假网关跑通）
 

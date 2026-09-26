@@ -34,6 +34,7 @@
 // ============================================================================
 
 import fs from "node:fs";
+import { describeSource, loadRoutes } from "../core/catalog/routes.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
@@ -266,12 +267,12 @@ function checkBase(report) {
 
   // A5b 路由目录自洽：引用名必须符合约定，且被参数层允许清单覆盖
   {
-    const routesFile = path.join(CATALOG, "routes.yaml");
-    if (!fs.existsSync(routesFile)) {
-      report.fail(GATE, "routes/present", "缺 core/catalog/routes.yaml —— `model.route` 的合法取值将无人校验");
+    const loaded = loadRoutes();
+    if (loaded.error) {
+      report.fail(GATE, "routes/present", `${loaded.error} —— model.route 的合法取值将无人校验`);
     } else {
-      const doc = loadYaml(routesFile);
-      const list = doc.routes ?? [];
+      report.pass(GATE, "routes/source", `路由目录来自 ${describeSource(loaded)}`);
+      const list = loaded.routes;
       if (!list.length) report.fail(GATE, "routes/present", "routes.yaml 里没有声明任何路由");
       else report.pass(GATE, "routes/present", `${list.length} 个路由已声明（${list.map((r) => r.id).join(", ")}）`);
 
@@ -350,14 +351,12 @@ function checkBase(report) {
     try { preinstall = loadPreinstall(); } catch { preinstall = null; }
   }
 
-  // 模型路由目录（基座层）：`model.route` 写的必须是这里声明过的路由
-  let routes = null;
-  const routesFile = path.join(CATALOG, "routes.yaml");
-  if (fs.existsSync(routesFile)) {
-    try { routes = loadYaml(routesFile); } catch { routes = null; }
-  }
+  // 模型路由目录：`model.route` 必须是这里声明过的路由。
+  // **可被部署层覆盖**（AGENT_ROUTES_FILE / AGENT_CATALOG_DIR）—— 基座内置那份只是默认，
+  // 真实使用时业务不该为了换个端点/模型去改基座代码。
+  const routeCatalog = loadRoutes();
 
-  return { ajv, agentSchema, connectorsSchema, caps, params, preinstall, routes };
+  return { ajv, agentSchema, connectorsSchema, caps, params, preinstall, routeCatalog };
 }
 
 // ---------------------------------------------------------------------------
@@ -643,10 +642,11 @@ function checkAgent(report, ctx, agentDir) {
   // route 必须由基座声明（P-a：能力在基座、选择在智能体）。此前不校验 ⇒ 写错路由名渲染照样成功，
   // 等到运行时才炸，且报错看不懂。这里当场拦住并给出可用取值。
   {
-    const routes = ctx.routes?.routes ?? [];
+    const cat = ctx.routeCatalog ?? { routes: [], error: "未加载路由目录" };
+    const routes = cat.routes ?? [];
     const declared = new Set(routes.map((r) => r.id));
     const route = agent.model?.route;
-    if (!routes.length) report.fail(GATE, "route/declared", "core/catalog/routes.yaml 没有可用路由，无法校验 model.route");
+    if (!routes.length) report.fail(GATE, "route/declared", `${cat.error ?? "路由目录为空"} —— 无法校验 model.route`);
     else if (!route) report.fail(GATE, "route/declared", "缺 model.route");
     else if (!declared.has(route)) report.fail(GATE, "route/declared", `model.route「${route}」不是基座声明的路由。可用：${[...declared].sort().join(", ")}`);
     else report.pass(GATE, "route/declared", `model.route「${route}」是基座声明的路由（${routes.find((r) => r.id === route).api}）`);

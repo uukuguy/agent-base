@@ -7,6 +7,11 @@
 
 AGENT_BASE_DIR ?= {{AGENT_BASE_DIR}}
 HARNESS ?= pi
+
+# 智能体自己的路由目录（可选）：旁边有 routes.yaml 就自动用它，**不必改基座代码**。
+# 没有就退回基座内置那份（配合自带假网关，开箱能跑）。
+AGENT_ROUTES_FILE ?= $(wildcard ./routes.yaml)
+export AGENT_ROUTES_FILE
 RENDER_DIR ?= .render/$(HARNESS)
 JSON ?=
 
@@ -23,7 +28,7 @@ help: ## 列出可用命令
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "参数：HARNESS=pi|dsh   RENDER_DIR=<渲染输出>   JSON=1"
+	@echo "参数：HARNESS=pi|dsh   AGENT_ROUTES_FILE=<你的路由目录>   RENDER_DIR=<渲染输出>   JSON=1"
 
 validate: check-base ## 闸门 1：检查定义（改完先跑这个）
 	@node $(AGENT_BASE_DIR)/tools/validate.mjs .
