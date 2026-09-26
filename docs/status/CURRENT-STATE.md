@@ -156,7 +156,7 @@
 - `tools/new-agent.mjs` + `template/` —— 派生入口与派生源（`new-agent-selftest` 验证"开箱可跑"）
 - `examples/` —— 6 个示例项目（**不是基座的一部分，可整体删除**），两侧"可用"，各自 README 载同一条开发循环
 - `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用运行器）
-- `adapters/{pi,dsh}/seed/` 与 `enhancements.yaml` —— 基座不变量：安全姿态 + 两条增强（轨迹扩展 `trace.ts`、会话内自省命令 `project-info.ts`）
+- `adapters/{pi,dsh}/seed/` 与 `enhancements.yaml` —— 基座不变量（**两种落地形态**：一侧是扩展 `extensions/*.ts`，另一侧是 cordis 插件 `plugins/*/index.js` + insert row，都由渲染器注入事件写入器）：安全姿态 + 轨迹 + 会话内自省命令 `project-info` + **受控容器验证入口 `verify-container`（需审批）**
 - `core/gates/` —— 四闸门框架：编排 / 断言语言 / §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / CLI 解析
 - `core/trace/` —— 统一轨迹：`schema.json`（真源，10 类事件 + `emitter`）· `emit.mjs` · 业务级 logger · 自检
 - `core/spec/` —— 中性定义 schema（**public contract**）+ **增强 schema** + fixtures（1 合法 + **12** 注入式非法）

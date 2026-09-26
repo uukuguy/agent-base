@@ -12,7 +12,7 @@
 ## Where things stand
 
 - **全绿**：**21 项回归自检**（20 个 `*-selftest` + `validate`）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
-- Makefile **51 个目标**（无 `NOT_YET` 桩）；L3 期间新增 `project-info` / `verify-plan` / `env-check` / `verify-container` / `unattended-selftest` / `dsh-approval-probe` / `dsh-verify-container-selftest` 等及各自自检
+- Makefile **50 个目标**（无 `NOT_YET` 桩）；L3 期间新增 `project-info` / `verify-plan` / `env-check` / `verify-container` / `unattended-selftest` / `dsh-approval-probe` / `dsh-verify-container-selftest` 等及各自自检
 - 本轮提交（都在本地，无远端）：`ef9c92d`（A1+V2）· `487ea2f`（E1b）· `4c0540a`（A4）· `870e92f`（A5）· `1b6f1f2`（A6）· `e5bd6a6`（A6b-1）· `48371d0`（A6b-2）
 - 记忆层可用（`mnemon` 0.2.9 + Memory Space `default` 已激活，满时自动归档）
 
