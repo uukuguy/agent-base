@@ -48,6 +48,7 @@ When adding a new file to `docs/status/`, **also add its row here** — otherwis
 | `docs/design/2026-09-26-harness-customization.md` | 两侧可定制点实测调研（pi 39 个钩子事件 / dsh ~30 个 seam；L0–L4 分层；D1–D7 实证缺陷） |
 | `docs/design/2026-09-26-base-value-and-openness.md` | 基座价值定义（"保证 / 允许 / 不管"三段式；能力有无判据的自检问题） |
 | `docs/design/2026-09-26-capability-bundles.md` | 能力包设计稿（包的概念、动态使能、三类归属、与闸门/轨迹/`/project` 接线、未决项）**← 未实现** |
+| `docs/design/2026-09-26-agent-drivable-verification.md` | AI 代理的容器验证设计稿（本地迭代 + 容器交给 AI；协议已有一半；意图/执行/结果/失败四面；安全分叉）**← 未实现** |
 
 ## Don't add new files unless they fit one of the categories above
 
