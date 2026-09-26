@@ -49,8 +49,8 @@ function extractModelIds(body) {
   return [];
 }
 
-async function fetchModels() {
-  const url = `${endpoint}/models`;
+/** 试一个 URL：成功返回 {ids}，失败返回 {error}。 */
+async function fetchOne(url) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
@@ -70,6 +70,24 @@ async function fetchModels() {
   }
 }
 
+/**
+ * 端点约定不统一：有的把模型列表放在 `<base>/models`（官方 DeepSeek 就是），
+ * 有的放在 `<base>/v1/models`（把 /v1 写在 base 里的那些客户端）。
+ * 依次试，并把**哪个 URL 成功**说出来 —— 免得用户以为自己写错了 base。
+ */
+async function fetchModels() {
+  const candidates = [`${endpoint}/models`, `${endpoint}/v1/models`];
+  const tried = [];
+  for (const url of candidates) {
+    const r = await fetchOne(url);
+    if (r.ids) return { ...r, url };
+    tried.push(r.error);
+    // 只有"路径不对"才值得换一个试；认证/网络问题换了也一样
+    if (!/HTTP (404|405)/.test(r.error)) return { error: r.error };
+  }
+  return { error: tried.join("；") };
+}
+
 const got = await fetchModels();
 if (got.error) {
   process.stderr.write(`❌ 问不到端点的模型列表：${got.error}\n`);
@@ -79,9 +97,9 @@ if (got.error) {
   process.exit(EXIT_CODES.probes);
 }
 
-if (asJson) process.stdout.write(JSON.stringify({ endpoint, route: routeId, models: got.ids }, null, 2) + "\n");
+if (asJson) process.stdout.write(JSON.stringify({ endpoint, modelsUrl: got.url, route: routeId, models: got.ids }, null, 2) + "\n");
 else {
-  process.stderr.write(`▶ 端点 ${endpoint} 报告 ${got.ids.length} 个模型：\n`);
+  process.stderr.write(`▶ ${got.url} 报告 ${got.ids.length} 个模型：\n`);
   for (const m of got.ids) process.stderr.write(`   · ${m}\n`);
 }
 

@@ -60,15 +60,41 @@ const main = async () => {
   const manifestFile = path.join(renderDir, "render-manifest.json");
   if (!fs.existsSync(manifestFile)) {
     process.stderr.write(`▶ 先渲染：${path.relative(REPO, renderDir)}\n`);
-    const r = spawnSync(process.execPath, [path.join(REPO, `adapters/${harness}/render.mjs`), agentDir, "--out", renderDir], { cwd: REPO });
-    if (r.status !== 0) { process.stderr.write("❌ 渲染失败\n"); process.exit(EXIT_CODES.crash); }
+    // **agentDir 必须绝对化**：子进程的 cwd 是仓库目录，把调用方的 `.` 原样传过去，
+    // 渲染器就会把仓库当智能体目录 —— 表现为一句没有上下文的"渲染失败"。
+    // （同一类 bug 在本轮出现过两次：相对路径跨 cwd 边界。任何转发出去的路径都先 resolve。）
+    const r = spawnSync(process.execPath, [path.join(REPO, `adapters/${harness}/render.mjs`), path.resolve(agentDir), "--out", renderDir], { cwd: REPO });
+    if (r.status !== 0) {
+      process.stderr.write("❌ 渲染失败\n");
+      const detail = `${r.stdout ?? ""}\n${r.stderr ?? ""}`.trim();
+      if (detail) process.stderr.write(detail.split("\n").slice(-8).join("\n") + "\n");
+      process.exit(EXIT_CODES.crash);
+    }
   }
 
   // ② 暂存可写副本 + 临时 HOME（P-b 文件系统隔离）
-  const endpoint = values["--endpoint"] ?? process.env.AGENT_ENDPOINT ?? "http://127.0.0.1:9/v1";
-  // 产物清单：运行期参数契约与运行期布局契约都从这里读（唯一来源）
+  // 产物清单：运行期参数契约与运行期布局契约都从这里读（唯一来源）。
+  // **必须在解析端点之前读**：端点的引用名就是从这份契约里取的。
   const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
 
+  // 端点来源：`--endpoint` > 环境里的 `<路由前缀>_BASE_URL` > 报错。
+  //
+  // **不能默默用死端口兜底**：早前默认 `http://127.0.0.1:9/v1`，于是用户明明设了
+  // `DEEPSEEK_BASE_URL=https://api.deepseek.com`，run-local 又把它覆盖成死端口 ——
+  // 表现为"我配了却连不上"，正是本项目一直在治的那类静默覆盖。
+  const endpointParamName = (manifest.runtimeParams ?? []).find((x) => x.backs === "model.route" && !x.secret)?.name;
+  const fromEnvEndpoint = endpointParamName ? process.env[endpointParamName] : null;
+  const explicitEndpoint = values["--endpoint"] ?? process.env.AGENT_ENDPOINT ?? null;
+  const endpoint = explicitEndpoint ?? fromEnvEndpoint;
+  const endpointSource = explicitEndpoint ? "--endpoint" : (fromEnvEndpoint ? endpointParamName : null);
+  if (!endpoint) {
+    process.stderr.write(
+      "❌ 未提供模型端点 —— 本地运行需要它（探针/冒烟才会用自带假网关，真实运行不会替你编一个）。\n" +
+      `   给法：① make run-local --endpoint https://your-endpoint/v1\n` +
+      `         ② 环境变量 ${endpointParamName ?? "<路由前缀>_BASE_URL"}=https://your-endpoint/v1\n` +
+      `         ③ 或用 --secrets-dir / ${endpointParamName ?? "<路由前缀>_BASE_URL"}_FILE 指到文件\n`);
+    process.exit(EXIT_CODES.usage);
+  }
   // 手工运行的便利开关：直接映射到**产物声明的**运行期参数（不猜名字、不硬编码引用名）。
   // 为什么需要：实际环境很杂 —— 有人在机器上手工跑、有人在 CI 里跑、有人包在编排里。
   // 手工跑的人不该被迫去记 `CORP_GATEWAY_API_KEY` 这种由路由名推导出来的名字。
@@ -131,7 +157,7 @@ const main = async () => {
     `  制品        ${path.relative(REPO, renderDir)}`,
     `  暂存副本    ${staging}`,
     `  HOME        ${home}   ← 临时目录，隔离隐式技能源`,
-    `  模型端点    ${endpoint}${placeholders.length ? `（${placeholders.length} 个参数用占位值：${placeholders.join(", ")}）` : ""}`,
+    `  模型端点    ${endpoint}（来源 ${endpointSource}）${placeholders.length ? `（${placeholders.length} 个参数用占位值：${placeholders.join(", ")}）` : ""}`,
     `  轨迹        ${traceFile}`,
     `  模式        ${values["--prompt"] ? "一次性（--prompt）" : "交互（stdin 直连，退出即结束）"}`,
     "",

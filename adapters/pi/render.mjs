@@ -177,7 +177,7 @@ function main() {
   }
   const prefix = envPrefixFor(agent.model.route);
   // 路由必须由基座声明（闸门 1 已校验）；渲染器据此取协议形状并记录到清单
-  const catalog = loadRoutes();
+  const catalog = loadRoutes({ agentDir });
   const activeRoute = (catalog.routes ?? []).find((r) => r.id === agent.model?.route);
   if (!activeRoute) {
     log(`❌ model.route「${agent.model?.route}」不在路由目录里（${describeSource(catalog)}）。`);

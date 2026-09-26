@@ -10,8 +10,14 @@ HARNESS ?= pi
 
 # 智能体自己的路由目录（可选）：旁边有 routes.yaml 就自动用它，**不必改基座代码**。
 # 没有就退回基座内置那份（配合自带假网关，开箱能跑）。
-AGENT_ROUTES_FILE ?= $(wildcard ./routes.yaml)
-export AGENT_ROUTES_FILE
+#
+# **必须导出绝对路径**：基座工具会切自己的工作目录（verify 的子进程在仓库里跑），
+# 相对路径一过进程边界就指向别处 —— 实测导致 `make validate` 过、`make verify` 挂。
+ROUTES_FILE := $(wildcard ./routes.yaml)
+ifneq ($(ROUTES_FILE),)
+  AGENT_ROUTES_FILE := $(abspath $(ROUTES_FILE))
+  export AGENT_ROUTES_FILE
+endif
 RENDER_DIR ?= .render/$(HARNESS)
 JSON ?=
 
@@ -47,6 +53,17 @@ smoke: check-base ## 闸门 4：端到端冒烟
 
 compare: check-base ## 跨运行时等价性比对（同一份定义在两个运行时里是否等价）
 	@node $(AGENT_BASE_DIR)/tools/compare.mjs . $(if $(HARNESSES),--harnesses $(HARNESSES),) $(if $(JSON),--json,)
+
+run-local: check-base ## 本地真跑一次（ENDPOINT=https://… API_KEY=… [MODEL=…] [PROMPT="…"]）
+	@node $(AGENT_BASE_DIR)/tools/run-local.mjs . --harness $(HARNESS) \
+	  $(if $(ENDPOINT),--endpoint "$(ENDPOINT)",) $(if $(API_KEY),--api-key "$(API_KEY)",) \
+	  $(if $(MODEL),--model "$(MODEL)",) $(if $(PROMPT),--prompt "$(PROMPT)",) \
+	  $(if $(RENDER_DIR),--render-dir $(RENDER_DIR),)
+
+routes-init: ## 问端点有哪些模型，写成 routes.yaml（ENDPOINT=https://… [API_KEY=…] [ROUTE=…]）
+	@node $(AGENT_BASE_DIR)/tools/routes-init.mjs --endpoint "$(ENDPOINT)" \
+	  $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--route "$(ROUTE)",) \
+	  $(if $(OUT),--out "$(OUT)",--out ./routes.yaml)
 
 verify: check-base ## 四道闸门全跑 → 给出「可用 / 不可用」（ENDPOINT=URL 可针对真实端点跑闸门 3/4）
 	@node $(AGENT_BASE_DIR)/tools/verify.mjs . --harness $(HARNESS) --out $(RENDER_DIR) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(JSON),--json,)

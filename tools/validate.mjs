@@ -149,7 +149,7 @@ function ajvErrors(errors = []) {
 // ---------------------------------------------------------------------------
 // A. 基座自洽
 // ---------------------------------------------------------------------------
-function checkBase(report) {
+function checkBase(report, agentDir = process.cwd()) {
   const agentSchema = JSON.parse(fs.readFileSync(path.join(SPEC, "agent.schema.json"), "utf8"));
   const connectorsSchema = JSON.parse(fs.readFileSync(path.join(SPEC, "connectors.schema.json"), "utf8"));
   const caps = loadYaml(path.join(CATALOG, "capabilities.yaml"));
@@ -267,7 +267,7 @@ function checkBase(report) {
 
   // A5b 路由目录自洽：引用名必须符合约定，且被参数层允许清单覆盖
   {
-    const loaded = loadRoutes();
+    const loaded = loadRoutes({ agentDir });
     if (loaded.error) {
       report.fail(GATE, "routes/present", `${loaded.error} —— model.route 的合法取值将无人校验`);
     } else {
@@ -354,7 +354,7 @@ function checkBase(report) {
   // 模型路由目录：`model.route` 必须是这里声明过的路由。
   // **可被部署层覆盖**（AGENT_ROUTES_FILE / AGENT_CATALOG_DIR）—— 基座内置那份只是默认，
   // 真实使用时业务不该为了换个端点/模型去改基座代码。
-  const routeCatalog = loadRoutes();
+  const routeCatalog = loadRoutes({ agentDir });
 
   return { ajv, agentSchema, connectorsSchema, caps, params, preinstall, routeCatalog };
 }
@@ -680,7 +680,7 @@ function checkAgent(report, ctx, agentDir) {
 // ---------------------------------------------------------------------------
 function runFixture(dir) {
   const report = new GateReport();
-  const ctx = checkBase(report);
+  const ctx = checkBase(report, dir);
   checkAgent(report, ctx, dir);
   return report;
 }
@@ -734,8 +734,9 @@ function main() {
   }
 
   const report = new GateReport();
-  const ctx = checkBase(report);
-  if (positional.length) checkAgent(report, ctx, path.resolve(positional[0]));
+  const agentDirArg = positional.length ? path.resolve(positional[0]) : process.cwd();
+  const ctx = checkBase(report, agentDirArg);
+  if (positional.length) checkAgent(report, ctx, agentDirArg);
 
   const selftestResults = selftest ? checkSelftest() : null;
   const selftestFailed = (selftestResults ?? []).filter((t) => !t.passed);

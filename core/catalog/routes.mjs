@@ -13,7 +13,8 @@
 //
 //   ① `AGENT_ROUTES_FILE=/path/to/routes.yaml`   —— 显式指定（最明确）
 //   ② `AGENT_CATALOG_DIR=/dir`                    —— 目录形式，取 `/dir/routes.yaml`
-//   ③ 基座内置 `core/catalog/routes.yaml`          —— 默认，配合自带假网关
+//   ③ `<智能体目录>/routes.yaml`                   —— 智能体自带的那份（"就放旁边"，最直觉）
+//   ④ 基座内置 `core/catalog/routes.yaml`          —— 默认，配合自带假网关
 //
 // **设置了①②却没读到文件 ⇒ 报错，不静默回退到内置** —— 否则"我明明配了"与
 // "系统其实在用内置"会同时成立，是最难查的一类问题。
@@ -34,12 +35,18 @@ export const BUILTIN_ROUTES_PATH = path.join(HERE, "routes.yaml");
  * @param {Record<string,string|undefined>} [env]
  * @returns {{path: string, source: "AGENT_ROUTES_FILE"|"AGENT_CATALOG_DIR"|"base-builtin", builtin: boolean}}
  */
-export function resolveRoutesSource(env = process.env) {
+export function resolveRoutesSource({ env = process.env, agentDir = null } = {}) {
   if (env.AGENT_ROUTES_FILE) {
     return { path: path.resolve(env.AGENT_ROUTES_FILE), source: "AGENT_ROUTES_FILE", builtin: false };
   }
   if (env.AGENT_CATALOG_DIR) {
     return { path: path.join(path.resolve(env.AGENT_CATALOG_DIR), "routes.yaml"), source: "AGENT_CATALOG_DIR", builtin: false };
+  }
+  // 智能体自带：把 routes.yaml 与 agent.yaml 放一起即可 —— 不必记环境变量、不必改基座。
+  // 这一级很关键：工具会切工作目录，靠 Makefile 里的 wildcard+export 只能覆盖"从 Makefile 走"的路径。
+  if (agentDir) {
+    const p = path.join(path.resolve(agentDir), "routes.yaml");
+    if (fs.existsSync(p)) return { path: p, source: "agent-local", builtin: false };
   }
   return { path: BUILTIN_ROUTES_PATH, source: "base-builtin", builtin: true };
 }
@@ -48,8 +55,8 @@ export function resolveRoutesSource(env = process.env) {
  * 读路由目录。
  * @returns {{path: string, source: string, builtin: boolean, routes: object[], error: string|null}}
  */
-export function loadRoutes(env = process.env) {
-  const src = resolveRoutesSource(env);
+export function loadRoutes({ env = process.env, agentDir = null } = {}) {
+  const src = resolveRoutesSource({ env, agentDir });
   if (!fs.existsSync(src.path)) {
     return {
       ...src,

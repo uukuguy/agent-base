@@ -113,7 +113,10 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 
 - 路由目录（连哪个端点、端点服务哪些模型）是**部署输入**：`AGENT_ROUTES_FILE` / `AGENT_CATALOG_DIR`
   优先于基座内置那份；设了却读不到 ⇒ **直接失败**，不静默回退
-- 派生智能体把 `routes.yaml` 放定义旁边即**自动生效**（生成的 Makefile 认它）
+- 派生智能体把 `routes.yaml` 放定义旁边即**自动生效**：Makefile 认它，基座工具也认它
+  （解析链多一级 `agent-local`；环境变量仍优先）。生成的 Makefile 新增 `run-local` / `routes-init` 目标
+- `run-local` 的端点不再被默认值静默覆盖：没给端点会**明确报错**并列出三种给法（此前会默默指向死端口，
+  表现为"我明明配了却连不上"）
 - `make routes-init ENDPOINT=<baseUrl>`：问端点 `GET <baseUrl>/models`，把**实测**的模型名写成目录
   （名单不再靠手填，也就不会与实际端点漂移）
 - 输出/报错会说明"这份目录是从哪来的"，写错模型名时列出该路由可用的取值

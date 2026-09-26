@@ -59,7 +59,7 @@
 | 能力目录（字段/层/支持度） | `core/catalog/capabilities.yaml` | 闸门 1、文档 03 |
 | 参数层允许/禁止 | `core/catalog/params.yaml` | 闸门 1、conformance C8 |
 | **模型路由**（默认） | `core/catalog/routes.yaml` | 闸门 1、两个渲染器 |
-| **模型路由**（部署层覆盖） | `AGENT_ROUTES_FILE=<你的 routes.yaml>` 或 `AGENT_CATALOG_DIR=<目录>` | 同上（优先级：文件 > 目录 > 内置） |
+| **模型路由**（部署层覆盖） | `AGENT_ROUTES_FILE=<你的 routes.yaml>` · `AGENT_CATALOG_DIR=<目录>` · **`<智能体目录>/routes.yaml`** | 同上（优先级：环境变量文件 > 环境变量目录 > 智能体自带 > 基座内置） |
 | 预装清单 | `core/image/preinstall.yaml` | 镜像构建（经 `preinstall.lock.txt`）、连接器 `ref` |
 | 运行时版本 pin | `adapters/<h>/adapter.yaml` | 镜像构建、`make dev-env` |
 | 运行时能力声明 | 同上 `capabilities:` 段 | conformance C1、文档 10 |
@@ -98,8 +98,9 @@ AGENT_ROUTES_FILE=/path/to/your-routes.yaml make validate AGENT_DIR=<你的智�
 AGENT_CATALOG_DIR=/etc/agent-base make verify AGENT_DIR=<你的智能体>
 ```
 
-**派生出来的智能体**更省事：把 `routes.yaml` 放在定义旁边，生成的 Makefile 会**自动认它**
-（`AGENT_ROUTES_FILE ?= $(wildcard ./routes.yaml)`）—— 不改基座代码、也不用手记环境变量。
+**派生出来的智能体**更省事：把 `routes.yaml` 放在定义旁边即可 —— Makefile 会认它，
+基座工具自己也会认（`agent-local` 那一级）。两条路径都覆盖，是因为工具会切工作目录：
+只靠 Makefile 的 `wildcard` 在"直接调工具"时就不生效了。
 
 **模型名单别手填**，问端点：
 

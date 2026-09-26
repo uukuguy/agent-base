@@ -43,17 +43,17 @@ writeCatalog(f1, ["m-from-file"]);
 const d2 = path.join(tmp, "b");
 writeCatalog(path.join(d2, "routes.yaml"), ["m-from-dir"]);
 
-let src = resolveRoutesSource({ AGENT_ROUTES_FILE: f1, AGENT_CATALOG_DIR: d2 });
+let src = resolveRoutesSource({ env: { AGENT_ROUTES_FILE: f1, AGENT_CATALOG_DIR: d2 } });
 check("优先级：AGENT_ROUTES_FILE 胜出", src.source === "AGENT_ROUTES_FILE" && src.path === path.resolve(f1), src.source);
-src = resolveRoutesSource({ AGENT_CATALOG_DIR: d2 });
+src = resolveRoutesSource({ env: { AGENT_CATALOG_DIR: d2 } });
 check("优先级：没给文件时用 AGENT_CATALOG_DIR/routes.yaml", src.source === "AGENT_CATALOG_DIR" && src.path === path.join(path.resolve(d2), "routes.yaml"), src.path);
-src = resolveRoutesSource({});
+src = resolveRoutesSource({ env: {} });
 check("优先级：都没给时用基座内置", src.source === "base-builtin" && src.builtin === true, src.source);
 
 // ② 内容能读到；设了却读不到 ⇒ 报错（不是回退）
-let loaded = loadRoutes({ AGENT_ROUTES_FILE: f1 });
+let loaded = loadRoutes({ env: { AGENT_ROUTES_FILE: f1 } });
 check("能读到覆盖目录里的路由与模型", loaded.error === null && loaded.routes[0]?.models?.includes("m-from-file"), JSON.stringify(loaded.error));
-loaded = loadRoutes({ AGENT_ROUTES_FILE: path.join(tmp, "nope.yaml") });
+loaded = loadRoutes({ env: { AGENT_ROUTES_FILE: path.join(tmp, "nope.yaml") } });
 check("覆盖指向不存在的文件 ⇒ 报错且不回退内置",
   loaded.error && loaded.routes.length === 0 && /不存在/.test(loaded.error) && loaded.builtin === false, loaded.error ?? "(没有报错)");
 
@@ -85,7 +85,7 @@ const outFile = path.join(tmp, "generated", "routes.yaml");
 const ri = spawnSync(process.execPath, [path.join(HERE, "routes-init.mjs"), "--endpoint", `http://127.0.0.1:${PORT}/v1`, "--route", "corp-gateway", "--out", outFile], { encoding: "utf8" });
 check("routes-init：从端点问出模型并生成目录", ri.status === EXIT_CODES.ok && fs.existsSync(outFile), (ri.stderr ?? "").slice(-300));
 if (fs.existsSync(outFile)) {
-  const gen = loadRoutes({ AGENT_ROUTES_FILE: outFile });
+  const gen = loadRoutes({ env: { AGENT_ROUTES_FILE: outFile } });
   check("routes-init 生成的目录能被基座读、且模型名来自端点",
     gen.error === null && gen.routes[0]?.models?.includes("endpoint-says-so"), JSON.stringify(gen.routes[0]?.models ?? gen.error));
   check("routes-init 按约定推出了引用名", gen.routes[0]?.baseUrlParam === "CORP_GATEWAY_BASE_URL" && gen.routes[0]?.modelParam === "CORP_GATEWAY_MODEL");
@@ -94,8 +94,11 @@ try { gw.kill("SIGTERM"); } catch { /* 已退出 */ }
 
 // ⑤ 派生智能体自带 routes.yaml 时，生成的 Makefile 会自动用它
 const tmpl = fs.readFileSync(path.join(REPO, "template/Makefile"), "utf8");
-check("模板 Makefile 会自动认智能体旁边的 routes.yaml",
-  /AGENT_ROUTES_FILE \?= \$\(wildcard \.\/routes\.yaml\)/.test(tmpl) && /export AGENT_ROUTES_FILE/.test(tmpl));
+check("模板 Makefile 会自动认智能体旁边的 routes.yaml，且导出**绝对路径**",
+  /ROUTES_FILE := \$\(wildcard \.\/routes\.yaml\)/.test(tmpl) && /abspath/.test(tmpl) && /export AGENT_ROUTES_FILE/.test(tmpl),
+  "相对路径跨 cwd 会指错地方（实测：make validate 过、make verify 挂）");
+check("模板 Makefile 提供 run-local / routes-init（派生智能体不必手敲基座脚本路径）",
+  /^run-local:/m.test(tmpl) && /^routes-init:/m.test(tmpl));
 
 process.stdout.write(`\n路由目录自检：${fail === 0 ? "全绿" : `失败 ${fail} 项`}（通过 ${pass}）\n`);
 process.exit(fail === 0 ? EXIT_CODES.ok : 1);

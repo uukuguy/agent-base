@@ -288,7 +288,7 @@ function main() {
 
   // ---- profile 四件套 ----
   // 路由必须由基座声明（闸门 1 已校验）；渲染器据此产出 provider 配置
-  const catalog = loadRoutes();
+  const catalog = loadRoutes({ agentDir });
   const route = (catalog.routes ?? []).find((r) => r.id === agent.model?.route) ?? null;
   if (!route) {
     log(`❌ model.route「${agent.model?.route}」不在路由目录里（${describeSource(catalog)}）。`);

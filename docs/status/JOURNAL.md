@@ -237,4 +237,8 @@
 - 08:54 修法：路由目录解析抽成 `core/catalog/routes.mjs`（四处硬编码收敛成一处），支持 `AGENT_ROUTES_FILE` / `AGENT_CATALOG_DIR` 覆盖基座内置；**设了却读不到直接失败、不静默回退**
 - 08:54 派生智能体：把 `routes.yaml` 放定义旁边即自动生效（生成的 Makefile 用 wildcard 认它），不必改基座、不必记环境变量
 - 08:54 新增 `make routes-init ENDPOINT=…`：问端点 `/v1/models` 把实测模型名写成路由目录；新增 `make routes-selftest`（11 项：优先级 / 覆盖失效报错 / 闸门 1 真的按覆盖判 / routes-init 对着假网关跑通）
+- 09:14 🔴 用户追问"我有 DeepSeek 账号怎么设置" → 走一遍发现三个真问题：**派生智能体的 Makefile 没有 run-local**；工具不会认智能体旁边的 routes.yaml（只有 Makefile 认）；`run-local` 会把环境里的端点**静默覆盖成死端口**
+- 09:14 修法：解析链加一级 `agent-local`（<智能体目录>/routes.yaml，环境变量仍优先）；模板 Makefile 加 `run-local` / `routes-init` 并导出**绝对路径**；run-local 没端点时明确报错并列出三种给法
+- 09:14 又两次踩到同一类 bug：**相对路径跨 cwd 边界**（AGENT_ROUTES_FILE 相对路径让 `validate` 过而 `verify` 挂；run-local 把 `.` 原样转发给 cwd 在仓库的渲染器）→ 转发出去的路径一律先 resolve
+- 09:14 新增 quickstart 的"接一个真实端点（以 DeepSeek 为例）"配方；routes-selftest 扩到 12 项（含 agent-local 一级与模板目标）
 

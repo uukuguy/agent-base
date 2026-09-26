@@ -66,6 +66,45 @@ make verify             # 依次跑闸门 1→4，最后给出「可用 / 不可
 make verify JSON=1 > verify-report.json
 ```
 
+## 接一个真实端点（以 DeepSeek 为例）
+
+手里有密钥、想用它真跑一次，四步：
+
+```bash
+# 1) 问端点有哪些模型，写成一份路由目录（不用手记模型名）
+make new-agent NAME=my-ds-agent DESCRIPTION="用 DeepSeek 的验证智能体"
+make routes-init ENDPOINT=https://api.deepseek.com API_KEY=sk-你平台的key \
+     ROUTE=deepseek OUT=../my-ds-agent/routes.yaml
+#   → 输出会列出端点实际提供的模型（例如 deepseek-flash / deepseek-v4-pro）
+
+# 2) 改 agent.yaml：route 用 deepseek，name 用上一步列出来的某一个
+cd ../my-ds-agent
+#   model:
+#     route: deepseek
+#     name: deepseek-flash        # ← 上一步打印出来的名字
+
+# 3) 四道闸门（默认走自带零凭据假网关，**不需要**你的密钥）
+make verify                     # → 可用：四道闸门全过
+
+# 4) 真跑一次（这时才用到密钥）
+make run-local ENDPOINT=https://api.deepseek.com API_KEY=sk-你平台的key PROMPT="说一句话"
+```
+
+要点：
+
+- `routes.yaml` 放**智能体旁边**就会自动生效（生成的 Makefile 认它）——不必改基座、不必记环境变量。
+- 参数名由**路由名**推导：路由叫 `deepseek` ⇒ `DEEPSEEK_BASE_URL` / `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL`。
+  所以第 4 步也可以写成 `DEEPSEEK_BASE_URL=https://api.deepseek.com DEEPSEEK_API_KEY=… make run-local`。
+- 真实端点要求运行环境**能出网到该端点**。若运行环境封闭，就把 `ENDPOINT` 换成你们的内部端点。
+- 装进容器跑：把第 3 步渲染出的产物挂进去，参数用环境变量给：
+
+```bash
+docker run --rm -e HARNESS=pi \
+  -e DEEPSEEK_BASE_URL=https://api.deepseek.com -e DEEPSEEK_API_KEY=… \
+  -v "$PWD/dist/pi/my-ds-agent:/opt/agent-base/artifact:ro" \
+  agent-base:0.1.0-arm64
+```
+
 ## 常用变体
 
 ```bash
