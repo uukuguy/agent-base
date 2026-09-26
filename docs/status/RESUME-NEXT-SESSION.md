@@ -1,19 +1,19 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 02:3x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-27 03:1x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
 
-1. **L3 阶段一与二全部闭合**：阶段一 = **A1+V2**（`make verify-plan` / `make project-info` / `/project plan`）· **E1b**（接入缝事件名）· **Q1+Q2**（`make env-check`）；阶段二 = **A2 受控容器入口** · **A3 出处与覆盖** · **A4 失败归因**（五类）· **A5 无人值守端到端判据**（`make unattended-selftest`，含结果缓存）
-2. **下一个具体动作**：**A6 = 把受控容器入口接成"需审批的工具"**（dsh 走 `approval/request`、pi 走工具边界/审批；审批事件进统一轨迹 ⇒ "谁放行了这次容器验证"可回答）—— L3 的最后一项
-3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**；L5（P5/O2/O3/`CLAUDE.md`）与 L1 的 E2b 可随时插入
+1. **L3 整条线已闭合**：阶段一 = A1+V2（`make verify-plan` / `make project-info` / `/project plan`）· E1b（接入缝事件名）· Q1+Q2（`make env-check`）；阶段二 = A2 受控容器入口 · A3 出处与覆盖 · A4 失败归因（五类）· A5 无人值守端到端判据（含结果缓存）· **A6/A6b 两侧的审批门**（主运行时扩展 `verify-container.ts` + 另一侧 cordis 插件，都记 `approval.decision`、都 fail-closed）
+2. **下一个具体动作**：**E2b = 钩子逐条自证**（§23：现在只能证明「发射路径在工作」，不能证明「每个声明的钩子都会触发」）—— 之后是 L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`）
+3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**
 
 ## Where things stand
 
-- **全绿**：**20 项回归自检**（19 个 `*-selftest` + `validate`）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
-- Makefile **47 个目标**（无 `NOT_YET` 桩）；新增 `project-info` / `verify-plan` / `env-check` / **`verify-container`** 及各自自检
-- 本轮提交（都在本地，无远端）：`ef9c92d`（A1+V2）· `487ea2f`（E1b）· 环境一致性若干（Q1/Q2）
+- **全绿**：**21 项回归自检**（20 个 `*-selftest` + `validate`）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
+- Makefile **51 个目标**（无 `NOT_YET` 桩）；L3 期间新增 `project-info` / `verify-plan` / `env-check` / `verify-container` / `unattended-selftest` / `dsh-approval-probe` / `dsh-verify-container-selftest` 等及各自自检
+- 本轮提交（都在本地，无远端）：`ef9c92d`（A1+V2）· `487ea2f`（E1b）· `4c0540a`（A4）· `870e92f`（A5）· `1b6f1f2`（A6）· `e5bd6a6`（A6b-1）· `48371d0`（A6b-2）
 - 记忆层可用（`mnemon` 0.2.9 + Memory Space `default` 已激活，满时自动归档）
 
 ## What this session delivered（本轮，按 §1.1 阶段一）
