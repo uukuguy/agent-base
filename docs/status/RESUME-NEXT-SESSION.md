@@ -37,6 +37,7 @@
 3. **E1b 接入缝的事件名**：`manifest.hookEvents` 已就位，启动期 `applyOverlay` / 闸门 2 用它校验
 4. **§26 V3**：dsh 侧等价入口（做不到就写进 `exemptions.yaml`）
 5. 次要：dsh 接入缝装载形态只有一种 · 多语言业务代码（E9）· `image-push` 未对真实 registry 验证 · `CLAUDE.md` 仍未创建
+6. **已设计但「择机实现」（用户 2026-09-26 决定，不占当前队列）**：能力包（bundles）——`coding` / `verify-baseline` 两类包 + 动态使能。设计稿 `docs/design/2026-09-26-capability-bundles.md`，路线图 §27（B1 机制本体 → C4 技能落盘 → B2 `/project bundles` → C3 默认组合，兑现缺陷 D9）。**不要当成下一步开工**，除非用户点名。
 
 ## Don't go down these paths again (ruled out)
 
