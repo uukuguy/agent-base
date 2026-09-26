@@ -41,6 +41,48 @@
 插件包）。项目的承诺不是"机制一样"，而是**「同一份定义两边都能渲染并跑通」**，且**做不到等价的地方
 必须显式写出来**（`adapters/<h>/exemptions.yaml`），不允许沉默地不一样。
 
+## 二之二、能用哪些模型（provider 与协议形状）
+
+**"用哪家的模型"由 `model.provider` 决定**，基座内置了常用供应商（`core/catalog/providers.yaml`），
+所以多数情况只写名字即可。要接别的家，就在自己的 `providers.yaml` 里加一条 —— 关键字段是 `api`
+（**协议形状**，不是模型名）。
+
+**两个运行时可用的协议形状**（各自包内实测得出，声明在 `adapters/<h>/adapter.yaml` 的 `capabilities.modelApis`）：
+
+| 协议形状 `api:` | pi | dsh |
+|---|---|---|
+| `openai-completions`（绝大多数 OpenAI 兼容端点：DeepSeek、vLLM、内网网关…） | ✅ | ✅ |
+| `openai-responses` | ✅ | ✅ |
+| `anthropic-messages` | ✅ | ✅ |
+| `azure-openai-responses` | ✅ | ✅ |
+| `bedrock-converse-stream` | ✅ | ✅ |
+| `google-generative-ai` | ✅ | ❌ |
+| `google-vertex` | ✅ | ❌ |
+
+> 最后两行是**真实差异**：pi 认 Google 的形状，dsh 的 pi-ai 适配器不认。
+> 闸门 1 会拦住"只有某一个运行时支持的形状"（`providers/model-api`）——
+> 因为中性定义承诺的是**两个运行时都能跑**；真要用 Google，就用 pi 跑并单独说明。
+
+**加一家（例子）**：
+
+```yaml
+# 你的 providers.yaml（放智能体旁边，或 AGENT_PROVIDERS_FILE 指过去）
+apiVersion: agent-base/v1
+providers:
+  - id: my-vendor                 # 智能体里写 model.provider: my-vendor
+    api: anthropic-messages       # ← 协议形状，按上表填
+    baseUrl: https://api.example.com
+    credentialEnv: MY_VENDOR_API_KEY   # 凭据引用名；不写就按 MY_VENDOR_API_KEY 约定
+    models: [some-model-a, some-model-b]
+```
+
+同名条目**按字段合并**覆盖内置（只想改端点就只写 `baseUrl`）。
+`baseUrlParam` 而不是 `baseUrl` 表示"端点由部署期给"（内部网关那种）。
+
+**dsh 侧额外说明**：dsh 自带两个 LLM 适配器 —— `dsh-llm-deepseek`（DeepSeek 原生）与
+`dsh-llm-pi-ai`（pi-ai 后端，上表的形状来自它）。基座渲染的是后者，因此**供应商可换**；
+DeepSeek 之外的模型走同一个 `providers` 字典。
+
 ## 三、行为烤、参数下放
 
 判据一句话：

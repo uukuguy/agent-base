@@ -277,6 +277,23 @@ function checkBase(report, agentDir = process.cwd()) {
       else report.pass(GATE, "providers/present", `${list.length} 个 provider 已声明（${list.map((r) => r.id).join(", ")}）`);
 
       const prefixOf = (id) => String(id).toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      // **协议形状**必须被两个运行时同时支持（可移植核心的一部分）：
+      // 写错或用了只有某一个运行时认的形状，会在运行时表现为看不懂的报错 —— 这里当场拦。
+      // 各适配器支持的形状来自 adapters/<h>/adapter.yaml 的 capabilities.modelApis（实测得出）。
+      const apiSupport = {};
+      for (const h of HARNESS_NAMES) {
+        try {
+          const a = loadYaml(path.join(REPO, "adapters", h, "adapter.yaml"));
+          apiSupport[h] = new Set(a.capabilities?.modelApis ?? []);
+        } catch { apiSupport[h] = new Set(); }
+      }
+      const unsupported = [];
+      for (const r of list) {
+        if (!r.api) { unsupported.push(`${r.id}.api 缺失`); continue; }
+        for (const [h, set] of Object.entries(apiSupport)) {
+          if (set.size && !set.has(r.api)) unsupported.push(`${r.id}.api=${r.api} 不被 ${h} 支持`);
+        }
+      }
       const badId = list.filter((r) => !/^[a-z][a-z0-9-]{1,30}$/.test(r.id ?? "")).map((r) => r.id ?? "(缺 id)");
       const badNames = [];
       for (const r of list) {
@@ -304,6 +321,12 @@ function checkBase(report, agentDir = process.cwd()) {
         if (!routePats.some((p) => p.re.test(n))) {
           notAllowed.push(`${r.id}.${k}=${n}（不匹配任何支撑模型组字段的参数项：${routePats.map((p) => p.id).join(", ")}）`);
         }
+      }
+      if (unsupported.length) {
+        const known = [...new Set(Object.values(apiSupport).flatMap((x) => [...x]))].sort().join(", ");
+        report.fail(GATE, "providers/model-api", `协议形状不被支持：${unsupported.join("；")}。可用形状：${known || "(适配器未声明)"}`);
+      } else {
+        report.pass(GATE, "providers/model-api", `provider 的 api 形状都被两个运行时支持（${[...new Set(Object.values(apiSupport).flatMap((x) => [...x]))].sort().join(", ")}）`);
       }
       if (badId.length) report.fail(GATE, "providers/id", `provider 名不合法（^[a-z][a-z0-9-]{1,30}$）：${badId.join(", ")}`);
       else report.pass(GATE, "providers/id", "provider 名全部合法");

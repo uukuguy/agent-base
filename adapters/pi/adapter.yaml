@@ -80,6 +80,10 @@ capabilities:
     ⑤ 纪律：产物声明了扩展包而本地运行未提供本地路径时，运行器**响亮失败** ——
        不许跑出一个"没有 MCP 客户端"的智能体而无人察觉。
 
+  # 支持的**模型协议形状**（`model.provider` 指向的 provider 条目里 `api:` 的合法取值）。
+  # 【实测】从该运行时包内扫出的 api 令牌；provider 写了这里没有的值，渲染期直接失败，
+  # 而不是渲染出一份适配器不认的配置（那会在运行时表现为看不懂的报错）。
+  modelApis: [anthropic-messages, azure-openai-responses, bedrock-converse-stream, google-generative-ai, google-vertex, openai-completions, openai-responses]
   runModes: [interactive, oneshot, rpc, debug]
 
 # 业务级增强的**声明形态**（决定用例助手怎么写声明、渲染器怎么读）：

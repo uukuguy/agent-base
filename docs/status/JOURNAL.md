@@ -245,4 +245,7 @@
 - 10:09 交付：`core/config/dotenv.mjs`（变量文件，真环境变量优先，**永不打印值**）；**内置 provider 目录**（deepseek/openai/corp-gateway，写名字即用、密钥名就是通行写法）；`model.provider`（旧名 route 等价）；provider 覆盖按 id 字段合并；模型列表**完整**进两侧配置；示例补 Makefile
 - 10:09 ✅ 实测：`model.provider: deepseek` 的智能体（未建任何文件）在两个运行时都四道闸门全过；只给 `DEEPSEEK_API_KEY` 就真跑通（端点为顶替端点）
 - 10:09 又踩两次同类 bug：`backs` 从 model.route 改成 model.provider 后多处按它筛端点参数（已统一判断）；渲染器里 providerId 在 buildPatch/buildExpresses 作用域外（已按作用域传参）
+- 10:30 用户问"dsh 除了 DeepSeek 还能用别的模型吗" → 查清：dsh 自带两个 LLM 适配器（dsh-llm-deepseek 原生 / dsh-llm-pi-ai 后端），后者支持 5 种协议形状；pi 支持 7 种（多 Google 两种）
+- 10:30 顺带补掉一个真缺口：`provider.api` 此前**没人校验**，写错会渲染出适配器不认的配置。现在适配器声明 `capabilities.modelApis`，闸门 1 新增 `providers/model-api`（两个运行时都必须支持，负向已验）
+- 10:30 文档补"能用哪些模型 / 怎么加一家"（形状表 + 最小 providers.yaml 写法）
 

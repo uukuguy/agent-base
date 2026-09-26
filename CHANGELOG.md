@@ -109,6 +109,14 @@ make run-local                   # 本地跑一次（临时 HOME，文件系统�
 > 已改为按「值是否随部署环境而变」判定 —— 模型名是环境属性，进参数层；`model.route` 仍是制品层
 > （它决定后面三个引用名）。
 
+### 模型协议形状：声明 + 校验（`providers/model-api`）
+
+- 两个适配器各自声明**支持的协议形状**（`adapters/<h>/adapter.yaml` 的 `capabilities.modelApis`，
+  从包内实测得出）：pi 7 种、dsh 5 种（差异在 Google 的两种形状）
+- 闸门 1 校验每个 provider 的 `api:` 都被**两个运行时**支持 —— 写错或用了单边形状当场失败，
+  而不是渲染出一份适配器不认的配置（那会在运行时表现为看不懂的报错）
+- 文档给出可用的形状表与"加一家供应商"的最小写法
+
 ### 模型配置：内置 provider，写名字就能用
 
 - 新增**内置 provider 目录**（`core/catalog/providers.yaml`）：`deepseek` / `openai` / `corp-gateway`。
