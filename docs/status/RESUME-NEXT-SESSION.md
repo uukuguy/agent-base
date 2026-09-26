@@ -1,19 +1,19 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 03:1x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-27 04:2x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
 
 1. **L3 整条线已闭合**：阶段一 = A1+V2（`make verify-plan` / `make project-info` / `/project plan`）· E1b（接入缝事件名）· Q1+Q2（`make env-check`）；阶段二 = A2 受控容器入口 · A3 出处与覆盖 · A4 失败归因（五类）· A5 无人值守端到端判据（含结果缓存）· **A6/A6b 两侧的审批门**（主运行时扩展 `verify-container.ts` + 另一侧 cordis 插件，都记 `approval.decision`、都 fail-closed）
-2. **下一个具体动作**：**E2b = 钩子逐条自证**（§23：现在只能证明「发射路径在工作」，不能证明「每个声明的钩子都会触发」）—— 之后是 L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`）
+2. **下一个具体动作**：**L5 小活** = O1（开放命名空间原样透传）/ O3（未验证声明进报告）/ O2（口径统一）+ P5（契约表带实测日期）+ `CLAUDE.md`（新会话入口）—— E2b 已完成
 3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**
 
 ## Where things stand
 
-- **全绿**：**21 项回归自检**（20 个 `*-selftest` + `validate`）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
-- Makefile **50 个目标**（无 `NOT_YET` 桩）；L3 期间新增 `project-info` / `verify-plan` / `env-check` / `verify-container` / `unattended-selftest` / `dsh-approval-probe` / `dsh-verify-container-selftest` 等及各自自检
-- 本轮提交（都在本地，无远端）：`ef9c92d`（A1+V2）· `487ea2f`（E1b）· `4c0540a`（A4）· `870e92f`（A5）· `1b6f1f2`（A6）· `e5bd6a6`（A6b-1）· `48371d0`（A6b-2）
+- **全绿**：**22 项回归自检**（21 个 `*-selftest` + `validate`）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
+- Makefile **51 个目标**（无 `NOT_YET` 桩）；L3 期间新增 `project-info` / `verify-plan` / `env-check` / `verify-container` / `unattended-selftest` / `dsh-approval-probe` / `dsh-verify-container-selftest` 等及各自自检
+- 本轮提交（都在本地，无远端）：`ef9c92d`（A1+V2）· `487ea2f`（E1b）· `4c0540a`（A4）· `870e92f`（A5）· `1b6f1f2`（A6）· `e5bd6a6`（A6b-1）· `48371d0`（A6b-2）· `fa32e58`（E2b + D13）
 - 记忆层可用（`mnemon` 0.2.9 + Memory Space `default` 已激活，满时自动归档）
 
 ## What this session delivered（本轮，按 §1.1 阶段一）
@@ -45,6 +45,7 @@
 - **把"没跑到"当成"通过"** ⇒ 宿主的 `verify` 首败即停，归因不能拿"不在失败清单里"当"本地通过"（本轮实测踩中，见 `core/verify/attribution.mjs`）
 - **让"属性断言"退化成恒真** ⇒ `check(name, true, …)` 等于"因错误原因通过"；写成真断言后它当场抓出一个一直存在的契约违规（D12：镜像内自证失败退出码是 1）
 - **在 python 里用 ASCII 双引号包中文** ⇒ 与本条同源，本轮第六次；一律改用「」
+- **在 python 字符串里嵌 ASCII 双引号（第十一次）** ⇒ 脚本直接不执行，白跑一轮；中文引号/「」才安全，或直接改用 `edit` 工具
 - **在双引号字符串里再嵌双引号** —— 已踩**第五次**（`parity.mjs` 刚犯）；中文全角括号无害，嵌套的 `"` 才致命，一律用「」
 - **多个 `printf` 只把重定向挂在最后一条上** ⇒ 前几条掉到 stdout、日志丢失；追加多行要用 `{ …; } >> file`
 - **只比定义摘要就复用产物**（D8）· **两条启动路径各拼一份 env**（D10）· **去猜 `dirname(配置目录)` 找清单** ⇒ 都用 `AGENT_ARTIFACT_DIR` / `platform-env.mjs`

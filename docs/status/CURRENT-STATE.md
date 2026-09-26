@@ -97,7 +97,7 @@
 
 - **L3 已闭合**（2026-09-27）：两侧都有受控容器验证入口 + 审批门（主运行时侧扩展 `/verify-container`、另一侧 cordis 插件 `/verify-container`），审批决定都进统一轨迹 `approval.decision`，`unavailable` 一律 fail-closed；量到的接口事实与越界声明校正都在 harness 设计文档里
 - **只有宿主侧的结论**：`verify --json` 已带 `environment.where` 与 `notCoveredHere`，但**交付口径尚未强制"容器内自证为准"**（§28 Q3 = §30 A3）
-- **钩子只能证明"发射路径在工作"**：逐条自证（每个声明的钩子都留痕）未做（§23 E2b）
+- ~~钩子只能证明「发射路径在工作」~~ ⇒ **已解决**（§23 E2b）：逐条自证，哑掉的钩子被点名；证据是事件字段 `enhancement`（哪个声明写的）
 - **dsh 侧事件集合未穷举**：`hookEvents.enumerated: false` ⇒ 那边写钩子只能标「未验证」，没有名字层面的判据
 - **L3 loop 定制与 L4 服务形态无声明面与判据**：长驻会话、多会话并发、审批通道、成本/网关
 - **dsh 侧接入缝未实现**：overlay 只支持"扩展目录 + settings 登记"这一种装载形态，其余响亮失败
