@@ -287,23 +287,33 @@ function checkBase(report, agentDir = process.cwd()) {
           apiSupport[h] = new Set(a.modelApis ?? []);
         } catch { apiSupport[h] = new Set(); }
       }
+      // 校验**该 provider 自己声明的运行时作用域**：没写 harnesses 就是"两个都要"，写了 [pi] 就只查 pi。
+      // （用户明确说过：pi 能多几个 provider 是可选项 —— 不是处处必须相同。）
       const unsupported = [];
       for (const r of list) {
         if (!r.api) { unsupported.push(`${r.id}.api 缺失`); continue; }
-        for (const [h, set] of Object.entries(apiSupport)) {
+        const scope = r.harnesses ?? Object.keys(apiSupport);
+        for (const h of scope) {
+          const set = apiSupport[h];
+          if (!set) { unsupported.push(`${r.id}.harnesses 里的 ${h} 不是已知运行时`); continue; }
           if (set.size && !set.has(r.api)) unsupported.push(`${r.id}.api=${r.api} 不被 ${h} 支持`);
         }
       }
       const badId = list.filter((r) => !/^[a-z][a-z0-9-]{1,30}$/.test(r.id ?? "")).map((r) => r.id ?? "(缺 id)");
+      // 约定名是**默认**，不是强制：显式声明了就用声明的（各家通行写法不同，如 ZAI_API_KEY /
+      // MOONSHOT_API_KEY）；`null` 表示这家不产生该引用名（本地服务免密钥 / 订阅型走运行时凭据库）。
+      // 显式声明的名字本身是否合规，由 providers/param-allowed 按参数层 pattern 判。
       const badNames = [];
       for (const r of list) {
         const want = {
-          baseUrlParam: `${prefixOf(r.id)}_BASE_URL`,
-          credentialParam: `${prefixOf(r.id)}_API_KEY`,
-          modelParam: `${prefixOf(r.id)}_MODEL`,
+          baseUrlParam: { derived: `${prefixOf(r.id)}_BASE_URL`, declared: r.declared?.baseUrlParam },
+          credentialParam: { derived: `${prefixOf(r.id)}_API_KEY`, declared: r.declared?.credentialEnv },
+          modelParam: { derived: `${prefixOf(r.id)}_MODEL`, declared: r.declared?.modelParam },
         };
-        for (const [k, expect] of Object.entries(want)) {
-          if (r[k] !== expect) badNames.push(`${r.id}.${k}=${r[k] ?? "(缺)"}，按约定应为 ${expect}`);
+        for (const [k, { derived, declared }] of Object.entries(want)) {
+          if (r[k] === null) continue;                       // 不产生该引用名：合法
+          if (declared) continue;                            // 显式声明：以声明为准
+          if (r[k] !== derived) badNames.push(`${r.id}.${k}=${r[k] ?? "(缺)"}，未显式声明时按约定应为 ${derived}`);
         }
       }
       // 「引用名必须被参数层允许」不能靠一张手写名单（那张名单不存在 ⇒ 这个检查曾经是**空转**的）。
@@ -325,9 +335,13 @@ function checkBase(report, agentDir = process.cwd()) {
       }
       if (unsupported.length) {
         const known = [...new Set(Object.values(apiSupport).flatMap((x) => [...x]))].sort().join(", ");
-        report.fail(GATE, "providers/model-api", `协议形状不被支持：${unsupported.join("；")}。可用形状：${known || "(适配器未声明)"}`);
+        report.fail(GATE, "providers/model-api", `协议形状不被支持（按各 provider 的 harnesses 作用域判定）：${unsupported.join("；")}。可用形状：${known || "(适配器未声明)"}`);
       } else {
-        report.pass(GATE, "providers/model-api", `provider 的 api 形状都被两个运行时支持（${[...new Set(Object.values(apiSupport).flatMap((x) => [...x]))].sort().join(", ")}）`);
+        {
+        const scoped = list.filter((r) => r.harnesses).map((r) => `${r.id}[${r.harnesses.join(",")}]`);
+        report.pass(GATE, "providers/model-api",
+          `provider 的 api 形状都在各自作用域内可用${scoped.length ? `（限定作用域的：${scoped.join("、")}）` : ""}`);
+      }
       }
       if (badId.length) report.fail(GATE, "providers/id", `provider 名不合法（^[a-z][a-z0-9-]{1,30}$）：${badId.join(", ")}`);
       else report.pass(GATE, "providers/id", "provider 名全部合法");

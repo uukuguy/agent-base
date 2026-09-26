@@ -131,8 +131,19 @@
 | 供应商 | 协议形状 | 端点 | 凭据引用名 | 模型 | 说明 |
 |---|---|---|---|---|---|
 | `corp-gateway` | `openai-completions` | 由 `CORP_GATEWAY_BASE_URL` 给 | `CORP_GATEWAY_API_KEY` | `corp-think` | 内网网关（自带假网关是它的零凭据等价物） |
+| `ollama` | `openai-completions` | `http://localhost:11434/v1` | `—` |  | Ollama（本机） |
+| `vllm` | `openai-completions` | `http://localhost:8000/v1` | `—` |  | vLLM（本机） |
+| `local` | `openai-completions` | 由 `LOCAL_BASE_URL` 给 | `—` |  | 本地/自建 OpenAI 兼容服务（端点由部署给） |
 | `deepseek` | `openai-completions` | `https://api.deepseek.com` | `—` | `deepseek-flash` `deepseek-v4-pro` | DeepSeek |
-| `openai` | `openai-completions` | `https://api.openai.com/v1` | `—` | `gpt-4o` `gpt-4o-mini` | OpenAI |
+| `openai` | `openai-completions` | `https://api.openai.com/v1` | `—` | `gpt-5.5` `gpt-5.4` `gpt-4o` `gpt-4o-mini` | OpenAI |
+| `openai-codex` | `openai-responses` | 由 `?` 给 | `—` | `gpt-5.5` | OpenAI Codex 订阅（登录一次即用，无需 API Key） |
+| `anthropic` | `anthropic-messages` | `https://api.anthropic.com` | `—` | `claude-opus-5-5` `claude-sonnet-5` `claude-haiku-4-5-20251001` | Anthropic（Claude） |
+| `minimax` | `openai-completions` | `https://api.minimax.io/v1` | `MINIMAX_API_KEY` | `MiniMax-M3` `MiniMax-M2.7` `MiniMax-M2.7-highspeed` `MiniMax-M2.5` `MiniMax-M2` | MiniMax（国际 api.minimax.io） |
+| `minimax-cn` | `openai-completions` | `https://api.minimax.cn/v1` | `MINIMAX_CN_API_KEY` | `MiniMax-M3` `MiniMax-M2.7` `MiniMax-M2.7-highspeed` `MiniMax-M2.5` `MiniMax-M2` | MiniMax（国内 api.minimax.cn） |
+| `glm` | `openai-completions` | `https://api.z.ai/api/paas/v4` | `ZAI_API_KEY` | `glm-5.3` `glm-5.3-flash` `glm-5.2` | GLM（国际 api.z.ai） |
+| `glm-cn` | `openai-completions` | `https://open.bigmodel.cn/api/paas/v4` | `ZAI_API_KEY` | `glm-5.3` `glm-5.3-flash` `glm-5.2` | GLM（国内 open.bigmodel.cn） |
+| `kimi` | `openai-completions` | `https://api.moonshot.ai/v1` | `MOONSHOT_API_KEY` | `kimi-k3` `kimi-k2.7-code` `kimi-k2.7-code-highspeed` `kimi-k2.6` | Kimi（国际 api.moonshot.ai） |
+| `kimi-cn` | `openai-completions` | `https://api.moonshot.cn/v1` | `MOONSHOT_API_KEY` | `kimi-k3` `kimi-k2.7-code` `kimi-k2.7-code-highspeed` `kimi-k2.6` | Kimi（国内 api.moonshot.cn） |
 
 换环境通常只改一个引用名、不改定义；写错供应商名 `make validate` 会当场拦下并列出可用取值。
 要覆盖或新增供应商，写自己的 `providers.yaml`（放智能体旁边，或 `AGENT_PROVIDERS_FILE` 指过去）。

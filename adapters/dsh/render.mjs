@@ -170,9 +170,11 @@ function buildPatch({ agent, connectors, enhancements, route }) {
             api: route.api,                              // 协议形状（与 pi 的 models.json.api 同名）
             apiKeyEnv: route.credentialParam,            // **只写引用名**，真值由部署期注入
             // 端点：provider 给了字面值就用它兜底，环境变量仍可覆盖（部署层照旧能改）
-            baseURL: route.baseUrl
-              ? new JsExpr(`(process.env.${route.baseUrlParam} ?? ${JSON.stringify(route.baseUrl)})`)
-              : new JsExpr(`process.env.${route.baseUrlParam}`),
+            ...(route.endpointNative ? {} : {
+              baseURL: route.baseUrl
+                ? new JsExpr(`(process.env.${route.baseUrlParam} ?? ${JSON.stringify(route.baseUrl)})`)
+                : new JsExpr(`process.env.${route.baseUrlParam}`),
+            }),
             // 模型列表**全带**（默认那个排第一）：两个运行时里都能切换模型，而不是只认一个名字
             models: [...new Set([agent.model.name, ...(route.models ?? [])])]
               .map((m) => (m === agent.model.name ? { id: modelExpr(), name: modelExpr() } : { id: m, name: m })),
@@ -297,6 +299,12 @@ function main() {
   const catalog = loadProviders({ agentDir });
   const providerId = agent.model?.provider;
   const route = findProvider(catalog, providerId);
+  // 作用域：这家供应商可能只在某些运行时可用（如订阅型/原生 provider 只有 pi 有）
+  if (route && route.harnesses && !route.harnesses.includes(HARNESS)) {
+    log(`❌ 供应商「${route.id}」只支持 ${route.harnesses.join("/")}，当前运行时是 ${HARNESS}。`);
+    log(`   可选：① 改用两个运行时都支持的供应商（model.provider 换一个）② 只在这个运行时上跑该智能体。`);
+    process.exit(EXIT_CODES.static);
+  }
   if (!route) {
     log(`❌ model.provider「${providerId}」不在 provider 目录里（来源：${(catalog.sources ?? []).join(" + ") || "无"}）。`);
     log(`   可用 provider：${(catalog.providers ?? []).map((r) => r.id).join(", ") || "(空)"} —— 用 AGENT_PROVIDERS_FILE 指到你自己的那份，或改这里列出的名字。`);
@@ -354,6 +362,7 @@ function main() {
     denyRows,
     denyNote: "工具粒度不同：中性的 read/write/edit 在这边是同一个 tool-fs row，禁用其一即禁用三者（见 exemptions.yaml）",
     modelProviders: [providerId],
+    modelProviderAuth: route.auth,
     modelProviderApi: route.api,
     // 该路由声明的模型名单：启动期校验运行期覆盖的模型名用
     modelProviderModels: route.models ?? [],
@@ -382,8 +391,8 @@ function main() {
       ],
     },
     runtimeParams: [
-      { name: route.baseUrlParam, secret: false, required: !route.baseUrl, ...(route.baseUrl ? { default: route.baseUrl } : {}), backs: "model.provider" },
-      { name: route.credentialParam, secret: true, required: true, backs: "model.provider" },
+      ...(route.endpointNative ? [] : [{ name: route.baseUrlParam, secret: false, required: !route.baseUrl, ...(route.baseUrl ? { default: route.baseUrl } : {}), backs: "model.provider" }]),
+      ...(route.credentialParam ? [{ name: route.credentialParam, secret: true, required: true, backs: "model.provider" }] : []),
       {
         name: route.modelParam, secret: false, required: false,
         default: agent.model.name, backs: "model.name", validate: "in-provider-models",

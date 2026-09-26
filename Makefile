@@ -82,7 +82,7 @@ smoke: ## 闸门 4：端到端冒烟（需 RENDER_DIR）
 	@node tools/smoke.mjs $(RENDER_DIR) $(if $(JSON),--json,) $(if $(ENDPOINT),--endpoint $(ENDPOINT),)
 
 verify: ## 四道闸门编排 → §6.7 报告 + usable（需 AGENT_DIR）
-	@node tools/verify.mjs $(AGENT_DIR) --harness $(HARNESS) $(if $(OUT),--out $(OUT),) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(JSON),--json,)
+	@node tools/verify.mjs $(AGENT_DIR) --harness $(HARNESS) $(if $(OUT),--out $(OUT),) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(JSON),--json,) $(if $(LIVE),--live,)
 
 compare: ## 跨运行时等价性比对（AGENT_DIR=… ：三组集合是否一致、差异是否都有声明）
 	@node tools/compare.mjs $(AGENT_DIR) $(if $(HARNESSES),--harnesses $(HARNESSES),) $(if $(JSON),--json,)

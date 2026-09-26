@@ -65,8 +65,8 @@ providers-init: ## 问端点有哪些模型，写成 routes.yaml（ENDPOINT=http
 	  $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--provider "$(PROVIDER)",) \
 	  $(if $(OUT),--out "$(OUT)",--out ./routes.yaml)
 
-verify: check-base ## 四道闸门全跑 → 给出「可用 / 不可用」（ENDPOINT=URL 可针对真实端点跑闸门 3/4）
-	@node $(AGENT_BASE_DIR)/tools/verify.mjs . --harness $(HARNESS) --out $(RENDER_DIR) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(JSON),--json,)
+verify: check-base ## 四道闸门全跑 → 给出「可用 / 不可用」（LIVE=1 打真实端点；ENDPOINT=URL 指定端点）
+	@node $(AGENT_BASE_DIR)/tools/verify.mjs . --harness $(HARNESS) --out $(RENDER_DIR) $(if $(LIVE),--live,) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(JSON),--json,)
 
 clean: ## 清掉渲染产物
 	@rm -rf $(RENDER_DIR)

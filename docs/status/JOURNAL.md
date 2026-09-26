@@ -255,4 +255,11 @@
 - 11:34 用户："route 废除的话就不要再旧名了" → `model.route` 彻底移除（写它会被闸门 1 拦下并给迁移提示），`AGENT_ROUTES_FILE` 一并移除，`in-route-models` 校验名改 `in-provider-models`
 - 11:34 顺着把**轨迹事件字段** route→provider（统一轨迹 schema / 假网关 --provider 与 FAKE_GATEWAY_PROVIDER / x-fake-gateway-provider 头 / 轨迹视图 / 产物清单 modelRoutes→modelProviders），全项目一种说法
 - 11:34 自己造的三次回归都被门槛抓住：假网关改名只做了一半（provider: normalized.route）、DEFAULT_ROUTE 漏改、脚手架与 11 个样例 fixture 还在写 route
+- 11:52 用户要求内置 openai/anthropic/minimax/glm/kimi（并指出 minimax 有 cn/io 两个）、pi 支持订阅登录（登录一次即免密钥）、pi 多支持几家是应该的、本地模型（ollama/vllm 等）在开发验证期很有用
+- 11:52 四家端点与模型名**逐条按官方文档核实**（派子代理查，不猜）：anthropic 原生 api.anthropic.com（官方明说 OpenAI 兼容层不建议生产）、minimax api.minimax.io/api.minimax.cn、glm api.z.ai/open.bigmodel.cn（密钥 ZAI_API_KEY）、kimi api.moonshot.ai/api.moonshot.cn（密钥 MOONSHOT_API_KEY）
+- 11:52 机制：`auth: none`（本地服务无凭据参数）· `auth: native`（订阅免密钥，凭据走运行时凭据库）· `harnesses` 作用域（允许 pi 多几家）· `AGENT_HARNESS_HOME` 把登录态带进暂存副本；闸门 2 新增 native-credential（用 `pi auth check` 实证底层真的认识），闸门 3/4 对订阅型显式「不适用」
+- 11:52 实测：`pi auth check` 显示本机 `openai-codex` 已是 oauth ready → `provider: openai-codex` 的四道闸门全过（1/2 实证，3/4 声明不适用）；ollama/vllm/local/anthropic/glm/kimi 在两侧都能渲染，且本地服务不再要求密钥
+- 11:55 用户指出：**规则也可以调整，要有利于快速开展验证，不是生产运行控成本** → 订阅型 provider 不该只有"不适用"，应能真的打一次
+- 11:55 实现 `LIVE=1 / --live`：闸门 3/4 对着真实端点跑（用产物声明的端点与凭据），默认仍走零凭据假网关；订阅登录态自动带上（运行时凭据目录，容器里挂目录即可）；LIVE 下判据改为"真实请求 + 任务正常结束"
+- 11:55 ✅ 实证：`provider: openai-codex`（你的订阅，gpt-5.5）+ `LIVE=1` → **四道闸门全过**，闸门 3 观测到真实模型请求（tools=4、流式）
 

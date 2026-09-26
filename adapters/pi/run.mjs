@@ -39,7 +39,17 @@ function envPrefixFor(route) {
  *
  * @returns {{staging: string, placeholders: string[]}}
  */
-export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, env: extraEnv = {} } = {}) {
+export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, env: extraEnv = {}, harnessHome = null } = {}) {
+  // 登录态目录：订阅型 provider 的凭据在运行时自己的目录里，必须**显式**带进来（产物不动）
+  // 登录态目录：显式给了就用；没给而产物用的是**订阅型** provider（auth: native）时，
+  // 自动落到本运行时自己的默认目录（"环境里登录一次就能用"——用户的原话）。
+  // 容器里 HOME 不是宿主的，自然找不到 ⇒ 会明确报错要求挂载，不会静默失败。
+  const manifestAuth = (() => {
+    try { return JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8")).modelProviderAuth ?? null; } catch { return null; }
+  })();
+  const defaultHome = process.env.PI_CODING_AGENT_DIR ?? path.join(os.homedir(), ".pi", "agent");
+  const home = harnessHome ?? extraEnv.AGENT_HARNESS_HOME ?? process.env.AGENT_HARNESS_HOME
+    ?? (manifestAuth === "native" ? defaultHome : null);
   const manifest = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-run-"));
 
@@ -67,6 +77,21 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
   // staging = 本运行时实际读取配置的那个目录（由产物的运行期布局契约决定，不在这里猜）
   const stagingRel = Object.values(prep.env ?? {})[0];
   const staging = stagingRel ?? runDir;
+
+  // 把登录态文件带进暂存副本（**只在这个显式前提下**：产物是只读的，凭据永远不写进产物）
+  if (home) {
+    const credentialFile = ADAPTER_CREDENTIAL_FILE;   // 由适配器声明；没有就是不支持带登录态
+    const src = credentialFile ? path.join(home, credentialFile) : null;
+    if (!src) {
+      throw new Error(`${HARNESS_NAME} 未声明 credentialFile，无法从 AGENT_HARNESS_HOME 带登录态`);
+    }
+    if (!fs.existsSync(src)) {
+      throw new Error(`AGENT_HARNESS_HOME=${home} 里没有 ${credentialFile} —— 请先在该目录登录一次`);
+    }
+    if (staging !== runDir && fs.existsSync(staging)) {
+      fs.copyFileSync(src, path.join(staging, credentialFile));
+    }
+  }
   const placeholders = Object.entries(prep.params ?? {})
     .filter(([, v]) => v.source === "definition-default")
     .map(([k]) => k);
@@ -283,3 +308,12 @@ export function localInvocation({ staging, prompt }) {
 }
 
 export const HARNESS_ID = HARNESS;
+
+// 本适配器声明的凭据文件名与运行时名（给"带登录态进暂存副本"用；没有就为 null）
+const _adapterYaml = (() => {
+  try {
+    return YAML.parse(fs.readFileSync(path.join(HERE, "adapter.yaml"), "utf8"));
+  } catch { return {}; }
+})();
+const ADAPTER_CREDENTIAL_FILE = _adapterYaml.credentialFile ?? null;
+const HARNESS_NAME = _adapterYaml.harness ?? "pi";

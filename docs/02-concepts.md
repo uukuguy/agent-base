@@ -63,6 +63,26 @@
 > 闸门 1 会拦住"只有某一个运行时支持的形状"（`providers/model-api`）——
 > 因为中性定义承诺的是**两个运行时都能跑**；真要用 Google，就用 pi 跑并单独说明。
 
+**内置了哪些**（`core/catalog/providers.yaml`，写名字即用）：
+
+| provider | 说明 | 密钥 |
+|---|---|---|
+| `ollama` / `vllm` / `local` | 本地模型服务（无需密钥） | — |
+| `deepseek` | DeepSeek 开放平台 | `DEEPSEEK_API_KEY` |
+| `openai` | OpenAI | `OPENAI_API_KEY` |
+| `openai-codex` | OpenAI 订阅（**只有 pi**，登录一次免密钥） | 走 pi 凭据库 |
+| `anthropic` | Claude（原生 Messages 协议） | `ANTHROPIC_API_KEY` |
+| `minimax` / `minimax-cn` | MiniMax（国际 / 国内） | `MINIMAX_API_KEY` / `MINIMAX_CN_API_KEY` |
+| `glm` / `glm-cn` | GLM 智谱（国际 api.z.ai / 国内 open.bigmodel.cn） | `ZAI_API_KEY` |
+| `kimi` / `kimi-cn` | Kimi（国际 / 国内） | `MOONSHOT_API_KEY` |
+| `corp-gateway` | 内网网关（自带假网关是它的零凭据等价物） | `CORP_GATEWAY_API_KEY` |
+
+**作用域**：`harnesses: [pi]` 表示只有该运行时能用 —— 各运行时原生认识的家数不同，**允许不同**。
+选了当前运行时不支持的 provider，渲染期直接失败并说明原因。
+
+**凭据三种模式**：`auth: env`（默认，从环境/变量文件读）· `auth: none`（本地服务，不产生凭据参数）
+· `auth: native`（**基座不注入密钥**，用运行时自己的凭据库 —— 订阅登录就是这种）。
+
 **加一家（例子）**：
 
 ```yaml

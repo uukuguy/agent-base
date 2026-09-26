@@ -73,7 +73,12 @@ export function digestOfRender(renderDir) {
  *
  * @returns {{staging: string, workspace: string, dshHome: string, placeholders: string[]}}
  */
-export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, env: extraEnv = {} } = {}) {
+export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, env: extraEnv = {}, harnessHome = null } = {}) {
+  // 登录态目录：本适配器未声明 credentialFile（凭据不在单文件里）⇒ 给了就明确拒绝，不静默忽略
+  const home = harnessHome ?? extraEnv.AGENT_HARNESS_HOME ?? process.env.AGENT_HARNESS_HOME ?? null;
+  if (home && !ADAPTER_CREDENTIAL_FILE) {
+    throw new Error(BaseUnsupportedHome);
+  }
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-run-"));
 
@@ -133,7 +138,7 @@ export function localInvocation({ profile, prompt }) {
  * 真跑一次。
  * @returns {Promise<{exitCode:number|string, stdout:string, stderr:string, events:object[], native:object[], staging:string, placeholders:string[]}>}
  */
-export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs = 60000, zeroCredential = false, env: extraEnv = {} }) {
+export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs = 60000, zeroCredential = false, env: extraEnv = {}, harnessHome = null }) {
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
   const { staging, workspace, dshHome, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: extraEnv });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-home-"));
@@ -168,3 +173,12 @@ export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs =
 }
 
 export const HARNESS_ID = HARNESS;
+
+// 本适配器声明的凭据文件名（没有 ⇒ 不支持把登录态带进暂存副本）
+const _adapterYaml = (() => {
+  try { return YAML.parse(fs.readFileSync(path.join(HERE, "adapter.yaml"), "utf8")); } catch { return {}; }
+})();
+const ADAPTER_CREDENTIAL_FILE = _adapterYaml.credentialFile ?? null;
+const BaseUnsupportedHome = "本运行时未声明 credentialFile（凭据不落在单个文件里），"
+  + "无法用 AGENT_HARNESS_HOME 带登录态 —— 订阅型 provider 请改用声明了它的运行时，"
+  + "或把凭据以该运行时自己的方式注入。";

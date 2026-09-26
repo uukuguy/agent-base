@@ -26,6 +26,14 @@ async function loadRunner(harness) {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const GATE = "smoke";
+
+/** 订阅型 provider（凭据与端点由运行时自己解析）⇒ 无法重定向到零凭据假网关，本门不适用。 */
+function isNativeCredentialProduct(renderDir) {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
+    return m.modelProviderAuth === "native";
+  } catch { return false; }
+}
 const log = (m) => process.stderr.write(m + "\n");
 
 /** 假网关响应里带的确定性标记 —— 冒烟断言"输出包含预期标记"就用它。 */
@@ -40,8 +48,26 @@ async function startGateway() {
 
 async function main() {
   const { values, flags, positionals } = parseArgs(process.argv.slice(2), { valueFlags: ["--endpoint", "--harness"] });
+  const live = flags.has("--live") || process.env.AGENT_VERIFY_LIVE === "1";
   const argv = process.argv.slice(2);
   const renderDirArg = positionals[0];
+
+  // 订阅型 provider（auth: native）：凭据与端点由运行时自己解析 ⇒ 无法重定向到零凭据假网关。
+  // 本门对这类产物**显式不适用**（硬跑会真打订阅端点：既不封闭，也会花用户的钱）。
+  if (renderDirArg && !live) {
+    let auth = null;
+    try {
+      auth = JSON.parse(fs.readFileSync(path.join(path.resolve(renderDirArg), "render-manifest.json"), "utf8")).modelProviderAuth ?? null;
+    } catch { /* 清单不存在时走原有报错路径 */ }
+    if (auth === "native") {
+      const report = new GateReport("smoke");
+      report.pass("smoke", "smoke/not-applicable",
+        "订阅型 provider（auth: native）：无法重定向到零凭据假网关 —— 闸门 4 对这类产物不适用；"
+        + "真实可用性请在真实端点上跑一次确证");
+      report.print({ json: flags.has("--json") });
+      process.exit(report.exitCode);
+    }
+  }
   if (flags.has("--help") || flags.has("-h") || !renderDirArg) {
     process.stderr.write("用法: node tools/smoke.mjs <RENDER_DIR> [--endpoint URL] [--json]\n");
     process.exit(flags.has("--help") || flags.has("-h") ? EXIT_CODES.ok : EXIT_CODES.usage);
@@ -86,7 +112,16 @@ const renderDir = path.resolve(renderDirArg);
           else rep.fail(GATE, "smoke/exit-code", `退出码 ${run.exitCode}（期望 0）。stderr：${(run.stderr || "").slice(-200) || "(空)"}`);
 
           // 2) 输出包含预期标记
-          if (run.stdout.includes(RESPONSE_MARKER)) rep.pass(GATE, "smoke/output-marker", `输出包含预期标记 ${RESPONSE_MARKER}`);
+          if (live) {
+            // LIVE：真实模型不会回假网关那个标记。判据换成"真实调用确实发生 + 任务正常结束"。
+            const answered = (run.events ?? []).some((e) => e?.type === "model.request");
+            if (answered && run.exitCode === 0) {
+              rep.pass(GATE, "smoke/output-marker", "真实调用发生且任务正常结束（LIVE 模式：不以假网关标记为判据）");
+            } else {
+              rep.fail(GATE, "smoke/output-marker",
+                `LIVE 模式下未完成任务（退出码 ${run.exitCode}，轨迹里${answered ? "有" : "没有"}模型请求）`);
+            }
+          } else if (run.stdout.includes(RESPONSE_MARKER)) rep.pass(GATE, "smoke/output-marker", `输出包含预期标记 ${RESPONSE_MARKER}`);
           else rep.fail(GATE, "smoke/output-marker", `输出里没有 ${RESPONSE_MARKER} —— 任务没有真正跑完`);
 
           // 3) 轨迹符合 schema

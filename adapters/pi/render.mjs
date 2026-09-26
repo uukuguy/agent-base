@@ -182,6 +182,12 @@ function main() {
   const catalog = loadProviders({ agentDir });
   const providerId = agent.model?.provider;
   const activeRoute = findProvider(catalog, providerId);
+  // 作用域：这家供应商可能只在某些运行时可用（如订阅型/原生 provider 只有 pi 有）
+  if (activeRoute && activeRoute.harnesses && !activeRoute.harnesses.includes(HARNESS)) {
+    log(`❌ 供应商「${activeRoute.id}」只支持 ${activeRoute.harnesses.join("/")}，当前运行时是 ${HARNESS}。`);
+    log(`   可选：① 改用两个运行时都支持的供应商（model.provider 换一个）② 只在这个运行时上跑该智能体。`);
+    process.exit(EXIT_CODES.static);
+  }
   if (!activeRoute) {
     log(`❌ model.provider「${providerId}」不在 provider 目录里（来源：${(catalog.sources ?? []).join(" + ") || "无"}）。`);
     log(`   可用 provider：${(catalog.providers ?? []).map((r) => r.id).join(", ") || "(空)"} —— 用 AGENT_PROVIDERS_FILE 指到你自己的那份，或改这里列出的名字。`);
@@ -198,7 +204,7 @@ function main() {
   const modelsTmpl = {
     providers: {
       [providerId]: {
-        baseUrl: `\${${activeRoute.baseUrlParam}}`,
+        ...(activeRoute.endpointNative ? {} : { baseUrl: `\${${activeRoute.baseUrlParam}}` }),
         api: providerApi,   // 协议形状取自 provider 目录，不硬编码
         apiKey: `\${${activeRoute.credentialParam}}`,
         models: declaredModels.map((m) => ({ id: m === agent.model.name ? `\${${activeRoute.modelParam}}` : m })),
@@ -321,9 +327,9 @@ function main() {
   const runArgs = { excludeTools: agent.tools?.deny ?? [], skills: declaredSkills.map((s) => `skills/${s}`) };
   // 运行期参数契约（只声明一次，清单与生效配置摘要共用 —— 两处各写一份就会漂移）
   const runtimeParams = [
-    // 端点：provider 给了字面 baseUrl 就**不强制**从环境给（覆盖仍然可以）
-    { name: activeRoute.baseUrlParam, secret: false, required: !activeRoute.baseUrl, ...(activeRoute.baseUrl ? { default: activeRoute.baseUrl } : {}), backs: "model.provider" },
-    { name: activeRoute.credentialParam, secret: true, required: true, backs: "model.provider" },
+    // 端点：运行时原生解析时不产生参数；给了字面 baseUrl 就**不强制**从环境给（覆盖仍然可以）
+    ...(activeRoute.endpointNative ? [] : [{ name: activeRoute.baseUrlParam, secret: false, required: !activeRoute.baseUrl, ...(activeRoute.baseUrl ? { default: activeRoute.baseUrl } : {}), backs: "model.provider" }]),
+    ...(activeRoute.credentialParam ? [{ name: activeRoute.credentialParam, secret: true, required: true, backs: "model.provider" }] : []),
     {
       name: activeRoute.modelParam, secret: false, required: false,
       default: agent.model.name, backs: "model.name", validate: "in-provider-models",
@@ -343,6 +349,8 @@ function main() {
     paramNames: connParamNames,
     runArgs,
     modelProviders: [providerId],
+    // 凭据模式：env（基座从环境注入）/ none（本地服务免密钥）/ native（运行时自己的凭据库，如订阅登录）
+    modelProviderAuth: activeRoute.auth,
     modelProviderApi: providerApi,   // 两个运行时都记录：比对时要求协议形状一致
     // 该路由声明的模型名单：启动期校验运行期覆盖的模型名用
     modelProviderModels: activeRoute.models ?? [],

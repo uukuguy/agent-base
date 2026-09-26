@@ -56,24 +56,67 @@ function readProvidersFile(file) {
   }
 }
 
-/** 把一条 provider 补全成渲染器与闸门要用的形状（引用名、默认端点、凭据名、模型名参数）。 */
+/**
+ * 把一条 provider 补全成渲染器与闸门要用的形状。
+ *
+ * 两个正交的概念：
+ *   · `harnesses`  —— **作用域**：这家供应商在哪些运行时可用。缺省 = 所有运行时都行；
+ *                    只写某一个运行时名就是「只有它能用」——各运行时原生认识的家数不同，
+ *                    这是**允许的差异**，不是必须处处相同。
+ *   · `auth`       —— **凭据来源**：
+ *                    `env`    = 从环境/变量文件读（默认，引用名见 credentialParam）；
+ *                    `none`   = **根本不产生凭据参数**（本地模型服务：Ollama / vLLM / LM Studio 等不校验密钥）；
+ *                    `native` = **基座不注入任何密钥**，交给运行时自己的凭据库
+ *                               （各运行时的凭据库位置见适配器的 `credentialDirEnv`；
+ *                                订阅登录一次即落在那个目录里，基座不碰密钥）。
+ *                    免密钥的 provider 不产生"必填凭据"参数。
+ */
 export function normalizeProvider(entry) {
   const id = String(entry.id ?? "");
   const prefix = prefixOf(id);
+  const auth = entry.auth === "native" ? "native" : entry.auth === "none" ? "none" : "env";
+  // 端点也可以"交给运行时原生解析"：既没给 baseUrl、也没给引用名时为真（订阅型/原生型 provider 就是这样，
+  // 端点由运行时自己的供应商表提供）。此时不产生端点参数，也不往产物里写端点。
+  const endpointNative = entry.endpointNative === true
+    || (auth === "native" && !entry.baseUrl && !entry.baseUrlParam);
+  const harnesses = Array.isArray(entry.harnesses) && entry.harnesses.length ? [...entry.harnesses] : null;
   return {
     id,
     displayName: entry.displayName ?? id,
     api: entry.api ?? "openai-completions",
-    // 端点：写死用 baseUrl；不写死就用引用名（内部网关那种每环境不同的）
     baseUrl: entry.baseUrl ?? null,
-    baseUrlParam: entry.baseUrlParam ?? `${prefix}_BASE_URL`,
-    // 凭据引用名：默认按通行约定 `<ID>_API_KEY`（DeepSeek 即 DEEPSEEK_API_KEY）
-    credentialParam: entry.credentialEnv ?? entry.credentialParam ?? `${prefix}_API_KEY`,
+    baseUrlParam: endpointNative ? null : (entry.baseUrlParam ?? `${prefix}_BASE_URL`),
+    endpointNative,
+    auth,
+    // 只有 `auth: env` 才产生凭据引用名。`native`（运行时自己的凭据库，如订阅登录）
+    // 与 `none`（本地模型服务，根本不校验密钥）都不产生 —— 免得渲染出一个"永远填不上"的必填参数。
+    credentialParam: auth === "env" ? (entry.credentialEnv ?? entry.credentialParam ?? `${prefix}_API_KEY`) : null,
     modelParam: entry.modelParam ?? `${prefix}_MODEL`,
     models: Array.isArray(entry.models) ? entry.models : [],
+    harnesses,
     note: entry.note ?? null,
     builtin: entry.builtin === true,
+    // 哪些引用名是**显式声明**的：显式声明以它为准（厂商通行名，如 ZAI_API_KEY / MOONSHOT_API_KEY），
+    // 没声明的才要求等于 `<ID 大写>_…` 约定名。
+    declared: {
+      credentialEnv: entry.credentialEnv !== undefined || entry.credentialParam !== undefined,
+      baseUrlParam: entry.baseUrlParam !== undefined,
+      modelParam: entry.modelParam !== undefined,
+    },
   };
+}
+
+/** 这家供应商能不能在某个运行时上跑（作用域判定）。 */
+export function providerSupports(provider, harness) {
+  return !provider.harnesses || provider.harnesses.includes(harness);
+}
+
+/**
+ * 运行时自己的凭据/配置目录覆盖：让"环境里登录一次"这件事对容器与本地都成立。
+ * 各运行时的变量名不同 —— 由适配器声明（见 adapters/<h>/adapter.yaml 的 credentialDirEnv）。
+ */
+export function credentialDirEnvFor(adapterYaml, harness) {
+  return adapterYaml?.credentialDirEnv ?? null;
 }
 
 /**

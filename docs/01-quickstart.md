@@ -66,6 +66,60 @@ make verify             # 依次跑闸门 1→4，最后给出「可用 / 不可
 make verify JSON=1 > verify-report.json
 ```
 
+## 用本地模型跑（Ollama / vLLM / LM Studio …）
+
+本地服务都是 OpenAI 兼容、**都不需要密钥** —— 基座内置了 `ollama` / `vllm` / `local` 三家：
+
+```yaml
+# agent.yaml 里只改这一处
+model:
+  provider: ollama          # 或 vllm；通用自建服务用 local（端点由 LOCAL_BASE_URL 给）
+  name: llama3.2            # 本机已拉取的模型名
+```
+
+```bash
+make verify                 # 四道闸门（仍走自带假网关，与本地模型无关）
+make run-local PROMPT="说一句话"
+#   provider: local 时给端点：make run-local ENDPOINT=http://localhost:1234/v1 PROMPT=…
+```
+
+- **本机有哪些模型**：`make providers-init ENDPOINT=http://localhost:11434/v1 PROVIDER=ollama`（vLLM 换 8000）。
+- **容器里访问宿主机**：Docker Desktop / OrbStack 用 `http://host.docker.internal:11434/v1`；
+  Linux 上可 `--network host`。
+- 三家默认端点：`ollama` → `http://localhost:11434/v1` · `vllm` → `http://localhost:8000/v1` ·
+  `local` → 由 `LOCAL_BASE_URL` 给（LM Studio 常用 `http://localhost:1234/v1`）。
+
+## 用订阅登录（如 Codex 订阅），不配密钥
+
+pi 支持订阅登录：**在运行环境里登录一次**，凭据落在 pi 自己的目录（`auth.json`），
+之后这个 provider 就**不需要任何 API Key** —— 基座不注入密钥，交给 pi 的凭据库：
+
+```yaml
+model:
+  provider: openai-codex     # 内置，作用域只有 pi
+  name: gpt-5.5
+```
+
+```bash
+pi auth check --provider openai-codex --json     # 看订阅是否就绪（oauth）
+make verify                                       # 闸门 1/2 实证；3/4 对订阅型显式「不适用」
+```
+
+- **为什么要显式带登录态**：产物是只读的、暂存目录是新建的。跑的时候用
+  `AGENT_HARNESS_HOME=<pi 的 agent 目录> make run-local`（或 `--harness-home`）把登录态带进暂存副本；
+  容器里把该目录挂进去即可。
+- **要"真的能用"的证据就加 `LIVE=1`**（打真实端点，会实际调用模型）：
+
+```bash
+make verify LIVE=1          # 四道闸门全部对着真实端点跑
+```
+
+  默认（不加 LIVE）走零凭据假网关：快、封闭、不花额度，但订阅型/云供应商的端点无法重定向，
+  这种产物上闸门 3/4 会**如实报告"不适用"**并要求你用 LIVE 确证 —— 而不是伪装成通过。
+- 登录态由基座自动带上：产物用的是订阅型 provider 时，暂存副本会自动取
+  `PI_CODING_AGENT_DIR`（默认 `~/.pi/agent`）里的 `auth.json`；容器里挂那个目录即可，
+  找不到会**明确报错**，不会静默失败。
+
 ## 接一个真实端点（以 DeepSeek 为例）
 
 **两步，不用建任何配置文件。** 基座内置了常用供应商（`deepseek` / `openai` / `corp-gateway` …），

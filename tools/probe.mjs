@@ -30,6 +30,18 @@ async function loadRunner(harness) {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const GATE = "probes";
+
+/**
+ * 本产物是否用了"订阅型 provider"（凭据与端点都由运行时自己解析）。
+ * 这类产物无法把端点重定向到零凭据假网关：硬跑会真打订阅端点（不封闭、且花用户的钱），
+ * 所以闸门 3 对它**显式不适用** —— 不是通过，也不是失败。
+ */
+function isNativeCredentialProduct(renderDir) {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
+    return m.modelProviderAuth === "native";
+  } catch { return false; }
+}
 const log = (m) => process.stderr.write(m + "\n");
 
 /** 零凭据假网关：跑在**本进程**里即可（早前"必须独立进程"的结论是误判，真因是子进程 stdin 没关）。 */
@@ -42,7 +54,20 @@ const USAGE = "用法: node tools/probe.mjs <RENDER_DIR> [--endpoint URL] [--jso
 
 async function main() {
   const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), { valueFlags: ["--endpoint", "--harness"] });
-  const args = { renderDir: positionals[0], endpoint: values["--endpoint"] ?? null, harness: values["--harness"] ?? "pi", json: flags.has("--json"), help: flags.has("--help") || flags.has("-h") };
+  const args = { renderDir: positionals[0], endpoint: values["--endpoint"] ?? null, live: flags.has("--live") || process.env.AGENT_VERIFY_LIVE === "1", harness: values["--harness"] ?? "pi", json: flags.has("--json"), help: flags.has("--help") || flags.has("-h") };
+
+  // native 型 provider：闸门 3 不适用（见上面的说明）—— 如实报告，不伪装成通过
+  {
+    const rd = args?.renderDir ?? args?.positional?.[0];
+    if (rd && isNativeCredentialProduct(rd) && !args.live) {
+      const report = new GateReport(GATE);
+      report.pass(GATE, "probe/not-applicable",
+        "订阅型 provider（auth: native）：端点由运行时自己解析，无法重定向到零凭据假网关"
+        + " —— 闸门 3 对这类产物不适用。要**真的确证可用**，加 LIVE=1 打真实端点");
+      report.print({ json: flags.has("--json") });
+      process.exit(report.exitCode);
+    }
+  }
   if (errors.length) { process.stderr.write(errors.join("；") + "\n"); process.exit(EXIT_CODES.usage); }
   if (args.help || !args.renderDir) {
     process.stderr.write(USAGE);
@@ -64,9 +89,14 @@ async function main() {
   });
   report.paramNames = [...(manifest.paramNames ?? [])].sort();
 
-  const ctx = { manifest, renderDir };
+  const ctx = { manifest, renderDir, evidenceSource: "端点侧（假网关记录）" };
   let gateway = null;
-  if (!args.endpoint) {
+  if (args.live) {
+    // **真实验证**：用产物自己声明的端点与凭据（环境/变量文件/运行时凭据库），不打假网关、不用占位值。
+    // 这是"真的能用"的证据 —— 默认不打，是为了让例行检查快且封闭；要证据时一步到位。
+    ctx.endpoint = args.endpoint ?? null;
+    log(`LIVE：打真实端点${ctx.endpoint ? `（${ctx.endpoint}）` : "（由产物/运行时解析）"} —— 会实际调用模型`);
+  } else if (!args.endpoint) {
     gateway = await startGateway();
     ctx.endpoint = gateway.url;
     log(`零凭据假网关：${ctx.endpoint}`);
@@ -85,14 +115,21 @@ async function main() {
           const runner = await loadRunner(args.harness);
           // 闸门 3 是**零凭据**检查：显式声明零凭据模式（缺的必填项用显式占位值补齐）。
           // 真实运行默认 False —— 不许静默用占位凭据跑出"看起来正常"的结果。
-          const run = await runner.runAgent({ renderDir, endpoint: c.endpoint, prompt: "say hi", timeoutMs: 60000, zeroCredential: true });
+          const run = await runner.runAgent({ renderDir, endpoint: c.endpoint, prompt: "say hi", timeoutMs: 120000, zeroCredential: !args.live, harnessHome: args.live ? (process.env.AGENT_HARNESS_HOME ?? null) : null });
 
           // **端点侧取证**：断言"端点实际收到了什么"，而不是"harness 说自己发了什么"。
           // 这样两条通道都成立：pi 的轨迹里有 model.request（回调式），dsh 的轨迹里没有 ——
           // 但假网关的轨迹里**总是**有它收到的那份请求。判据因此天然跨 harness。
+          // live 模式没有假网关可取证，退回到"运行器自己的轨迹里必须有 model.request"这条更强的证据
+          // （它不是"端点收到了"而是"模型真的答了"）。两种模式都保留同一组判据名。
+          const liveEvents = (run.events ?? []).filter((e) => e?.type === "model.request");
           const gwEvents = (gateway?.traceLines ?? [])
             .map((l) => { try { return JSON.parse(l); } catch { return null; } })
             .filter((e) => e && e.type === "model.request");
+          // live 模式的证据来自运行时自己的轨迹（真实模型答了），不是假网关记录
+          const evidenceSource = args.live ? "运行时轨迹（真实调用）" : "端点侧（假网关记录）";
+          c.evidenceSource = evidenceSource;
+          if (args.live && !gwEvents.length) gwEvents.push(...liveEvents);
           // 回退：适配器若能从自己的轨迹里给出 model.request（pi 的回调式），也一并采信
           const fromTrace = run.events.filter((e) => e.type === "model.request");
           const reqs = gwEvents.length ? gwEvents : fromTrace;

@@ -36,7 +36,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 // 暂存/渲染**共用运行期那一份实现**（run.mjs → core/image/startup.mjs），不在这里另写一遍
@@ -180,7 +180,11 @@ async function main() {
         // 运行期把模型名渲染成真值，doctor 这边还留着占位符，于是自证报出一个看不懂的结论。
         const home = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-home-"));
         const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-cwd-"));
-        const { staging, placeholders } = stageRenderDir(renderDir, "http://127.0.0.1:9/v1", { zeroCredential: true });
+        // native 型 provider（订阅免密钥）的凭据在宿主的运行时目录里：只有把它带进来，
+        // "实际生效模型"才可能验证 —— 否则必然是 unknown，检查变成假红。
+        const nativeAuth = readManifestAuth(renderDir) === "native";
+        const hostHome = nativeAuth ? (process.env.AGENT_HARNESS_HOME ?? piAgentDir()) : null;
+        const { staging, placeholders } = stageRenderDir(renderDir, "http://127.0.0.1:9/v1", { zeroCredential: true, harnessHome: hostHome });
         ctx.staging = staging;
 
         // ---- 运行期契约（见 adapter.yaml 的 runtime 段；每条都来自实测）----
@@ -223,6 +227,34 @@ async function main() {
         } else {
           // 声明了连接器 ⇒ 产物必须声明 MCP 客户端扩展。
   // 这一条对治的正是 F10 的新形态：pi 原生没有 MCP 客户端，靠基座种子扩展补上；
+  // 订阅型（auth: native）provider：基座**不注入密钥**，凭据来自 pi 自己的凭据库（auth.json）。
+  // 因此这里必须确认"底层真的认识这家" —— 否则我们声明的是一个不存在的 provider，
+  // 而失败会以"运行时说 provider 不认识"这种看不懂的形式出现。
+  {
+    const providerId = (manifest.modelProviders ?? [])[0];
+    const auth = manifest.modelProviderAuth;
+    if (auth === "native" && providerId) {
+      const piBin = process.env.PI_BIN ?? "pi";
+      const probe = spawnSync(piBin, ["auth", "check", "--provider", providerId, "--json", "--no-refresh"], { encoding: "utf8", timeout: 60000 });
+      const out = `${probe.stdout ?? ""}${probe.stderr ?? ""}`;
+      let parsed = null;
+      try { parsed = JSON.parse((probe.stdout ?? "").trim().split("\n").pop()); } catch { /* 非 JSON 输出 */ }
+      if (parsed?.reason === "provider_not_found") {
+        report.fail(GATE, "resolution/native-credential",
+          `provider「${providerId}」声明为 auth: native（免密钥、用运行时凭据库），但本运行时不认识它 —— 声明与实际不符`);
+      } else if (parsed?.status === "ready") {
+        report.pass(GATE, "resolution/native-credential", `provider「${providerId}」免密钥可用（${parsed.authType ?? "凭据已就绪"}）`);
+      } else if (parsed) {
+        report.pass(GATE, "resolution/native-credential",
+          `provider「${providerId}」本运行时认识，但还没有凭据（${parsed.reason ?? parsed.status}）—— 运行前需先登录一次`);
+      } else {
+        report.fail(GATE, "resolution/native-credential", `无法确认 provider「${providerId}」是否被本运行时认识：${out.trim().slice(0, 160)}`);
+      }
+    } else if (providerId) {
+      report.pass(GATE, "resolution/native-credential", `provider「${providerId}」的凭据由基座注入（auth: ${auth ?? "env"}），无需运行时凭据库`);
+    }
+  }
+
   // 如果产物里有 mcpServers 却没有扩展声明，运行起来就是"连接器被静默忽略"。
   {
     const declared = manifest.connectors ?? [];
@@ -493,3 +525,18 @@ async function main() {
 }
 
 await main();
+
+/** 从产物清单读 provider 的凭据模式（native 表示凭据来自运行时自己的目录）。 */
+function readManifestAuth(renderDir) {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
+    return m.modelProviderAuth ?? null;
+  } catch { return null; }
+}
+
+/** 本机运行时的 agent 目录（订阅登录就落在它里面的 auth.json）。 */
+function piAgentDir() {
+  const explicit = process.env.PI_CODING_AGENT_DIR;
+  if (explicit) return explicit;
+  return path.join(os.homedir(), ".pi", "agent");
+}

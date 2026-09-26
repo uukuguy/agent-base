@@ -23,6 +23,10 @@ renders:
 # 闸门 1 会当场拦住（providers/model-api），而不是渲染出一份适配器不认的配置。
 modelApis: [anthropic-messages, azure-openai-responses, bedrock-converse-stream, openai-completions, openai-responses]
 
+# 运行时自己的**凭据/配置目录**用哪个环境变量指（登录态在那里，如 pi 的 auth.json）。
+# 基座用 `AGENT_HARNESS_HOME` 统一表达"把登录态目录给我"，由适配器映射成它自己的变量名。
+credentialDirEnv: DSH_HOME
+
 capabilities:
   nativeParamInterpolation: supported
   nativeParamInterpolationNote: >
