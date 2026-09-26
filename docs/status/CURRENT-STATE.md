@@ -7,7 +7,7 @@
 - Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **L3 收尾 = A6b（另一个运行时的审批门）**；A6 主运行时侧已完成；已完成：阶段一（A1/V2/E1b/Q1/Q2）+ A2 受控容器入口 + A3 出处与覆盖 + A4 失败归因 + A5 无人值守端到端判据
+- Active work package: **L3 收尾 = A6b-2（另一侧的受控入口与审批门）**；A6b-1（量清接口）已完成；已完成：阶段一（A1/V2/E1b/Q1/Q2）+ A2 受控容器入口 + A3 出处与覆盖 + A4 失败归因 + A5 无人值守端到端判据
 
 ## Current Architecture
 
@@ -95,7 +95,7 @@
 
 ## Open Problems (theme-level)
 
-- **L3 收尾**：A2–A5 已完成；A6 的**主运行时侧**已完成（会话内 `/verify-container`：摊开参数 → `ctx.ui.confirm` → 记 `approval.decision` → 只走受控入口，fail-closed）；**剩 A6b：另一个运行时的等价入口（必须先量 `approval/request` 用法再写）**
+- **L3 收尾**：A2–A5 已完成；A6（主运行时侧的审批门）已完成；**A6b-1 已量清另一侧接口**（审批接缝签名、相对路径插件 row 必须指入口文件、**审批审计事件不在我们读的轨迹通道里** ⇒ 事后映射不通）；**剩 A6b-2 按量到的形态落地**
 - **只有宿主侧的结论**：`verify --json` 已带 `environment.where` 与 `notCoveredHere`，但**交付口径尚未强制"容器内自证为准"**（§28 Q3 = §30 A3）
 - **钩子只能证明"发射路径在工作"**：逐条自证（每个声明的钩子都留痕）未做（§23 E2b）
 - **dsh 侧事件集合未穷举**：`hookEvents.enumerated: false` ⇒ 那边写钩子只能标「未验证」，没有名字层面的判据
@@ -145,6 +145,7 @@
 - `Makefile` —— 全部命令的唯一边界（38 个目标，全部已实现）
 - `tools/{validate,probe,smoke,verify}.mjs` —— 闸门 1/3/4 与四道闸门编排
 - `core/verify/attribution.mjs` —— **失败归因**（容器挂≠缺陷：本地可复现 / 已声明差异 / 容器专有 / **本地没跑到** / 未声明差异）
+- `adapters/dsh/approval-probe.mjs` —— 探针：另一侧原生流/会话文件里有没有审批记录、相对路径插件 row 能不能加载（`make dsh-approval-probe`）
 - `tools/verify-container.mjs` —— **受控容器验证入口**（docker 参数全由基座生成、调用方不能追加：绑定面=当前项目只读、网络 none、根只读、能力全丢；`DRY=1` 可审阅）
 - `tools/project-info.mjs` —— **项目自省的命令行出口**（与会话内 `/project` 共用 `core/introspect/` 的同一份逻辑）；`--plan` 给验证计划
 - `core/introspect/{project-info,_container-only}.mjs` —— 自省与"只能在容器验"的**声明**（后者被自检盯着与 C9 实现一致）

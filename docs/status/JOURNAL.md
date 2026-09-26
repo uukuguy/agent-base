@@ -388,3 +388,7 @@
 - 00:59 **A6b 拆出来并如实标 pending**：另一个运行时的等价入口要**先量** `approval/request`（waterfall answerers）与插件注册工具的确切用法，**不写猜的实现**（本仓库规矩）。L3 只差这一块
 - 00:59 A6 踩的坑：① 把"扩展源码里出现运行时名"写进 core 注释 ⇒ 被 `core/harness-name` 抓住（这是第二次，纪律有效）；② 自检里我在导入后还原了 env，导致假受控入口拿不到 marker ⇒ 假失败；改成"每用例一套 env、不还原"；③ **第八次**在字符串里嵌 ASCII 双引号（python 里），两次改用 edit 工具才对
 - 00:59 回归：**20 项自检全绿** · 两侧 conformance 10/10 · examples-check · walkthrough（20/1/0）；Makefile 47→49 目标
+- 01:27 **A6b-1 完成（先量再写）**：新增可重跑探针 `make dsh-approval-probe`，一次量三件事 —— ① 审批接缝签名（`ctx.approval.request → allowed-once|rejected|cancelled|unavailable`，fail-closed；`approval/request` 是 waterfall；`ctx.commands.register → disposer`）；② **审批审计事件不在统一轨迹所读的 `--json` 事件流里**（danger-full-access 与 ask 两种模式都是 0 条），会话文件本次运行也只有 `session` 引导事件 ⇒ **事后映射这条路不通**；③ 基座插件可用相对路径 insert row 装载，但 `name` **必须指入口文件**（指目录 ⇒ failed to import，ESM 无目录解析）。结论写进 dsh 设计文档 §3.8.1 + §3.11 实验 F/G/H
+- 01:27 **更正一处过度声明**：dsh 豁免里原写"本 harness 有原生审批事件，可回答谁放行了这次调用" —— 实测不成立（事件类型存在，但不进我们读的通道）。已改成与实测一致的措辞并附证据命令。这类"文档比现实乐观"正是本仓库要消灭的
+- 01:27 A6b 拆成 A6b-1（done）/ A6b-2（pending，含 5 条验收判据与"必须先建脚手架"的前置）：A6b-2 因此是**有据可依的施工单**，不是一句"补个映射"。回归：20 项自检全绿 · 两侧 conformance 10/10 · examples-check 绿；Makefile 48→49 目标
+- 01:27 本轮自己踩的：探针里导入路径写成 `../core/...`（应为 `../../`）、以及**第九次**在字符串里嵌 ASCII 双引号（`"failed to import"`）—— 两次都被解析器当场抓住后修掉

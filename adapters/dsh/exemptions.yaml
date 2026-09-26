@@ -12,11 +12,15 @@
 - id: approval-trace-available
   scope: trajectory.tool.call.decision
   reason: >
-    本 harness 有原生审批事件（approval/policy），可回答"谁放行了这次调用"；
+    本 harness 有原生审批接缝（`ctx.approval.request` → allowed-once | rejected | cancelled | unavailable，
+    无应答者 ⇒ fail-closed）与审批**会话事件**类型（approval/asked、approval/decided）；
     另一个 harness 没有**逐次调用**的审批字段（缺口 G3），那边只能记 `unobserved`（不写 allow）。
-    因此 `tool.call.decision` 在两边的**可信度不同**，跨 harness 比对时不得当作等价。
-    ⚠️ 已收窄：基座现在提供第一类 `approval.decision` 事件（谁、对哪个动作、放行/拒绝/无应答者），
-    **走审批门的动作**（如容器验证）两边都有可回答的落点；本条剩下的只是"逐次工具调用"这一层。
+    ⚠️ 实测更正（曾写成"可回答谁放行了这次调用"，那是**过度声明**）：审批审计事件**不在**统一轨迹
+    映射所读的 `--json` 事件流里，会话文件在实测运行里也只有 `session` 引导事件 ⇒
+    **目前两侧都无法从轨迹回答"谁放行了这次工具调用"**，跨 harness 比对时不得当作等价。
+    已收窄的那一半：基座现在提供第一类 `approval.decision` 事件，**走审批门的动作**（如容器验证）
+    在主运行时侧可回答；本侧要落地同样的能力须先建基座不变量插件脚手架（路线图 §30 A6b）。
+    证据：`make dsh-approval-probe`。
   reviewBy: 2027-06-30
 
 - id: tool-naming

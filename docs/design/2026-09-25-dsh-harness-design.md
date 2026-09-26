@@ -289,6 +289,23 @@
 - **无审批应答者时按 fail closed 处理** —— 无人值守的容器场景，审批策略必须显式设为自动放行，否则会卡死
 - 沙箱实现 `landlock` **仅 Linux**；macOS 上无 OS 级沙箱
 
+#### 3.8.1 审批接缝的确切形态（实测，A6b 的前置）
+
+| 项 | 实测形态 | 来源 |
+|---|---|---|
+| 服务方法 | `ctx.approval.request(req: ApprovalRequest): Promise<ApprovalOutcome>` | 随包 API 目录（`dsh-tool-cordis` 的 `api-catalog`） |
+| 结果取值 | `allowed-once` \| `rejected` \| `cancelled` \| `unavailable`（**unavailable = 无应答者 ⇒ fail-closed**） | `dsh-user-approval` 的 `types.d.ts` |
+| 事件接缝 | `approval/request` 是 **waterfall**；`'approval/request'(req, next) => Promise<ApprovalOutcome>` | 同上 |
+| 原生审计事件 | 会话事件 `approval/asked`（log-only）+ `approval/decided`（带 `id` 配对与 `outcome`） | `dsh-session` 的 `SessionEventMap` |
+| 插件注册命令 | `ctx.commands.register(definition): () => void` | 同上 API 目录 |
+| 插件装载 | profile patch 的 `insert` row，`name` **必须指向入口文件**（见 §3.11 实验 H） | 本仓库探针 `make dsh-approval-probe` |
+
+**⚠️ 关键实测（这条改变了 A6b 的做法）**：原生审批审计事件**不在**统一轨迹映射所读的那条 `--json`
+事件流里（`danger-full-access` 与 `ask` 两种模式下都是 0 条），会话文件在本次运行里也只写了
+`session` 引导事件。因此**另一侧的「谁放行了」不能靠事后映射拿到** —— 要么建基座不变量插件脚手架、
+让插件当场把 `approval.decision` 写进轨迹，要么改读会话文件（通道②，需 zstd，且本次实测里面没有内容）。
+两条路都不是「加一个映射」那么小；做法与前置见路线图 §30 A6b。
+
 ### 3.9 热重载（HMR）—— 迭代速度的关键
 
 `@deepseek-ai/dsh-hmr` 用一个统一队列热重载**插件源码与 profile 配置**。
@@ -325,6 +342,11 @@
 | **C** | `--patch` 的目标 = home 层 `insert` 的行 | 成功覆盖 | `--patch` 是唯一逃生通道 |
 | **D** | home 层用 `!!js process.env.X ?? 'fallback'` | patch 生效；`--dump-config` 输出**未求值**的表达式 | 黄金快照只能抓结构性漂移，抓不到环境变量引起的取值漂移 |
 | **E** | home 层 `insert` 一个只存在于 `$DSH_HOME/node_modules` 的包 | 解析成功 | 企业插件装一次全局可见 |
+| **F** | 权限模式 `danger-full-access` 下跑一次带工具调用的一次性会话，统计原生 `--json` 事件类型 | `session/status/text/tool_call/tool_result/final`，**审批记录 0 条** | 放行模式下压根不发生审批，轨迹里自然没有 |
+| **G** | 权限模式 `ask` 下重跑同一实验 | 同上，**审批记录仍是 0 条**；会话文件只有 `session` 引导事件 | 审批审计事件**不在**我们读的通道里 ⇒ 事后映射拿不到「谁放行」 |
+| **H** | profile patch `insert` 一个**相对路径** row：`./plugins/ab-probe`（目录）vs `./plugins/ab-probe/index.js`（入口文件） | 目录 ⇒ `failed to import`（ESM 无目录解析）；入口文件 ⇒ `apply` 执行、`ctx.commands.register` 返回 disposer | 基座插件脚手架可行，但 row 的 `name` **必须指入口文件** |
+
+> F/G/H 由 `make dsh-approval-probe` 一并复现（探针脚本即证据；**不放进默认回归**，因为它要真跑 dsh）。
 
 ### 3.12 【dsh 专有】静默失败清单（必须写进 troubleshooting 文档）
 
