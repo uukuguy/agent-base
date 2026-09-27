@@ -68,27 +68,26 @@
 
 ## 4. 规范措辞原则：**保证 + 判据**，不是**禁止**
 
-现状（`core/spec/agent.schema.json` 原文）：
+**旧口径**（`core/spec/agent.schema.json` 当时的原文，2026-09-26 之前）：
 
 > "刻意保持小：中性格式只表达两个 harness 的可移植核心（交集）……**因此本 schema 不预留任何未来字段**"
 > 且 `additionalProperties: false`
 
-**它读起来是"基座不允许你做"。** 这正是评审反对的那种姿态。应改成三段式：
+**它读起来是"基座不允许你做"。** 这正是评审反对的那种姿态。已改成三段式（**2026-09-27 落地**）：
 
-| 段 | 含义 | 工程做法 |
-|---|---|---|
-| **① 基座保证并验证的** | 进了 schema / 契约，有判据 | 改动要走闸门与 conformance |
-| **② 基座允许但不保证的** | 厂商/业务自加的东西：**原样透传**到产物与清单 | **开放命名空间**（如 `x-*` 或 `customizations:`）；`additionalProperties:false` 保留（**拼写错误仍能拦住**），但开放区内容**原样保留**并标注"未验证" |
-| **③ 基座明确不管的** | 业务内容、策略内容、审批/网关/审计的实现 | 给缝，不给判据；文档写清"这是你的活" |
+| 段 | 含义 | 工程做法 | 落地处 |
+|---|---|---|---|
+| **① 基座保证并验证的** | 进了 schema / 契约，有判据 | 改动要走闸门与 conformance | `core/spec/*.schema.json` 的 `properties` + 能力目录的 `harnesses.*.verified` |
+| **② 基座允许但不保证的** | 厂商/业务自加的东西：**原样透传**到产物与清单 | **开放命名空间**：`x-*` 与 `customizations:`（任意层级）、增强的 `kind: x-*`；`additionalProperties:false` **保留**（拼写错误仍能拦住），开放区**原样保留**并标注「未验证声明」 | schema 的 `patternProperties` · `core/spec/open-namespace.mjs`（闸门 1 与两个渲染器**共用同一份实现**）· 闸门 1 的 `open/unverified-declarations` · 清单字段 `unverifiedDeclarations` |
+| **③ 基座明确不管的** | 业务内容、策略内容、审批/网关/审计的实现 | 给缝，不给判据；文档写清"这是你的活" | `docs/14` 的"边界"与各 `exemptions.yaml` |
 
 **关键**：②与"不静默失败"不冲突 ——
 **不认识的声明要保留并显式标注**；不认识的**内容**不许造成静默行为。二者要分开处理。
 
-具体建议（可执行，未做）：
-- `agent.schema.json` 增开放命名空间（顶层 + `harness/<h>/enhancements.yaml` 的 `kind` 都允许扩展），
-  渲染时**原样透传**并进清单；闸门**不声称验证**，但在报告里列出"未验证声明"。
-- `enhancements.yaml` 立 schema（缺陷 D1），`kind` 允许扩展值，未知值 = **保留 + 标注**，不是报错也不是忽略。
-- 文档统一改口径：把"不许"改成"基座保证 X；X 之外允许做，但不在基座保证范围"。
+**验证这条口径的证据**（都在仓库里，可重跑）：
+- `make validate-selftest` → 正例 `positive/open-namespace`：这份定义**必须全绿**，且 `open/unverified-declarations` 里点到 `x-team-owner` / `customizations` / `x-widget`；
+- 负例 `negative/01-unknown-field`：`temperature` 这种**越界/拼错的已知字段**仍然硬错误（区分"显式扩展"与"写错了"）；
+- 两个渲染器都把 `unverifiedDeclarations` 写进产物清单（`make render` 后看 `render-manifest.json`）。
 
 ---
 

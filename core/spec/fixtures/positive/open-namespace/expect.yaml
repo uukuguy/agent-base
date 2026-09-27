@@ -1,0 +1,8 @@
+# 正例：这份定义必须**通过**闸门 1，并且在 `open/unverified-declarations` 里列出自定义字段。
+# 机制与 negative/* 对称：那边断言"必须红在某条检查"，这边断言"必须绿且那条检查里点到了名字"。
+expectCheck: open/unverified-declarations
+expectDetailContains:
+  - x-team-owner
+  - customizations
+  - x-widget
+why: 开放命名空间允许存在，但必须可见（§25 O1/O3）；拼错的已知字段仍会硬错误（负例 01）。

@@ -444,6 +444,10 @@ function main() {
     // 判据与闸门 1 的 portability/report 相同（看智能体自己的 harness/<h>/ 有没有东西）。
     // 合并后的 declarations 里分不出"基座给的"和"业务写的"，所以这里单独记一份。
     agentEnhancements: agentEnh.map((e) => e.id).sort(),
+    // **未验证声明**（§25 O1/O3）：`x-*` / `customizations:` / `kind: x-*` 这类基座不解释、
+    // 原样透传的字段。放进清单 = 产物自描述：会话内 `/project` 与闸门报告都能看见它。
+    // 口径与闸门 1 **同一份实现**（core/spec/open-namespace.mjs），不各写一遍。
+    unverifiedDeclarations: collectOpenNamespace({ agent, connectors: connectorsDoc, enhancements: [...baseEnh, ...agentEnh] }).map((o) => `${o.path}：${o.note}`),
     labelsProvided,
     definitionDigest: digestDirectory(agentDir),
     // **渲染输入摘要**（定义 + 基座 seed + 渲染器 + 目录表）：复用旧产物前要比它。
@@ -487,3 +491,4 @@ function main() {
 }
 
 main();
+import { collectOpenNamespace } from "../../core/spec/open-namespace.mjs";

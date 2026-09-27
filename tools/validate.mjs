@@ -41,6 +41,7 @@ import YAML from "yaml";
 import Ajv2020 from "ajv/dist/2020.js";
 import { spawnSync } from "node:child_process";
 import { buildLock } from "../core/image/gen-preinstall-lock.mjs";
+import { collectOpenNamespace } from "../core/spec/open-namespace.mjs";
 import { EXIT_CODES, GateReport, digestDirectory } from "../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../core/image/resolve-preinstall.mjs";
 
@@ -202,15 +203,23 @@ function checkBase(report, agentDir = process.cwd()) {
   // A2b 枚举值也必须与 schema 一致：目录里留着 `plugin`、schema 里没有 ⇒
   // 文档正在教人写一个**必红**的 kind（比字段名拼错更难发现，因为两边都"看起来对"）。
   {
-    const schemaKind = enhSchemaRaw.properties.enhancements.items.properties.kind.enum ?? [];
+    // kind 现在可以是「已知枚举」**或** `x-*` 自定义种类（§25 O1）⇒ 从 anyOf 形态里取枚举部分；
+    // 老形态（直接 enum）继续支持，免得这个检查本身变成"只认一种写法"的脆弱点。
+    const kindSchema = enhSchemaRaw.properties.enhancements.items.properties.kind;
+    const schemaKind = kindSchema.enum ?? kindSchema.anyOf?.find((x) => Array.isArray(x.enum))?.enum ?? [];
+    const hasCustomKind = (kindSchema.anyOf ?? []).some((x) => typeof x.pattern === "string" && x.pattern.includes("x-"));
     const capKind = capsFields.find((f) => f.path === `${ENH_SOURCE}#enhancements[].kind`)?.values?.enum ?? [];
     const same = schemaKind.length === capKind.length && schemaKind.every((v) => capKind.includes(v));
     if (!same) {
       report.fail(GATE, "catalog/enum-sync",
         `增强 kind 的枚举与 enhancements.schema.json 不一致（两处真源）：`
         + `catalog=[${capKind.join(", ")}] schema=[${schemaKind.join(", ")}]`);
+    } else if (!hasCustomKind) {
+      report.fail(GATE, "catalog/enum-sync",
+        `增强 kind 的 schema 里没有自定义种类通道（缺 \`x-*\` 分支）—— 对外开放命名空间是 §25 O1 的要求`);
     } else {
-      report.pass(GATE, "catalog/enum-sync", `增强 kind 枚举与 schema 一致（${schemaKind.length} 个取值）`);
+      report.pass(GATE, "catalog/enum-sync",
+        `增强 kind 枚举与 schema 一致（${schemaKind.length} 个取值）+ 自定义种类通道（\`x-*\`）`);
     }
   }
 
@@ -779,6 +788,30 @@ function checkAgent(report, ctx, agentDir) {
   }
   if (dupes.length) report.fail(GATE, "enhance/single-source", `增强重复表达了中性定义字段（两个真源）：${dupes.join(", ")}`);
   else report.pass(GATE, "enhance/single-source", "业务级增强没有重复表达中性定义字段");
+
+  // ---- 未验证声明（§25 O1/O3）----
+  // 开放命名空间（`x-*` / `customizations:` / `kind: x-*`）**允许存在**，但必须被**列出来**：
+  // 不列出来的扩展就是"悄悄多出来的东西"，而这条检查的全部价值就是让它可见（口径见 O2：
+  // 基座保证自己声明的字段；之外允许，但不在保证范围内 ⇒ 标成「未验证声明」）。
+  {
+    const allEnh = [];
+    for (const h of HARNESS_NAMES) {
+      const f = path.join(agentDir, "harness", h, "enhancements.yaml");
+      if (fs.existsSync(f)) {
+        try {
+          const doc = loadYaml(f);
+          for (const e of doc.enhancements ?? []) allEnh.push(e);
+        } catch { /* schema 那条已经在别处报过了 */ }
+      }
+    }
+    const connFile = agent.connectorsFile ? path.join(agentDir, agent.connectorsFile) : null;
+    const connDoc = connFile && fs.existsSync(connFile) ? (() => { try { return loadYaml(connFile); } catch { return null; } })() : null;
+    const open = collectOpenNamespace({ agent, connectors: connDoc, enhancements: allEnh });
+    report.pass(GATE, "open/unverified-declarations", open.length
+      ? `${open.length} 条**未验证声明**（基座不解释、原样透传；不在保证范围内）：\n`
+        + open.map((o) => `      · ${o.path} —— ${o.note.split("——")[0].trim()}`).join("\n")
+      : "本定义没有使用自定义字段/自定义 kind（基座声明的字段之外没有别的）");
+  }
   if (schemaPassed.length) report.pass(GATE, "enhance/schema", `${schemaPassed.join(" · ")} 符合增强 schema`);
   if (eventProblems.length) {
     report.fail(GATE, "enhance/events", `钩子订阅了不存在的生命周期事件：${eventProblems.join("；")}`);
@@ -911,6 +944,27 @@ function checkSelftest() {
     const want = fs.existsSync(ef) ? loadYaml(ef).expectFailure : null;
     const got = runFixture(dir).failures.map((f) => f.id);
     results.push({ name, passed: !!want && got.includes(want), want, got });
+  }
+
+  // 正例样本（`positive/*`）：断言"必须通过，**且**某条检查里点到了某些名字"。
+  // 有些判据不是"红了就对"（比如"未验证声明必须被列出来"），必须能验"绿且可见"。
+  const posRoot = path.join(FIXTURES, "positive");
+  const posDirs = fs.existsSync(posRoot)
+    ? fs.readdirSync(posRoot, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()
+    : [];
+  for (const name of posDirs) {
+    const dir = path.join(posRoot, name);
+    const ef = path.join(dir, "expect.yaml");
+    const spec = fs.existsSync(ef) ? loadYaml(ef) : {};
+    const rep = runFixture(dir);
+    const check = rep.checks?.find?.((c) => c.id === spec.expectCheck) ?? rep.toJSON().gates.flatMap((g) => g.checks).find((c) => c.id === spec.expectCheck);
+    const misses = (spec.expectDetailContains ?? []).filter((s) => !String(check?.detail ?? "").includes(s));
+    results.push({
+      name: `positive/${name}`,
+      passed: rep.ok && !!check && misses.length === 0,
+      want: `${rep.ok ? "" : "必须全绿；"}${spec.expectCheck} 点到 ${(spec.expectDetailContains ?? []).join(", ")}`,
+      got: rep.ok ? (misses.length ? `未点到：${misses.join(", ")}` : "全绿且已列出") : rep.failures.map((f) => f.id),
+    });
   }
   return results;
 }

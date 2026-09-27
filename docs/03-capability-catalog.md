@@ -19,6 +19,7 @@
 | 字段 | 类型 | 所属层 | 必填 | 取值 | dsh | pi | 说明 |
 |---|---|---|---|---|---|---|---|
 | `apiVersion` | string | artifact | 是 | `agent-base/v1` | ✅ 支持 | ✅ 支持 | 定义格式版本。破坏性变更时升 v2，基座同时支持 v1/v2 渲染并给出迁移提示。 |
+| `customizations` | object | artifact | 否 | — | ✅ 支持 | ✅ 支持 | **开放命名空间**：基座不解释、原样透传的自定义容器。配套规则同一条： `x-` 前缀的键（任意层级）与 `kind: x-*` 自定义增强种类同样被允许； 它们在闸门 1 报告与渲染清单里被列为**未验证声明**（不在基座保证范围内）。 拼错的**已知**字段仍会硬错误（`additionalProperties: false` 不动）—— 这正是"允许扩展"与"拼错要响"之间的分界。 |
 | `name` | string | artifact | 是 | `^[a-z][a-z0-9-]{1,30}$` | ✅ 支持 | ✅ 支持 | 智能体名。同时约束镜像名与 dsh profile 名。 |
 | `description` | string | artifact | 是 | — | ✅ 支持 | ✅ 支持 | 一句话说明。进能力目录与系统提示词。 |
 | `connectorsFile` | relativePath | artifact | 否 | — | ✅ 支持 | ✅ 支持 | 连接器定义文件路径。默认同目录 connectors.yaml。 |

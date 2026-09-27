@@ -1,0 +1,3 @@
+apiVersion: agent-base/v1
+mcpServers: []
+x-registry-note: 内网自建 registry

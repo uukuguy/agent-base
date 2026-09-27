@@ -38,16 +38,26 @@
             "pattern": "^[a-z][a-z0-9-]{1,40}$"
           },
           "kind": {
-            "type": "string",
-            "enum": [
-              "tool",
-              "hook",
-              "command",
-              "middleware",
-              "subagent",
-              "provider",
-              "other"
-            ]
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "tool",
+                  "hook",
+                  "command",
+                  "middleware",
+                  "subagent",
+                  "provider",
+                  "other"
+                ]
+              },
+              {
+                "type": "string",
+                "pattern": "^x-[a-z0-9-]+$",
+                "description": "自定义增强种类（`x-` 前缀）：基座按「非钩子/非命令」处理，报告里标为未验证声明"
+              }
+            ],
+            "description": "增强种类；自定义种类必须用 `x-` 前缀显式标记"
           },
           "entry": {
             "type": "string",
@@ -109,6 +119,11 @@
           }
         ]
       }
+    }
+  },
+  "patternProperties": {
+    "^x-[A-Za-z0-9_-]+$": {
+      "description": "自定义字段（开放命名空间）：基座不解释、原样透传，报告里标为未验证声明（§25 O1）"
     }
   }
 }

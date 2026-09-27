@@ -7,7 +7,7 @@
 - Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **L5 小活 = O1/O3/O2（未验证声明进报告）+ P5（契约表带实测日期）+ `CLAUDE.md`（新会话入口）**；E2b 已完成；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
+- Active work package: **L5 收尾 = P5（`docs/13` 契约表逐行补"最后一次实测"日期/命令）+ O4/O5**；O1/O2/O3 与 `CLAUDE.md` 已完成；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
 
 ## Current Architecture
 
@@ -108,13 +108,12 @@
 - **镜像未推任何 registry**：多架构归档可落盘；推送路径仍待确认（I2 已答"仅运行期无外网"）
 - **预装清单未定稿**：`core/image/preinstall.yaml` 有候选与 npm 存活表，"预装哪些进镜像"待定
 - **上游版本漂移**：dsh `0.1.7-rc.1` 为预发布、pi 迭代快；pin 之外的回归网已建立（两侧 conformance 均生效）
-- **`CLAUDE.md` 尚未创建**：技术不变量/结构事实尚无按会话自动加载的落地处
+- ~~`CLAUDE.md` 尚未创建~~ ⇒ **已创建**（2026-09-27）：新会话入口，含"这是什么/怎么验/纪律/状态在哪/已知的坑"
 
 ## Key Files
 
 ### Loaded every Claude session
 
-- `CLAUDE.md` —— **尚未创建**（落地后承载"技术不变量 / 结构事实"）
 - 运行时记忆（mnemon 托管，会话自动注入）—— 本仓库**无** `MEMORY.md` 文件
 
 ### State / handoff
@@ -156,10 +155,12 @@
 - `tools/new-agent.mjs` + `template/` —— 派生入口与派生源（`new-agent-selftest` 验证"开箱可跑"）
 - `examples/` —— 6 个示例项目（**不是基座的一部分，可整体删除**），两侧"可用"，各自 README 载同一条开发循环
 - `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用运行器）
+- `core/spec/open-namespace.mjs` —— **开放命名空间**的单一实现（`x-*` / `customizations:` / `kind: x-*`）：闸门 1 的 `open/unverified-declarations` 与两个渲染器的清单字段共用它
 - `adapters/{pi,dsh}/seed/` 与 `enhancements.yaml` —— 基座不变量（**两种落地形态**：一侧是扩展 `extensions/*.ts`，另一侧是 cordis 插件 `plugins/*/index.js` + insert row，都由渲染器注入事件写入器）：安全姿态 + 轨迹 + 会话内自省命令 `project-info` + **受控容器验证入口 `verify-container`（需审批）**
 - `core/gates/` —— 四闸门框架：编排 / 断言语言 / §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / CLI 解析
 - `core/trace/` —— 统一轨迹：`schema.json`（真源，10 类事件 + `emitter` + `enhancement`[哪个声明写的]）· `emit.mjs` · 业务级 logger · 自检
-- `core/spec/` —— 中性定义 schema（**public contract**）+ **增强 schema** + fixtures（1 合法 + **12** 注入式非法）
+- `CLAUDE.md` —— **新会话入口**（这是什么/怎么验/纪律/状态在哪/已知的坑）
+- `core/spec/` —— 中性定义 schema（**public contract**，含开放命名空间 `x-*`/`customizations`）+ **增强 schema**（`kind` 允许 `x-*`）+ fixtures（1 合法 + **13** 注入式非法 + **1 正例**）
 - `core/catalog/{capabilities,params,providers}.yaml` —— 三个执法点：字段所属层 · 参数层清单 · provider 目录
 - `core/image/` —— 基座镜像与调试变体 + `verify-in-image.mjs`（镜像内自证）+ `derived/Dockerfile`（派生骨架）
 - `core/config/dotenv.mjs` —— 环境文件加载（真实环境变量优先；永不打印值）

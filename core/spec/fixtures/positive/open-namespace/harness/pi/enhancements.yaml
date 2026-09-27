@@ -1,0 +1,8 @@
+apiVersion: agent-base/v1
+harness: pi
+enhancements:
+  - kind: x-widget
+    id: team-widget
+    entry: extensions/team-widget.ts
+    x-owner: platform-team
+    description: 自定义 kind 的增强（基座按"非钩子/非命令"处理）

@@ -5,7 +5,10 @@
   "description": "统一设计 §4.3 的唯一真源。两个设计点：① urlRef / credentialRef 只写引用名，取值来自参数层（N18）；② stdio 的 command/args 属制品层——它决定「能连什么」，且是可执行内容，必须可评审、可 pin 版本。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "mcpServers"],
+  "required": [
+    "apiVersion",
+    "mcpServers"
+  ],
   "properties": {
     "apiVersion": {
       "const": "agent-base/v1"
@@ -13,7 +16,9 @@
     "mcpServers": {
       "type": "array",
       "description": "连接器列表。不写 = 无连接器；写空数组等价于无连接器。",
-      "items": { "$ref": "#/$defs/server" }
+      "items": {
+        "$ref": "#/$defs/server"
+      }
     }
   },
   "$defs": {
@@ -25,15 +30,23 @@
     "server": {
       "description": "三种形态互斥：① ref 按名引用基座预装条目（§4.3 设计点 4，开发者只写一个名字）；② streamable-http 完整形态；③ stdio 完整形态。形态之间字段不通用，因此各自 additionalProperties:false——跨形态字段会被直接拒绝。",
       "oneOf": [
-        { "$ref": "#/$defs/refServer" },
-        { "$ref": "#/$defs/httpServer" },
-        { "$ref": "#/$defs/stdioServer" }
+        {
+          "$ref": "#/$defs/refServer"
+        },
+        {
+          "$ref": "#/$defs/httpServer"
+        },
+        {
+          "$ref": "#/$defs/stdioServer"
+        }
       ]
     },
     "refServer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ref"],
+      "required": [
+        "ref"
+      ],
       "description": "按名引用基座预装条目。解析来源：core/image/preinstall.yaml 的 namedReferences（→ 条目的 install 与 credentialRef）。这是「开发智能体便捷」的关键形态：开发者不需要知道包名、版本、启动参数。",
       "properties": {
         "ref": {
@@ -62,14 +75,20 @@
     "httpServer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "transport", "urlRef"],
+      "required": [
+        "name",
+        "transport",
+        "urlRef"
+      ],
       "properties": {
         "name": {
           "type": "string",
           "pattern": "^[A-Za-z0-9_-]{1,32}$",
           "description": "必填。对齐 harness 侧的 serverName 命名空间约束（各 harness 的支持度见能力目录）。"
         },
-        "transport": { "const": "streamable-http" },
+        "transport": {
+          "const": "streamable-http"
+        },
         "urlRef": {
           "$ref": "#/$defs/refName",
           "description": "endpoint 是参数层：只写引用名（§4.3 设计点 1）。"
@@ -94,13 +113,19 @@
     "stdioServer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "transport", "command"],
+      "required": [
+        "name",
+        "transport",
+        "command"
+      ],
       "properties": {
         "name": {
           "type": "string",
           "pattern": "^[A-Za-z0-9_-]{1,32}$"
         },
-        "transport": { "const": "stdio" },
+        "transport": {
+          "const": "stdio"
+        },
         "command": {
           "type": "string",
           "minLength": 1,
@@ -108,7 +133,9 @@
         },
         "args": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "参数列表。引用自研连接器时用相对路径（如 mcp-servers/corp-internal/index.js），渲染器解析成镜像内固定路径（§4.3 设计点 3、§8.1）。"
         },
         "credentialRef": {
@@ -124,6 +151,11 @@
           "maxLength": 200
         }
       }
+    }
+  },
+  "patternProperties": {
+    "^x-[A-Za-z0-9_-]+$": {
+      "description": "自定义字段（开放命名空间）：基座不解释、原样透传，报告里标为未验证声明（§25 O1）"
     }
   }
 }

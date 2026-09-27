@@ -109,6 +109,10 @@
     "skillsDir": {
       "$ref": "#/$defs/relativePath",
       "description": "可选，默认 skills。中性定义只声明本目录下的技能（§4.4）。"
+    },
+    "customizations": {
+      "type": "object",
+      "description": "自定义容器（开放命名空间）：基座不解释，原样透传"
     }
   },
   "$defs": {
@@ -117,6 +121,11 @@
       "minLength": 1,
       "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
       "description": "相对路径。绝对路径、Windows 盘符、反斜杠与 .. 逃逸一律由 schema 直接拒绝（§9.2：定义里禁止绝对路径）。"
+    }
+  },
+  "patternProperties": {
+    "^x-[A-Za-z0-9_-]+$": {
+      "description": "自定义字段（开放命名空间）：基座不解释、原样透传，报告里标为未验证声明（§25 O1）"
     }
   }
 }

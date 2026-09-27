@@ -185,11 +185,18 @@ export function render(category, facts) {
       return lines.join("\n");
     }
 
-    case "enhancements":
-      return enhancements.length
+    case "enhancements": {
+      const unverified = manifest?.unverifiedDeclarations ?? [];
+      const lines = enhancements.length
         ? [...enhancements.map((e) => `· ${e.id}  kind=${say(e.kind)}  ${say(e.target)}${e.events ? `  events=${e.events.join(",")}` : ""}`),
-           "（来源：产物 enhancements.yaml —— 渲染器把基座不变量声明 ∪ 智能体声明合并写在这里）"].join("\n")
-        : "（未声明增强；基座不变量增强应至少有一条 trace）（来源：产物 enhancements.yaml）";
+           "（来源：产物 enhancements.yaml —— 渲染器把基座不变量声明 ∪ 智能体声明合并写在这里）"]
+        : ["（未声明增强；基座不变量增强应至少有一条 trace）（来源：产物 enhancements.yaml）"];
+      // 未验证声明（§25 O1/O3）：基座不解释、原样透传的字段 —— 不列出来就是"悄悄多出来的东西"
+      lines.push(unverified.length
+        ? `\n未验证声明（基座不解释、原样透传；不在保证范围内）：\n` + unverified.map((d) => `· ${d.split("：")[0]}`).join("\n")
+        : "未验证声明：无（基座声明的字段之外没有别的）");
+      return lines.join("\n");
+    }
 
     case "hooks": {
       const hooks = enhancements.filter((e) => e.kind === "hook");

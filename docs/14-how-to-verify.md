@@ -111,7 +111,7 @@ docker run --rm --network none \
 | 要证明的事 | 命令 | 期望 / 判据 |
 |---|---|---|
 | 定义合法、引用存在、分层合规 | `make validate AGENT_DIR=…` | 闸门 1 全绿（带定义 43–44 项） |
-| 非法定义会被拦 | `make validate-selftest` | 13 个负例样本 + 1 个合法样本，每个**只因目标原因**变红 |
+| 非法定义会被拦 | `make validate-selftest` | 13 个负例样本 + 1 个合法样本 + **正例样本**，每个**只因目标原因**变红；正例用来断言「必须绿**且**某条检查里点到了名字」（如未验证声明） |
 | 渲染确定、跨运行时差异有声明 | `make compare AGENT_DIR=…` | 「集合两侧一致（差异均有声明）」 |
 | 工具边界**真的**生效 | `make verify AGENT_DIR=examples/idea-to-proof` | `probe/model.tools` 显示 `tools=1`（deny 了 bash/write/edit 只剩 read）⚠️ 这条以前是坏的：旧写法下是 4 |
 | 端点真的收到带工具的流式请求 | 同上 | `probe/model.reachable` + `model.tools` + `model.stream` |

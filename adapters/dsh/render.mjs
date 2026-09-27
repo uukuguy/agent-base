@@ -401,6 +401,8 @@ function main() {
     // **只含智能体自己的**增强（基座不变量不算：它不是这个智能体引入的不可移植性）。
     // 与另一个运行时的清单字段同名同义 ⇒ `/project portability` 与闸门 1 的判据同源可比。
     agentEnhancements: agentEnh.map((e) => e.id).sort(),
+    // **未验证声明**（§25 O1/O3）：与另一个运行时的清单同名同义，口径同一份实现
+    unverifiedDeclarations: collectOpenNamespace({ agent, connectors: connectorsDoc, enhancements }).map((o) => `${o.path}：${o.note}`),
     // 哪些声明是钩子：闸门 3 的 probe/hooks-evidenced 靠它判断"要不要断言钩子真的触发"（P4）
     hookEnhancements: [...new Set(enhancements.filter((e) => e.kind === "hook").map((e) => e.id))].sort(),
     connectors: enabled.map((c) => ({ serverName: c.name, transport: c.transport })),
@@ -522,3 +524,4 @@ function main() {
 }
 
 main();
+import { collectOpenNamespace } from "../../core/spec/open-namespace.mjs";

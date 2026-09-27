@@ -18,7 +18,11 @@ apiVersion: agent-base/v1
 #   harnesses.<h>.verified: 该结论是否有实测依据（false = 待实测，§5.1 要求显式标注）
 #
 # 刻意保持小：中性格式只表达两个 harness 的可移植核心（交集）。表达力由 §4.5 的
-# 业务级增强承接，因此**本目录不预留未来字段**（§14 风险 3）。
+# 业务级增强承接。
+#
+# **支持声明口径**（§25 O2）：基座**保证**本目录声明的字段；本目录之外同样允许
+# （`x-` 前缀 / `customizations:` / `kind: x-*`，见 customizations 条目），但**不在保证范围内** ——
+# 它们会被原样透传并在报告里标为「未验证声明」。拼错的已知字段仍硬错误。
 # ============================================================================
 
 description: 中性定义的完整字段目录，含类型、默认值、取值范围、所属层、各 harness 支持度与降级行为。
@@ -44,6 +48,21 @@ groups:
           pi: { support: supported, verified: true, note: "渲染器只接受自己支持的版本，不支持则显式失败（§4.7）" }
           dsh: { support: supported, verified: true, note: 同上 }
         doc: 定义格式版本。破坏性变更时升 v2，基座同时支持 v1/v2 渲染并给出迁移提示。
+
+      - path: customizations
+        source: agent.yaml / connectors.yaml; 以及 harness/<h>/enhancements.yaml 的条目
+        type: object
+        required: false
+        layer: artifact
+        harnesses:
+          pi: { support: supported, verified: true, note: "原样透传进产物与清单，报告里列为未验证声明（§25 O1/O3）" }
+          dsh: { support: supported, verified: true, note: 同上 }
+        doc: >
+          **开放命名空间**：基座不解释、原样透传的自定义容器。配套规则同一条：
+          `x-` 前缀的键（任意层级）与 `kind: x-*` 自定义增强种类同样被允许；
+          它们在闸门 1 报告与渲染清单里被列为**未验证声明**（不在基座保证范围内）。
+          拼错的**已知**字段仍会硬错误（`additionalProperties: false` 不动）——
+          这正是"允许扩展"与"拼错要响"之间的分界。
 
       - path: name
         source: agent.yaml

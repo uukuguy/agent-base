@@ -1522,7 +1522,7 @@ rm ~/.dsh/sessions/--Users-sujiangwen-sandbox-agentic-2026-dsh-agent-base--
 | 轨迹事件格式（P1） | **强制统一 schema**；无法映射的原生事件必须输出 `native.raw`，**不许丢弃** | §8.3 |
 | 两个示例场景（P2） | `idea-to-proof`（纯技能型）+ `contract-review`（带 MCP，正好演示双 harness） | §2.4 |
 | `conformance` 严格度（P3） | **C1–C10 全为阻断性门槛** | §5.6 |
-| 第三个 harness（P4） | **不预留、不造桩**；通过 `conformance` 即可接入 | §5.7 |
+| 第三个 harness（P4） | 基座**保证**两个运行时的契约；第三个运行时**不在保证范围内**（也不为它预留桩代码），通过 `conformance` 接入 | §5.7 |
 | 调试手段 | 四道调试面：①②③ 验证（自证 / 轨迹 / 探针）+ ④ 交互式调试运行时（agent 会话 + 人在环 + 诊断 shell）；④ 走 `agent-base:<h>-debug` 变体，不进生产镜像 | §8.5 / §7.2 |
 | 本地开发环境 | `make dev-env` 按 pin 装 harness 到一致版本；`run-local` 用临时 HOME/DSH_HOME 挂 render 产物 | §9.3 |
 | 核心目标 | **验证走通**（不是生产上线）；走通后交付**验证证据包**（结论 + 可复现快照 + 交接文档） | §1.1 / §8.1 |

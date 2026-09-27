@@ -1,0 +1,15 @@
+apiVersion: agent-base/v1
+name: open-namespace-sample
+description: 开放命名空间正例（自定义字段必须被列出、且不阻塞渲染）
+persona:
+  instructions: 正例。
+model:
+  provider: corp-gateway
+  name: corp-think
+connectorsFile: connectors.yaml
+x-team-owner: platform-team
+x-internal:
+  costCenter: CC-1234
+customizations:
+  promptPrefix: "[内部] "
+  telemetry: off
