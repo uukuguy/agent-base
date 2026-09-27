@@ -142,8 +142,8 @@ docker run --rm --network none \
 | **会话里请求容器验证（需审批）** | 会话内 `/verify-container`（`make local` 之后） | 先摊开将要执行的 docker 参数 → 你放行/拒绝 → 只有放行才跑；决定记进轨迹 `approval.decision`；无应答者时 **fail-closed 不执行**；自检 `make pi-verify-container-selftest` |
 | **同上（另一侧）** | 该运行时会话内 `/verify-container`（同一套判据的另一个落地形态） | 走它的原生审批接缝（四种结果；无应答者/无审批服务 ⇒ **fail-closed 放弃**）；事件同样进轨迹；自检 `make dsh-verify-container-selftest` |
 | **同上（另一侧）：项目自省** | 该运行时会话内 `/project`（同一份逻辑，读法由该运行时的布局提供） | 产物里的事实照常摊开；分类清单在 `input.hint` 里（该运行时**没有动态补全回调** ⇒ 已在 `exemptions.yaml` 声明这条不对称）；自检 `make dsh-project-info-selftest` |
-| **容器挂的时候是不是缺陷** | 同上（失败时自动归因） | 五类：本地可复现（真缺陷）/ 已声明差异（不是缺陷）/ 容器专有断言失败（真缺陷，改镜像）/ 本地没跑到（先修前面那条）/ **未声明的差异（响亮上报，不许猜）** |
-| 声明了但没写对 ⇒ 响亮失败 | 见 §4 | 全部非 0 退出，且报错点明原因 |
+| **容器挂的时候是不是缺陷** | `make verify-container AGENT_DIR=…`（失败时自动归因） | 五类：本地可复现（真缺陷）/ 已声明差异（不是缺陷）/ 容器专有断言失败（真缺陷，改镜像）/ 本地没跑到（先修前面那条）/ **未声明的差异（响亮上报，不许猜）** |
+| 声明了但没写对 ⇒ 响亮失败 | `make validate-selftest` + `make startup-selftest`（负例见 §4） | 全部非 0 退出，且报错点明原因 |
 
 **一条命令跑全部**：`make verify-all`（每个示例 × 两个运行时）· `make conformance`（C1–C10）。
 
@@ -151,16 +151,16 @@ docker run --rm --network none \
 
 ## 4. 负例：怎么确认"错的东西会红"（这些才是可信度的来源）
 
-| 故意做错 | 期望 |
-|---|---|
-| 增强声明 `kind: 乱写` | 闸门 1 `enhance/schema` 红（负例 `11-enhance-bad-kind`） |
-| `kind: hook` 但漏 `events` | 闸门 1 `enhance/schema` 红（负例 `12-enhance-hook-no-event`） |
-| `kind: hook` 但事件名写错（如 `tool_calls`） | 闸门 1 `enhance/events` 红，并列出该名字不属于那 39 个（负例 `13-enhance-hook-bad-event`） |
-| 往 `extensions/` 丢一个未声明的文件 | **渲染期**响亮失败（该运行时会加载它，等于"偷偷加载"） |
-| 另一个运行时的增强不给 `package` | **渲染期**响亮失败（不静默跳过） |
-| overlay 声明的 harness 与当前不符 | `prepare` 失败并点明不匹配（不猜） |
-| overlay 目录在但缺 `overlay.yaml` | `prepare` 失败（不猜内容） |
-| 不给凭据就跑 | `config-check` 退出码 2（fail-fast，不静默降级） |
+| 故意做错 | 期望 | 怎么复核（可跑的） |
+|---|---|---|
+| 增强声明 `kind: 乱写` | 闸门 1 `enhance/schema` 红（负例 `11-enhance-bad-kind`） | `make validate-selftest` |
+| `kind: hook` 但漏 `events` | 闸门 1 `enhance/schema` 红（负例 `12-enhance-hook-no-event`） | `make validate-selftest` |
+| `kind: hook` 但事件名写错（如 `tool_calls`） | 闸门 1 `enhance/events` 红，并列出该名字不属于那 39 个（负例 `13-enhance-hook-bad-event`） | `make validate-selftest` |
+| 往 `extensions/` 丢一个未声明的文件 | **渲染期**响亮失败（该运行时会加载它，等于"偷偷加载"） | `make render` |
+| 另一个运行时的增强不给 `package` | **渲染期**响亮失败（不静默跳过） | `make render HARNESS=dsh` |
+| overlay 声明的 harness 与当前不符 | `prepare` 失败并点明不匹配（不猜） | `make startup-selftest` |
+| overlay 目录在但缺 `overlay.yaml` | `prepare` 失败（不猜内容） | `make startup-selftest` |
+| 不给凭据就跑 | `config-check` 退出码 2（fail-fast，不静默降级） | `C9`（容器内 `config-check`） |
 
 ---
 

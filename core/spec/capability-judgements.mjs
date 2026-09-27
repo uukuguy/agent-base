@@ -27,12 +27,16 @@ export function parseTable(md, sectionNo) {
   const rest = md.slice(start + 1);
   const end = rest.search(/^##\s/m);
   const section = end < 0 ? rest : rest.slice(0, end);
+  const lines = section.split("\n");
   const rows = [];
-  for (const line of section.split("\n")) {
-    if (!line.trim().startsWith("|")) continue;
-    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].trim().startsWith("|")) continue;
+    const cells = lines[i].split("|").slice(1, -1).map((c) => c.trim());
     if (cells.length < 2) continue;
-    if (/^-{2,}/.test(cells[0]) || cells[0] === "保证" || cells[0] === "起点") continue;
+    if (/^-{2,}/.test(cells[0])) continue;                                  // 分隔行
+    // **表头**：下一行是分隔行 ⇒ 这一行是表头，跳过（用结构判断，不靠关键字列表）
+    const next = (lines[i + 1] ?? "").trim();
+    if (next.startsWith("|") && /^\|[\s:-]+\|/.test(next) && !/[A-Za-z\u4e00-\u9fa5]/.test(next.replace(/\|/g, ""))) continue;
     rows.push({ left: cells[0], middle: cells[1] ?? "", right: cells[2] ?? "" });
   }
   return rows;
@@ -51,6 +55,8 @@ export function makefileTargets(makefileText) {
 /** 仓库里真实存在的闸门检查 id（静态扫源码里的 `pass(GATE, "id"` / `add("id"`）。 */
 export function knownCheckIds(sources) {
   const ids = new Set();
+  // conformance 用例 id（`C9` 这类）也是可指认的判据：它在 conformance/cases 里定义
+  for (const text of sources) for (const m of text.matchAll(/^\s*id:\s*"(C\d+[a-z]?)"/gm)) ids.add(m[1]);
   for (const text of sources) {
     for (const m of text.matchAll(/(?:report|rep|gate)\.(?:pass|fail)\(\s*GATE\s*,\s*"([^"]+)"/g)) ids.add(m[1]);
     for (const m of text.matchAll(/\badd\(\s*"([a-z0-9][a-z0-9-]*)"/g)) ids.add(m[1]);
@@ -60,13 +66,24 @@ export function knownCheckIds(sources) {
 
 const CHECK_ID_RE = /^[a-z][a-z0-9-]*\/[a-z0-9][a-z0-9.-]*$/;
 
+
+/** 容器入口的子命令表（**单一真源**：`core/image/entrypoint.sh` 的 case 分支）。 */
+export function entrypointSubcommands(entrypointText) {
+  const names = new Set();
+  for (const line of String(entrypointText).split("\n")) {
+    const m = /^\s{2}([a-z][a-z0-9-]*)\)/.exec(line);
+    if (m) names.add(m[1]);
+  }
+  return names;
+}
+
 /**
  * 从一段"判据"文字里抽出引用并逐个解析。
  * @param {string} text
  * @param {{targets: Set<string>, checkIds: Set<string>, repoDir: string}} ctx
  * @returns {Array<{kind: string, value: string, ok: boolean}>}
  */
-export function resolveRefs(text, { targets, checkIds, repoDir }) {
+export function resolveRefs(text, { targets, checkIds, repoDir, subcommands = new Set() }) {
   const refs = [];
   const seen = new Set();
   const push = (kind, value, ok) => {
@@ -88,6 +105,18 @@ export function resolveRefs(text, { targets, checkIds, repoDir }) {
   for (const m of text.matchAll(/`([a-z][a-z0-9-]*\/[a-z0-9][a-z0-9.-]*)`/g)) {
     if (CHECK_ID_RE.test(m[1])) push("check", m[1], checkIds.has(m[1]));
   }
+  // conformance 用例 id（`C9`、`C10`…）
+  for (const m of text.matchAll(/\b(C\d{1,2}[a-z]?)\b/g)) push("case", m[1], checkIds.has(m[1]));
+  // 容器调用形式：`docker run … <镜像> <子命令>` ⇒ 子命令必须在入口脚本的 case 表里
+  // （那才是契约的单一真源；凭空写一个不存在的子命令应当被拦住）
+  for (const m of text.matchAll(/docker\s+run[^`\n]*?\s([a-z][a-z0-9-]+)\s*`/g)) {
+    push("subcommand", m[1], subcommands.has(m[1]));
+  }
+  for (const m of text.matchAll(/`docker\s+run[^`]*?\s([a-z][a-z0-9-]+)`/g)) {
+    push("subcommand", m[1], subcommands.has(m[1]));
+  }
+  // `LIVE=1` 这类**修饰符**：它不是判据本身，但要求同行另有一个可解析的判据（由调用方判定）
+  if (/\bLIVE=1\b/.test(text)) push("modifier", "LIVE=1", true);
   return refs;
 }
 
@@ -99,10 +128,12 @@ export function resolveRefs(text, { targets, checkIds, repoDir }) {
  *                        refs: Array<{kind: string, value: string, ok: boolean}>, ok: boolean}>,
  *           unresolvable: Array<object>}}
  */
-export function buildInventory({ repoDir, docs13, makefileText, gateSources }) {
+export function buildInventory({ repoDir, docs13, docs14 = null, makefileText, gateSources }) {
   const targets = makefileTargets(makefileText);
   const checkIds = knownCheckIds(gateSources);
-  const ctx = { targets, checkIds, repoDir };
+  const entrypoint = path.join(repoDir, "core/image/entrypoint.sh");
+  const subcommands = entrypointSubcommands(fs.existsSync(entrypoint) ? fs.readFileSync(entrypoint, "utf8") : "");
+  const ctx = { targets, checkIds, repoDir, subcommands };
 
   const rows = [];
   for (const r of parseTable(docs13, 1)) {
@@ -121,6 +152,18 @@ export function buildInventory({ repoDir, docs13, makefileText, gateSources }) {
     const downgraded = /未实测/.test(`${r.middle} ${r.right}`);
     rows.push({ section: "§2", what: r.left, verdict: r.middle, judgement: r.right, refs, downgraded, ok: refs.some((x) => x.ok) || downgraded });
   }
+  // `docs/14` 的三张表也纳入（能力清单 / 逐条判据 / 负例）—— 判据形式更杂，靠上面的解析器覆盖
+  if (docs14) {
+    // 缺口表由 `docs/gaps-not-done` 那条判据管（它验"引用的待办是否已完成"），这里不重复计
+    const gapFirstCells = new Set(parseMarkedTable(docs14, "记在哪").map((cells) => cells[0]));
+    for (const [no, label] of [[1, "§1 能力清单"], [3, "§3 逐条判据"], [4, "§4 负例"]]) {
+      for (const r of parseTable(docs14, no)) {
+        if (gapFirstCells.has(r.left)) continue;
+        const refs = resolveRefs(`${r.middle} ${r.right}`, ctx);
+        rows.push({ section: label, what: r.left, verdict: r.middle, judgement: r.right, refs, ok: refs.some((x) => x.ok) });
+      }
+    }
+  }
   const unresolvable = rows.filter((r) => !r.ok);
   const downgraded = rows.filter((r) => r.downgraded).length;
   return { rows, unresolvable, downgraded, resolved: rows.length - unresolvable.length - downgraded };
@@ -129,10 +172,10 @@ export function buildInventory({ repoDir, docs13, makefileText, gateSources }) {
 /** 清单 → 给人看的文本。 */
 export function renderInventory(inv) {
   const lines = ["能力 → 判据（可执行清单）", ""];
-  for (const section of ["§1", "§2"]) {
+  const sections = [...new Set(inv.rows.map((r) => r.section))];
+  for (const section of sections) {
     const rows = inv.rows.filter((r) => r.section === section);
-    if (!rows.length) continue;
-    lines.push(`── ${section === "§1" ? "§1 起点（能力）" : "§2 保证（承诺）"}：${rows.length} 条 ──`);
+    lines.push(`── ${section}：${rows.length} 条 ──`);
     for (const r of rows) {
       const mark = r.ok ? "✅" : "❌";
       const refs = r.refs.filter((x) => x.ok).map((x) => `${x.kind}:${x.value}`).join(" ");
@@ -150,7 +193,7 @@ export function renderInventory(inv) {
   return lines.join("\n");
 }
 
-/** 静态扫描用到的源码（闸门检查 id 的定义处）。 */
+/** 静态扫描用到的源码（闸门检查 id 与 conformance 用例 id 的定义处）。 */
 export function gateSources(repoDir) {
   const out = [];
   const walk = (dir, depth = 0) => {
@@ -166,11 +209,13 @@ export function gateSources(repoDir) {
   return out;
 }
 
-/** 从仓库现场组装清单（`docs/13` + `Makefile` + 源码扫描）。 */
+/** 从仓库现场组装清单（`docs/13` §1/§2 + `docs/14` §1/§3/§4 + `Makefile` + 源码扫描）。 */
 export function inventoryOf(repoDir) {
   return buildInventory({
     repoDir,
     docs13: fs.readFileSync(path.join(repoDir, "docs/13-developer-contract.md"), "utf8"),
+    docs14: fs.existsSync(path.join(repoDir, "docs/14-how-to-verify.md"))
+      ? fs.readFileSync(path.join(repoDir, "docs/14-how-to-verify.md"), "utf8") : null,
     makefileText: fs.readFileSync(path.join(repoDir, "Makefile"), "utf8"),
     gateSources: gateSources(repoDir),
   });
@@ -178,10 +223,6 @@ export function inventoryOf(repoDir) {
 
 // ---------------------------------------------------------------------------
 // 缺口清单**不许引用已完成项**（D7 的另一面：缺口写了却已经做完 = 文档在骗人）
-//
-// `docs/13` §4 与 `docs/14` §1 的"现在还不能做"是团队据以排期的诚实清单。
-// 它们最容易烂：做完一项却忘了删 ⇒ 有人按清单去啃已经存在的东西（或以为某能力没有而绕路）。
-// 机器能判的部分：清单里引用的待办 id 必须**真的存在**且**不是 `done`**。
 // ---------------------------------------------------------------------------
 
 /** 账本里每个条目 id 的状态（`| E5 | … | \`pending\` |` 这类行）。 */
@@ -192,9 +233,9 @@ export function ledgerStatus(md) {
     const cells = line.split("|").slice(1, -1).map((c) => c.trim());
     if (cells.length < 3) continue;
     const id = cells[0].replace(/[`*]/g, "").trim();
-    if (!/^[A-Z][A-Za-z0-9-]{0,6}$/.test(id)) continue;      // 只认形如 E5 / O5 / V3 / A6b / D13 / Q1
+    if (!/^[A-Z][A-Za-z0-9-]{0,6}$/.test(id)) continue;
     const status = /`done`/.test(line) ? "done" : /`pending`|`部分`|`契约待评审`/.test(line) ? "pending" : "other";
-    if (!out.has(id) || status === "done") out.set(id, status);   // done 优先（同一 id 出现多次时以它为准）
+    if (!out.has(id) || status === "done") out.set(id, status);   // done 优先
   }
   return out;
 }
@@ -203,7 +244,6 @@ export function ledgerStatus(md) {
 export function citedIds(text) {
   const ids = new Set();
   for (const m of String(text).matchAll(/\b([A-Z]\d{1,2}[a-z]?)\b/g)) ids.add(m[1]);
-  // 区间写法（`E5–E8`）展开
   for (const m of String(text).matchAll(/\b([A-Z])(\d{1,2})[–-]([A-Z]?)(\d{1,2})\b/g)) {
     const [, pre, from, pre2, to] = m;
     if (pre2 && pre2 !== pre) continue;
@@ -212,11 +252,7 @@ export function citedIds(text) {
   return [...ids];
 }
 
-/**
- * 检查一份"缺口清单"：每行都要有出处；引用的 id 必须存在且未完成。
- * @param {Array<{what: string, cites: string}>} rows
- * @param {Map<string,string>} status
- */
+/** 检查一份"缺口清单"：每行都要有出处；引用的 id 必须存在且未完成。 */
 export function auditGaps(rows, status) {
   const problems = [];
   const done = [];
@@ -232,9 +268,8 @@ export function auditGaps(rows, status) {
 }
 
 /**
- * 按**表头关键字**解析一张表（跨文档通用）：找到表头含该关键字的表，取它的数据行。
- * 用它而不是"按章节号"：缺口表可能挪章节，但"记在哪"这一列是它的语义标记。
- * @returns {Array<Array<string>>} 每行的单元格
+ * 按**表头关键字**解析一张表（跨文档通用）。用它而不是"按章节号"：
+ * 缺口表可能挪章节，但"记在哪"这一列是它的语义标记。
  */
 export function parseMarkedTable(md, headerKeyword) {
   const lines = md.split("\n");
@@ -243,7 +278,6 @@ export function parseMarkedTable(md, headerKeyword) {
     if (!lines[i].trim().startsWith("|")) continue;
     const header = lines[i].split("|").slice(1, -1).map((c) => c.trim());
     if (!header.some((c) => c.includes(headerKeyword))) continue;
-    // 找到表头：往下取连续的数据行，直到不是表格行
     for (let j = i + 2; j < lines.length; j++) {
       if (!lines[j].trim().startsWith("|")) break;
       const cells = lines[j].split("|").slice(1, -1).map((c) => c.trim());
@@ -254,4 +288,3 @@ export function parseMarkedTable(md, headerKeyword) {
   }
   return rows;
 }
-

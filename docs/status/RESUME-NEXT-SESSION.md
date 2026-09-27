@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 09:1x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-27 10:1x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
@@ -61,7 +61,8 @@ make regression FAST=1         # 快检（跳过要真跑容器的几项）
 make walkthrough               # 开发场景演练（20/1/0）
 
 # L3/L5 期间新增的出口
-make selfcheck [JSON=1]                              # 能力 → 判据 清单（每条都要落到真实判据）
+make selfcheck [JSON=1]                              # 能力 → 判据 清单（72 条：docs/13 §1/§2 + docs/14 §1/§3/§4）
+make trace-view AGENT_DIR=… TRACE=<轨迹 JSONL>        # 业务可读时间轴 + 业务说法覆盖率
 make verify-plan AGENT_DIR=examples/idea-to-proof [JSON=1]   # 要验什么、哪些只能容器验、为什么
 make verify-container AGENT_DIR=examples/idea-to-proof [DRY=1]  # 受控容器验证（失败自动归因）
 make env-check [JSON=1]                              # 本地 vs 容器：差异与缺项

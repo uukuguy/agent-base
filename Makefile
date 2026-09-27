@@ -55,6 +55,9 @@ trace-selftest: ## 统一轨迹 schema 自检：七类事件通过、未映射�
 emit-selftest: ## 业务事件发射器自检：业务控制点在轨迹里必须显形
 	@node core/trace/emit-selftest.mjs
 
+trace-view: ## 看一条轨迹（业务可读时间轴）：AGENT_DIR=… TRACE=<轨迹 JSONL>（缺 TRACE 时只列标签覆盖）
+	@node tools/trace-view/labels.mjs $(AGENT_DIR) $(if $(TRACE),--timeline $(TRACE),)
+
 trace-view-selftest: ## 轨迹查看器自检：业务附加协议 + 查看器源码不含业务词汇
 	@node tools/trace-view/selftest.mjs
 

@@ -213,7 +213,7 @@ export async function runAgent({
     events = fs.readFileSync(traceFile, "utf8").split("\n").filter(Boolean)
       .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   }
-  return { exitCode: exited, stdout, stderr, events, staging, placeholders };
+  return { exitCode: exited, stdout, stderr, events, staging, placeholders, traceFile };
 }
 
 /**
