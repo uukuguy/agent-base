@@ -1,17 +1,17 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 05:1x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-27 06:0x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
 
 1. **L3 整条线已闭合**：阶段一 = A1+V2（`make verify-plan` / `make project-info` / `/project plan`）· E1b（接入缝事件名）· Q1+Q2（`make env-check`）；阶段二 = A2 受控容器入口 · A3 出处与覆盖 · A4 失败归因（五类）· A5 无人值守端到端判据（含结果缓存）· **A6/A6b 两侧的审批门**（主运行时扩展 `verify-container.ts` + 另一侧 cordis 插件，都记 `approval.decision`、都 fail-closed）
-2. **下一个具体动作**：**P5**（`docs/13` §2 契约表逐行补"最后一次实测"的日期/命令 —— 只写我真跑过的，没跑过的标"未实测"）+ O4/O5；O1/O2/O3 与 `CLAUDE.md` 已完成
+2. **下一个具体动作**：**O4/O5**（自检清单落地 —— L5 最后两条小活），然后 L4 能力包（用户已定择机）或 L6 可移植业务代码；P5 已完成（§2 契约表 18 行逐条标实测 + `docs/contract-dates` 检查）
 3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**
 
 ## Where things stand
 
-- **全绿**：**22 项回归自检**（21 个 `*-selftest` + `validate`，含 `validate-selftest` 的新正例机制）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
+- **全绿**：**22 项回归自检**（闸门 1 从 29→30 项检查）（21 个 `*-selftest` + `validate`，含 `validate-selftest` 的新正例机制）· 两侧 conformance **10/10** · `make examples-check` · `make walkthrough`（20/1/0）
 - Makefile **51 个目标**（无 `NOT_YET` 桩）；L3 期间新增 `project-info` / `verify-plan` / `env-check` / `verify-container` / `unattended-selftest` / `dsh-approval-probe` / `dsh-verify-container-selftest` 等及各自自检
 - 本轮提交（都在本地，无远端）：`ef9c92d`（A1+V2）· `487ea2f`（E1b）· `4c0540a`（A4）· `870e92f`（A5）· `1b6f1f2`（A6）· `e5bd6a6`（A6b-1）· `48371d0`（A6b-2）· `fa32e58`（E2b + D13）· 本轮 O1/O2/O3 + `CLAUDE.md`
 - 记忆层可用（`mnemon` 0.2.9 + Memory Space `default` 已激活，满时自动归档）

@@ -35,27 +35,31 @@
 ## 2. 保证：你可以依赖什么（每条都指向真实判据）
 
 > 判据都是可执行的；下表列的是"今天真跑得出来"的东西（不是设计意图）。
+>
+> **每一行的「现状」都必须带「最后一次实测」**（日期 + 可重跑的命令，或如实写「未实测」）——
+> 这是 §25 P5 的落点，也是 D7 的教训制度化：手写的承诺会悄悄过期，然后开始骗人。
+> 闸门 1 的 `docs/contract-dates` 会拦"没标注的断言"，但它拦不住"标了假日期"—— 那部分只能靠纪律。
 
-| 保证 | 判据（怎么验） | 现状 |
+| 保证 | 判据（怎么验） | 现状 · 最后一次实测 |
 |---|---|---|
-| 定义合法、引用存在、命名与分层合规 | 闸门 1（基座自洽 **29** 项；带定义 **43–44** 项）+ **13** 个负例 fixture | ✅ |
-| 渲染**确定性**（同一定义渲两次结果相同） | `artifactsDigest` 复算一致（`make walkthrough` 实测） | ✅ |
-| 产物**只读**、运行期只改暂存副本 | 跑完 `artifactsDigest` 不变（`make walkthrough` 实测） | ✅ |
-| 运行期参数**四种给法**与优先级 | `make startup-selftest` + `make walkthrough`（逐条打印 `source`） | ✅ |
-| 缺配置**显式失败**、不静默降级 | 容器 `config-check` 缺凭据退出码 2（C9 实测） | ✅ |
-| 工具边界**真的生效** | 闸门 4 `smoke/no-denied-tools`（实测只调到允许的工具） | ✅ |
-| 连接器**真的挂上** | 闸门 3 端点侧工具数变化（实测 4 → 7/36） | ✅ |
-| 增强声明 **== 进产物** | 闸门 2（pi 集合断言 / dsh 组合树；**负例**：丢一个未被任何声明认领的接入件 ⇒ 渲染期即失败） | ✅（D2 已修，2026-09-26） |
-| 钩子订阅的**事件名真的存在** | 闸门 1 `enhance/events`：`enhancements[].events` 逐个对 `adapters/<h>/adapter.yaml` 的 `hookEvents`（pi 39 个，含复算命令）**负例**：`tool_calls` ⇒ 红 | ✅（pi 侧，2026-09-26）⚠️ dsh 侧事件集合未穷举 ⇒ 声明标「未验证」 |
-| 跨运行时**等价性**、差异必须声明 | `make compare`（三组集合 + exemptions） | ✅ |
-| 轨迹**可审计**、schema 稳定 | 统一轨迹 **9** 类事件全部过 schema + `make trace-selftest` | ✅ |
-| 镜像与源码**同源** | C9 `images-same-source`（LABEL 复算） | ✅ |
-| 容器**安全下限** | C9 **16** 项（非 root、只读根、能力全丢、断网可用…） | ✅ |
-| 升级**可回归** | **13** 个自检 + conformance **C1–C10** + `make examples-check` | ✅ |
-| 工具边界**真的生效**（本地与容器同一条契约） | 清单声明 `runtimePlan.prependArgs`，两条启动路径都执行；实测 `probe/model.tools` = 1（deny 三个只剩 read） | ✅ |
-| **钩子确实在工作（逐条）** | `probe/hooks-evidenced`：声明了几条钩子，就要有对应条带 `enhancement=<声明 id>` 的钩子事件；哑掉的钩子会被点名 | ✅ 声明 N 个 ⇒ N 条可指认证据（业务钩子用 `new TraceWriter({ enhancement: "<id>" })` 自证） |
-| 声明写错**响亮失败** | 渲染期：未声明接入件 / 缺 `package`；启动期：overlay 不匹配 / 缺清单；校验期：`enhance/schema`（负例 11/12）+ `enhance/events`（负例 13） | ✅ |
-| 契约**跨版本稳定**（见 §3） | 见 §3 的稳定性清单 | ✅（本轮首次明确） |
+| 定义合法、引用存在、命名与分层合规 | 闸门 1（基座自洽 **30** 项；带定义 **44** 项）+ **13** 个负例 + **1** 个正例 fixture | ✅ 2026-09-27 · `make validate-selftest` |
+| 渲染**确定性**（同一定义渲两次结果相同） | `artifactsDigest` 复算一致 | ✅ 2026-09-27 · `make walkthrough` |
+| 产物**只读**、运行期只改暂存副本 | 跑完 `artifactsDigest` 不变 | ✅ 2026-09-27 · `make walkthrough` |
+| 运行期参数**四种给法**与优先级 | 逐条打印 `source` | ✅ 2026-09-27 · `make startup-selftest` + `make walkthrough` |
+| 缺配置**显式失败**、不静默降级 | 容器 `config-check` 缺凭据退出码 2 | ✅ 2026-09-27 · `node conformance/run.mjs --harness pi`（C9） |
+| 工具边界**真的生效** | 闸门 4 `smoke/no-denied-tools` | ✅ 2026-09-27 · `make walkthrough` |
+| 连接器**真的挂上** | 闸门 3 端点侧工具数变化（4 → 7/36） | ✅ 2026-09-27 · `make walkthrough` |
+| 增强声明 **== 进产物** | 闸门 2 集合断言（pi）/ 组合树（dsh）；负例：丢一个未认领的接入件 ⇒ 渲染期失败 | ✅ 2026-09-27 · `make verify AGENT_DIR=examples/idea-to-proof`（D2 于 2026-09-26 修） |
+| 钩子订阅的**事件名真的存在** | 闸门 1 `enhance/events`：逐个对 `adapters/<h>/adapter.yaml` 的 `hookEvents`（pi 39 个，含复算命令） | ✅ 2026-09-27 · `make validate AGENT_DIR=examples/idea-to-proof` ⚠️ dsh 侧事件集合未穷举 ⇒ 该侧声明标「未验证」 |
+| 跨运行时**等价性**、差异必须声明 | 三组集合比对 + `exemptions.yaml` | ✅ 2026-09-27 · `make compare AGENT_DIR=examples/idea-to-proof` |
+| 轨迹**可审计**、schema 稳定 | 统一轨迹 **10** 类事件全部过 schema | ✅ 2026-09-27 · `make trace-selftest` |
+| 镜像与源码**同源** | C9 `images-same-source`（LABEL 复算，覆盖**被烤进镜像的闸门源码**） | ✅ 2026-09-27 · `node conformance/run.mjs --harness pi` |
+| 容器**安全下限** | C9（非 root、只读根、能力全丢、断网可用…） | ✅ 2026-09-27 · `node conformance/run.mjs --harness pi` |
+| 升级**可回归** | **22** 项自检 + conformance **C1–C10** + `make examples-check` | ✅ 2026-09-27 · 本轮收尾回归全绿 |
+| 工具边界**真的生效**（本地与容器同一条契约） | 清单声明 `runtimePlan.prependArgs`，两条启动路径都执行；`probe/model.tools` = 1（deny 三个只剩 read） | ✅ 2026-09-27 · `make probe-selftest` |
+| **钩子确实在工作（逐条）** | `probe/hooks-evidenced`：声明几条钩子就要有几条带 `enhancement=<声明 id>` 的事件；哑掉的被点名 | ✅ 2026-09-27 · `make probe-selftest` |
+| 声明写错**响亮失败** | 渲染期（未声明接入件 / 缺 `package`）· 启动期（overlay 不匹配 / 缺清单）· 校验期（`enhance/schema` 负例 11/12、`enhance/events` 负例 13） | ✅ 2026-09-27 · `make validate-selftest` + `make startup-selftest` |
+| 契约**跨版本稳定**（见 §3） | §3 的稳定性清单（**目前没有机器判据**：它是承诺，不是断言） | ⚠️ **未实测**（2026-09-27 只核对了 §3 与 §2 的引用一致；要变成"实测"得先有判据） |
 
 ---
 

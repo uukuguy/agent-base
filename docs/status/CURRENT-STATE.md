@@ -7,7 +7,7 @@
 - Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **L5 收尾 = P5（`docs/13` 契约表逐行补"最后一次实测"日期/命令）+ O4/O5**；O1/O2/O3 与 `CLAUDE.md` 已完成；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
+- Active work package: **L5 收尾 = O4/O5（自检清单落地）**；P5（契约表逐行实测标注 + `docs/contract-dates` 检查）已完成；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
 
 ## Current Architecture
 

@@ -443,6 +443,33 @@ function checkBase(report, agentDir = process.cwd()) {
     else report.fail(GATE, "docs/catalog-sync", `能力目录文档与真源不同步 —— 跑 make gen-docs 刷新（${(r.stderr ?? "").trim().slice(0, 120)}）`);
   }
 
+  // A5d 契约表的**每一条断言都要带"最后一次实测"**（§25 P5，把 D7 的教训制度化）
+  // D7：文档里的断言会悄悄过期，然后开始骗人。生成物有 `docs/catalog-sync` 守着；
+  // 手写的承诺表只能靠"逐行标注实测日期 + 命令"来守住 —— 标不出来就得写「未实测」。
+  {
+    const f = path.join(REPO, "docs/13-developer-contract.md");
+    const rows = parseSection2Rows(fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "");
+    if (!fs.existsSync(f)) {
+      report.fail(GATE, "docs/contract-dates", "缺 docs/13-developer-contract.md");
+    } else if (rows.length < 15) {
+      // 解析不出足够多的行 ⇒ 说明表格结构变了而检查没跟上。**这必须红**：
+      // 否则"检查一条也没看到"会伪装成"全部合格"（本仓库踩过同类：解析器空转 = 假绿）。
+      report.fail(GATE, "docs/contract-dates",
+        `只从 §2 解析出 ${rows.length} 行（预期 ≥15）—— 表格结构可能变了，检查需要同步，别让它空转`);
+    } else {
+      const bad = rows.filter((r) => !/20\d\d-\d\d-\d\d/.test(r.measures) && !/未实测/.test(r.measures));
+      if (bad.length) {
+        report.fail(GATE, "docs/contract-dates",
+          `§2 有 ${bad.length} 条断言没有"最后一次实测"标注（写日期+命令，或如实写「未实测」）：`
+          + bad.map((r) => `「${r.claim.slice(0, 24)}…」`).join(" "));
+      } else {
+        const undated = rows.filter((r) => /未实测/.test(r.measures)).length;
+        report.pass(GATE, "docs/contract-dates",
+          `§2 的 ${rows.length} 条断言都标了实测（${rows.length - undated} 条有日期+命令，${undated} 条如实标「未实测」）`);
+      }
+    }
+  }
+
   // A6 预装清单
   checkPreinstall(report);
 
@@ -468,6 +495,28 @@ function checkBase(report, agentDir = process.cwd()) {
 const CREDENTIAL_KINDS = ["none", "optional", "required"];
 const EXACT_VERSION_RE = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 解析 `docs/13` §2 的契约表：返回每行的「保证」与「现状 · 最后一次实测」两格。
+ * 只认 `## 2.` 之后、到下一个 `##` 之前的那张表；表头与分隔行跳过。
+ * @returns {Array<{claim: string, measures: string}>}
+ */
+function parseSection2Rows(md) {
+  const start = md.search(/^##\s*2\./m);
+  if (start < 0) return [];
+  const rest = md.slice(start + 1);
+  const end = rest.search(/^##\s/m);
+  const section = end < 0 ? rest : rest.slice(0, end);
+  const rows = [];
+  for (const line of section.split("\n")) {
+    if (!line.trim().startsWith("|")) continue;
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (cells.length < 3) continue;
+    if (/^-{2,}/.test(cells[0]) || cells[0] === "保证") continue;   // 分隔行 / 表头
+    rows.push({ claim: cells[0], measures: cells[cells.length - 1] });
+  }
+  return rows;
+}
 
 function checkPreinstall(report) {
   const file = path.join(CORE, "image", "preinstall.yaml");
