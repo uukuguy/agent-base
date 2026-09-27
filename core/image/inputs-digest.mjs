@@ -29,14 +29,37 @@ import { digestInputs } from "../gates/digest.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
 
-/** 拷进镜像源码树的目录（与 build.mjs 的上下文装配**同一份清单**）。 */
-export const IMAGE_SOURCE_DIRS = Object.freeze(["core", "tools", "adapters"]);
+/**
+ * 指纹覆盖范围 = **镜像内验证真正会用到的东西**：
+ *   · `core/`（闸门框架、渲染器共享逻辑、启动期、schema）
+ *   · `adapters/`（各运行时的 doctor/render/run/trace —— 镜像内会跑 doctor）
+ *   · `tools/` 里**镜像内验证实际执行的那四个**（validate/probe/smoke/verify）
+ *
+ * 为什么不覆盖整个 `tools/`：那样"改一个开发工具（如 `tools/regression.mjs`、`gen-*.mjs`）"
+ * 也会让镜像"过期"并要求重建 —— 指纹从保护变成绊脚石（实测踩到两次）。
+ * 这四个工具的 import 只落在 `core/`（已核对），所以这个集合是**完整**的：
+ * 凡是能改变镜像内判据的代码都在里面，凡是不在里面的都改不了判据。
+ */
+export const IMAGE_DIGEST_DIRS = Object.freeze(["core", "adapters"]);
+
+/**
+ * **拷进镜像**的目录 —— 与指纹覆盖范围**故意不同**，两者目的不同：
+ *   · 拷贝：镜像里要能自己找到"闸门仓库根"（`verify-in-image.mjs` 向上找 `tools/validate.mjs`），
+ *     所以整棵 `tools/` 都要进镜像；
+ *   · 指纹：只覆盖"能改变镜像内判据"的代码（见上），改开发工具不该要求重建。
+ * ⚠️ 曾经把两者合成一个常量 ⇒ 构建不再拷 `tools/` ⇒ 镜像内自证找不到闸门根、退出码 2（实测踩中）。
+ */
+export const IMAGE_COPY_DIRS = Object.freeze(["core", "tools", "adapters"]);
+
+/** 镜像内验证实际执行的工具（其余 `tools/*` 是开发/自检工具，不参与镜像内判据）。 */
+export const IMAGE_VERDICT_TOOLS = Object.freeze(["validate.mjs", "probe.mjs", "smoke.mjs", "verify.mjs"]);
 
 /** 上下文装配时排除的东西（依赖在 Dockerfile 里装；产物/渲染缓存不进镜像）。 */
 export const IMAGE_CONTEXT_EXCLUDES = Object.freeze(["node_modules", "dist", ".render", ".git"]);
 
 /**
- * 指纹**只覆盖能影响判据的代码**：自检与夹具不算。
+ * 指纹不覆盖自检与夹具（它们不参与判定，改它们不该要求重建镜像）。
+ *
  *
  * 理由（实测踩中）：如果连 `*-selftest.mjs` 都进指纹，那么"改一个自检"就会让镜像变成
  * "过期"，`make verify-container` 会拒绝执行并要求重建镜像 —— 指纹从保护变成了绊脚石。
@@ -49,10 +72,17 @@ const NOT_A_VERDICT_INPUT = /(^|\/)([a-z0-9-]*selftest[a-z0-9-]*\.mjs|fixtures\/
  * @returns {string} `sha256:<hex>`
  */
 export function imageInputsDigest(repoDir = REPO) {
-  return digestInputs(IMAGE_SOURCE_DIRS.map((d) => ({
-    role: `source:${d}`,
-    path: path.join(repoDir, d),
-    excludes: IMAGE_CONTEXT_EXCLUDES,
-    filter: (rel) => !NOT_A_VERDICT_INPUT.test(rel),
-  })));
+  return digestInputs([
+    ...IMAGE_DIGEST_DIRS.map((d) => ({
+      role: `source:${d}`,
+      path: path.join(repoDir, d),
+      excludes: IMAGE_CONTEXT_EXCLUDES,
+      filter: (rel) => !NOT_A_VERDICT_INPUT.test(rel),
+    })),
+    ...IMAGE_VERDICT_TOOLS.map((f) => ({
+      role: `tool:${f}`,
+      path: path.join(repoDir, "tools", f),
+      kind: "file",
+    })),
+  ]);
 }

@@ -444,6 +444,13 @@ function checkBase(report, agentDir = process.cwd()) {
     else report.fail(GATE, "docs/catalog-sync", `能力目录文档与真源不同步 —— 跑 make gen-docs 刷新（${(r.stderr ?? "").trim().slice(0, 120)}）`);
   }
 
+  // A5c2 **生成物文档一律守同步**：选型事实材料是决策门的输入，过期的事实比没有事实更坏（D7）。
+  {
+    const r = spawnSync(process.execPath, [path.join(REPO, "tools/gen-selection-facts.mjs"), "--check"], { encoding: "utf8" });
+    if (r.status === 0) report.pass(GATE, "docs/selection-facts-sync", "运行时选型事实材料与真源同步");
+    else report.fail(GATE, "docs/selection-facts-sync", `选型事实材料与真源不同步 —— 跑 make gen-selection-facts 刷新（${(r.stderr ?? "").trim().slice(0, 120)}）`);
+  }
+
   // A5d 契约表的**每一条断言都要带"最后一次实测"**（§25 P5，把 D7 的教训制度化）
   // D7：文档里的断言会悄悄过期，然后开始骗人。生成物有 `docs/catalog-sync` 守着；
   // 手写的承诺表只能靠"逐行标注实测日期 + 命令"来守住 —— 标不出来就得写「未实测」。

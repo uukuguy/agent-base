@@ -32,7 +32,7 @@ import YAML from "yaml";
 import { EXIT_CODES } from "../gates/index.mjs";
 import { parseArgs } from "../gates/cli.mjs";
 // 输入指纹：构建端与检查端**共用同一份实现**（core/image/inputs-digest.mjs）
-import { imageInputsDigest, IMAGE_CONTEXT_EXCLUDES, IMAGE_SOURCE_DIRS } from "./inputs-digest.mjs";
+import { imageInputsDigest, IMAGE_CONTEXT_EXCLUDES, IMAGE_COPY_DIRS } from "./inputs-digest.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -149,7 +149,7 @@ function prepareContext(specs) {
   // 闸门源码进上下文（P2：镜像内自证）。保持相对布局 —— 各工具靠**自身位置**推 REPO，
   // 所以在 /opt/agent-base/gates/ 下同样成立。不含 node_modules；依赖在 Dockerfile 里装。
   // 拷哪几棵树、排除什么：与指纹实现**同一份清单**（各写一份迟早漂移 —— D13 就是这么来的）
-  for (const dir of IMAGE_SOURCE_DIRS) {
+  for (const dir of IMAGE_COPY_DIRS) {
     fs.cpSync(path.join(REPO, dir), path.join(ctx, "gates", dir), {
       recursive: true,
       filter: (src) => !IMAGE_CONTEXT_EXCLUDES.some((x) => src.includes(`${path.sep}${x}`)),

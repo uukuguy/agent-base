@@ -19,7 +19,7 @@ JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest probe-selftest selfcheck conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -126,6 +126,9 @@ probe: ## 闸门 3：集成探针（默认零凭据假网关，需 RENDER_DIR）
 smoke: ## 闸门 4：端到端冒烟（需 RENDER_DIR）
 	@node tools/smoke.mjs $(RENDER_DIR) $(if $(JSON),--json,) $(if $(ENDPOINT),--endpoint $(ENDPOINT),)
 
+regression: ## 收尾回归一条命令：镜像过期就先重建 → 全部自检 → 两侧 conformance → examples-check → selfcheck
+	@node tools/regression.mjs
+
 verify: ## 四道闸门编排 → §6.7 报告 + usable（需 AGENT_DIR）
 	@node tools/verify.mjs $(AGENT_DIR) --harness $(HARNESS) $(if $(OUT),--out $(OUT),) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(JSON),--json,) $(if $(LIVE),--live,)
 
@@ -135,8 +138,12 @@ compare: ## 跨运行时等价性比对（AGENT_DIR=… ：三组集合是否一
 providers-init: ## 从端点问出可用模型并写成路由目录（--endpoint 必填；本工具会 GET <endpoint>/models）
 	@node tools/providers-init.mjs --endpoint "$(ENDPOINT)" $(if $(API_KEY),--api-key "$(API_KEY)",) $(if $(ROUTE),--route $(ROUTE),) $(if $(OUT),--out $(OUT),) $(if $(DRY_RUN),--dry-run,) $(if $(JSON),--json,)
 
-gen-docs: ## 从 core/catalog 真源刷新生成的文档（改了 catalog 就跑）
+gen-docs: ## 从真源刷新**全部生成物**文档（改了 catalog/adapters 就跑）
 	@node tools/gen-capability-doc.mjs
+	@node tools/gen-selection-facts.mjs
+
+gen-selection-facts: ## 生成"运行时选型的事实材料"（决策门输入；闸门 1 守同步）
+	@node tools/gen-selection-facts.mjs
 
 image-builder: ## 确保多架构 builder 就绪**并设为当前**（这样手敲 buildx 多平台命令才可用）
 	@node core/image/build.mjs --ensure-builder

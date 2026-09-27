@@ -1,12 +1,12 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 06:5x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-27 07:3x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
 
 1. **L3 整条线已闭合**：阶段一 = A1+V2（`make verify-plan` / `make project-info` / `/project plan`）· E1b（接入缝事件名）· Q1+Q2（`make env-check`）；阶段二 = A2 受控容器入口 · A3 出处与覆盖 · A4 失败归因（五类）· A5 无人值守端到端判据（含结果缓存）· **A6/A6b 两侧的审批门**（主运行时扩展 `verify-container.ts` + 另一侧 cordis 插件，都记 `approval.decision`、都 fail-closed）
-2. **下一个具体动作**：**L5 已闭合**（O1–O4 + P5 + `CLAUDE.md`；O5 并入 E5–E8）。下一步是**战略分叉**：① 先做 L1 的**主运行时选型**（E5–E8 卡在这里）② L4 能力包（用户已定择机）③ L6 可移植业务代码 —— 需用户定序
+2. **下一个具体动作**：**等主运行时选型的决定**（事实材料已备：`docs/design/2026-09-27-runtime-selection-facts.md`，机器生成 + `docs/selection-facts-sync` 守同步）。三条路：① 选 `pi` ② 选 `dsh` ③ 暂不定（默认仍 `pi`，等 dsh 稳定版再比）。**不定也不阻塞**：L4 能力包（用户已说择机）与 L6 的 E9 都不依赖这个决定
 3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**
 
 ## Where things stand

@@ -54,18 +54,14 @@ make unattended-selftest                   # 无人值守链路演示（改定�
 ## 5. 改完代码怎么验（收尾必跑）
 
 ```bash
-for t in validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest \
-         gateway-selftest providers-selftest startup-selftest pi-selftest pi-trace-selftest \
-         pi-trace-ext-selftest pi-project-info-selftest pi-verify-container-selftest dsh-verify-container-selftest \
-         probe-selftest project-info-selftest env-check-selftest verify-container-selftest unattended-selftest \
-         new-agent-selftest local-selftest; do
-  printf "%-38s" $t; make -s $t >/dev/null 2>&1 && echo OK || echo FAIL; done
-node conformance/run.mjs --harness pi && node conformance/run.mjs --harness dsh
-make examples-check
+make regression        # 一条命令：镜像过期就先重建 → 22 项自检 → 两侧 conformance → examples-check → selfcheck
+make regression FAST=1 # 快检：跳过要真跑容器的几项（**跳过不算通过**）
 ```
 
-**改了闸门/工具/适配器代码 ⇒ 镜像过期**：`node core/image/build.mjs --all --debug`
-（`verify-container` 与 C9 的 `images-same-source` 都会拦住你，并告诉你重建命令）。
+`make regression` 会**先查镜像指纹**：闸门源码（`core/` · `adapters/` · `tools/{validate,probe,smoke,verify}.mjs`）
+变了而镜像没重建 ⇒ 它先重建再往下跑（D13 的教训：不重建就谈不上"验过"）。
+**改开发工具**（`tools/gen-*.mjs` · `selfcheck.mjs` · `regression.mjs` 等）**不会**让镜像过期 ——
+指纹只覆盖"能改变镜像内判据"的代码。
 
 ## 6. 状态在哪看
 

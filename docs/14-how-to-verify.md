@@ -129,6 +129,7 @@ docker run --rm --network none \
 | **容器内验证（受控入口）** | `make verify-container AGENT_DIR=…`（`DRY=1` 只看参数、`JSON=1` 给 AI） | 绑定面**恰好两处只读**（项目 + 产物）· 网络 none · 根只读 · 能力全丢 · 容器内闸门 1(agent-only)/2/3/4 全过；**交付结论以它为准**（宿主结论不含安全下限/双架构/同源） |
 | **镜像是过期的那份吗** | `make verify-container …`（前置自动比指纹） | 镜像 LABEL ≠ 当前源码指纹 ⇒ **拒绝执行**并给出重建命令（闸门判据是烤进镜像的，用旧镜像验新产物会得到「容器挂、本地过」的假差异）；确实要用旧镜像加 `--allow-stale-image` |
 | **声称的能力都有判据吗** | `make selfcheck`（`JSON=1` 给 AI） | 逐条把 `docs/13` §1/§2 的"判据"解析到真实存在的 `make` 目标 / 脚本 / 路径 / 闸门检查 id；解析不到 ⇒ 非零退出（"指不出的能力"要删除或降级）；显式「未实测」算降级态并单独计数；闸门 1 的 `docs/capability-judgements` 同一条判据 |
+| **收尾回归一条命令** | `make regression`（`FAST=1` 快检、`JSON=1` 给 AI） | 先查镜像指纹（过期先重建）→ 22 项自检 → 两侧 conformance → examples-check → selfcheck；跳过的项**明确标注「没验」**，不算通过 |
 | **会话里请求容器验证（需审批）** | 会话内 `/verify-container`（`make local` 之后） | 先摊开将要执行的 docker 参数 → 你放行/拒绝 → 只有放行才跑；决定记进轨迹 `approval.decision`；无应答者时 **fail-closed 不执行**；自检 `make pi-verify-container-selftest` |
 | **同上（另一侧）** | 该运行时会话内 `/verify-container`（同一套判据的另一个落地形态） | 走它的原生审批接缝（四种结果；无应答者/无审批服务 ⇒ **fail-closed 放弃**）；事件同样进轨迹；自检 `make dsh-verify-container-selftest` |
 | **容器挂的时候是不是缺陷** | 同上（失败时自动归因） | 五类：本地可复现（真缺陷）/ 已声明差异（不是缺陷）/ 容器专有断言失败（真缺陷，改镜像）/ 本地没跑到（先修前面那条）/ **未声明的差异（响亮上报，不许猜）** |
