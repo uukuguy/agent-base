@@ -55,19 +55,15 @@
 ```bash
 cd ~/sandbox/agentic-2026/agent-base
 
-# 回归（全部应为全绿）
-for t in validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest \
-         gateway-selftest providers-selftest startup-selftest pi-selftest pi-trace-selftest \
-         pi-trace-ext-selftest pi-project-info-selftest project-info-selftest env-check-selftest \
-         new-agent-selftest local-selftest; do
-  printf "%-32s" $t; make -s $t >/dev/null 2>&1 && echo OK || echo FAIL; done
-node conformance/run.mjs --harness pi && node conformance/run.mjs --harness dsh
-make examples-check && make walkthrough
+# 回归：一条命令（先查镜像指纹，过期先重建；跳过项会标"没验"）
+make regression                # 29 项全绿 = 22 自检 + 两侧 conformance + examples-check + selfcheck + 生成物同步
+make regression FAST=1         # 快检（跳过要真跑容器的几项）
+make walkthrough               # 开发场景演练（20/1/0）
 
-# 本轮新增的两个出口
-make verify-plan AGENT_DIR=examples/idea-to-proof          # 要验什么、哪些只能容器验、为什么
-make verify-plan AGENT_DIR=examples/idea-to-proof JSON=1   # 给 AI 读
+# L3/L5 期间新增的出口
+make selfcheck [JSON=1]                              # 能力 → 判据 清单（每条都要落到真实判据）
+make verify-plan AGENT_DIR=examples/idea-to-proof [JSON=1]   # 要验什么、哪些只能容器验、为什么
+make verify-container AGENT_DIR=examples/idea-to-proof [DRY=1]  # 受控容器验证（失败自动归因）
+make env-check [JSON=1]                              # 本地 vs 容器：差异与缺项
 make project-info AGENT_DIR=examples/idea-to-proof CATEGORY=hooks
-make env-check                                             # 本地 vs 容器：差异与缺项
-make env-check JSON=1
 ```
