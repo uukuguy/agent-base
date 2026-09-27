@@ -7,7 +7,7 @@
 - Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **等两个契约/选型决策**（① 主运行时选型 ② 能力描述契约分叉 A/B）；本轮已把 L6 的契约提案写好（`docs/design/2026-09-27-capability-description-contract.md`）；（决策门事实材料已备：`docs/design/2026-09-27-runtime-selection-facts.md`，机器生成 + 同步检查）；L5 已闭合（O1–O4 + P5 + `CLAUDE.md`；O5 并入 E5–E8）；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
+- Active work package: **等两个契约/选型决策**（另有一条可随时做的 O6：把 `docs/14` 的判据也纳入机器复核）（① 主运行时选型 ② 能力描述契约分叉 A/B）；本轮已把 L6 的契约提案写好（`docs/design/2026-09-27-capability-description-contract.md`）；（决策门事实材料已备：`docs/design/2026-09-27-runtime-selection-facts.md`，机器生成 + 同步检查）；L5 已闭合（O1–O4 + P5 + `CLAUDE.md`；O5 并入 E5–E8）；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
 
 ## Current Architecture
 

@@ -175,3 +175,83 @@ export function inventoryOf(repoDir) {
     gateSources: gateSources(repoDir),
   });
 }
+
+// ---------------------------------------------------------------------------
+// 缺口清单**不许引用已完成项**（D7 的另一面：缺口写了却已经做完 = 文档在骗人）
+//
+// `docs/13` §4 与 `docs/14` §1 的"现在还不能做"是团队据以排期的诚实清单。
+// 它们最容易烂：做完一项却忘了删 ⇒ 有人按清单去啃已经存在的东西（或以为某能力没有而绕路）。
+// 机器能判的部分：清单里引用的待办 id 必须**真的存在**且**不是 `done`**。
+// ---------------------------------------------------------------------------
+
+/** 账本里每个条目 id 的状态（`| E5 | … | \`pending\` |` 这类行）。 */
+export function ledgerStatus(md) {
+  const out = new Map();
+  for (const line of md.split("\n")) {
+    if (!line.startsWith("|")) continue;
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (cells.length < 3) continue;
+    const id = cells[0].replace(/[`*]/g, "").trim();
+    if (!/^[A-Z][A-Za-z0-9-]{0,6}$/.test(id)) continue;      // 只认形如 E5 / O5 / V3 / A6b / D13 / Q1
+    const status = /`done`/.test(line) ? "done" : /`pending`|`部分`|`契约待评审`/.test(line) ? "pending" : "other";
+    if (!out.has(id) || status === "done") out.set(id, status);   // done 优先（同一 id 出现多次时以它为准）
+  }
+  return out;
+}
+
+/** 从一段文字里抽待办 id（`E5`、`E5–E8`、`O5`、`A6b` …）。 */
+export function citedIds(text) {
+  const ids = new Set();
+  for (const m of String(text).matchAll(/\b([A-Z]\d{1,2}[a-z]?)\b/g)) ids.add(m[1]);
+  // 区间写法（`E5–E8`）展开
+  for (const m of String(text).matchAll(/\b([A-Z])(\d{1,2})[–-]([A-Z]?)(\d{1,2})\b/g)) {
+    const [, pre, from, pre2, to] = m;
+    if (pre2 && pre2 !== pre) continue;
+    for (let i = Number(from); i <= Number(to); i++) ids.add(`${pre}${i}`);
+  }
+  return [...ids];
+}
+
+/**
+ * 检查一份"缺口清单"：每行都要有出处；引用的 id 必须存在且未完成。
+ * @param {Array<{what: string, cites: string}>} rows
+ * @param {Map<string,string>} status
+ */
+export function auditGaps(rows, status) {
+  const problems = [];
+  const done = [];
+  for (const r of rows) {
+    const ids = citedIds(r.cites);
+    if (!ids.length) { problems.push(`「${r.what.slice(0, 24)}」没有注明记在哪（应给待办 id，如 §23 E5）`); continue; }
+    for (const id of ids) {
+      if (!status.has(id)) problems.push(`「${r.what.slice(0, 24)}」引用了不存在的待办 id：${id}`);
+      else if (status.get(id) === "done") done.push(`${id}（${r.what.slice(0, 18)}）`);
+    }
+  }
+  return { problems, done, ok: problems.length === 0 && done.length === 0 };
+}
+
+/**
+ * 按**表头关键字**解析一张表（跨文档通用）：找到表头含该关键字的表，取它的数据行。
+ * 用它而不是"按章节号"：缺口表可能挪章节，但"记在哪"这一列是它的语义标记。
+ * @returns {Array<Array<string>>} 每行的单元格
+ */
+export function parseMarkedTable(md, headerKeyword) {
+  const lines = md.split("\n");
+  const rows = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].trim().startsWith("|")) continue;
+    const header = lines[i].split("|").slice(1, -1).map((c) => c.trim());
+    if (!header.some((c) => c.includes(headerKeyword))) continue;
+    // 找到表头：往下取连续的数据行，直到不是表格行
+    for (let j = i + 2; j < lines.length; j++) {
+      if (!lines[j].trim().startsWith("|")) break;
+      const cells = lines[j].split("|").slice(1, -1).map((c) => c.trim());
+      if (cells.length < 2) continue;
+      rows.push(cells);
+    }
+    break;
+  }
+  return rows;
+}
+

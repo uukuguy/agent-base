@@ -42,7 +42,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { spawnSync } from "node:child_process";
 import { buildLock } from "../core/image/gen-preinstall-lock.mjs";
 import { collectOpenNamespace } from "../core/spec/open-namespace.mjs";
-import { parseTable, inventoryOf } from "../core/spec/capability-judgements.mjs";
+import { parseTable, inventoryOf, ledgerStatus, auditGaps, parseMarkedTable } from "../core/spec/capability-judgements.mjs";
 import { EXIT_CODES, GateReport, digestDirectory } from "../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../core/image/resolve-preinstall.mjs";
 
@@ -496,6 +496,38 @@ function checkBase(report, agentDir = process.cwd()) {
       }
     } catch (e) {
       report.fail(GATE, "docs/capability-judgements", `清单解析失败：${e.message}`);
+    }
+  }
+
+  // A5f 缺口清单**不许引用已完成项**（D7 的另一面）
+  // "缺口写了却已经做完"和"承诺写了却没判据"一样是文档在骗人：前者会让人去啃已经存在的东西。
+  // 判据：清单每行都要注明记在哪（待办 id）；引用的 id 必须存在且**不是 `done`**。
+  {
+    const ledgerText = fs.existsSync(path.join(REPO, "docs/plans/IMPLEMENTATION-ROADMAP.md"))
+      ? fs.readFileSync(path.join(REPO, "docs/plans/IMPLEMENTATION-ROADMAP.md"), "utf8") : "";
+    const status = ledgerStatus(ledgerText);
+    const rows = [];
+    for (const [file, title] of [["docs/13-developer-contract.md", "13 §4"], ["docs/14-how-to-verify.md", "14 §1"]]) {
+      const f = path.join(REPO, file);
+      if (!fs.existsSync(f)) continue;
+      for (const cells of parseMarkedTable(fs.readFileSync(f, "utf8"), "记在哪")) {
+        rows.push({ what: `${title}：${cells[0]}`, cites: cells[cells.length - 1] });
+      }
+    }
+    if (rows.length < 4) {
+      report.fail(GATE, "docs/gaps-not-done",
+        `只解析出 ${rows.length} 行缺口（预期 ≥4）—— 缺口表结构可能变了，检查需要同步，别让它空转`);
+    } else {
+      const audit = auditGaps(rows, status);
+      if (audit.done.length || audit.problems.length) {
+        report.fail(GATE, "docs/gaps-not-done",
+          [
+            audit.done.length ? `缺口清单里引用了**已完成**的待办：${audit.done.join(" · ")} —— 做完就删，别让人去啃已经有的东西` : "",
+            audit.problems.length ? `缺口行的问题：${audit.problems.join(" · ")}` : "",
+          ].filter(Boolean).join("；"));
+      } else {
+        report.pass(GATE, "docs/gaps-not-done", `${rows.length} 行缺口都注明出处，且引用的待办都还没完成`);
+      }
     }
   }
 
