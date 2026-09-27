@@ -443,3 +443,8 @@
 - 06:43 **决策包写出来了**：`docs/plans/OPEN-DECISIONS.md` —— 三个待拍决策各含 问题 / 选项 / **事实入口（可复跑）** / 我的建议与理由 / 拍完立刻能做什么（含工作量）/ 不拍的代价；末尾给了"三句话就能回复"的模板。建议：主运行时选 `pi`（理由：钩子事件集合在另一侧未穷举 ⇒ 那一侧的钩子声明制度性地只能标"未验证"；且那侧会话内能力进不了自动化验证网，而 E5–E8 正好要靠它验证）；契约分叉选 A2 双通道 + B1 镜像预装 Python
 - 06:43 决策包已接进三处：账本决策门（顶部指向它）· `docs/status/INDEX.md` 的外部锚点（顺带补登记了漏掉的两份 09-27 设计文档）· RESUME 的"下一个具体动作"。state 层体检（project-state 的 check）：核心文件齐、无孤儿文件、INDEX 无悬挂行
 - 06:43 回归：`make regression` **30 项全绿**（纯文档改动 ⇒ 不需要重建镜像）
+- 07:21 **用户拍板**：主运行时 = 该侧 A（`pi`）· 做多语言业务代码（按 A2 双通道 + B1 镜像预装 Python）· 能力包延后。决定原文与理由记进 `docs/status/DECISIONS.md` 的 **D-0018**，决策包页首标注「已拍板」（保留为决策依据）
+- 07:21 **L6 第一层落地**（`core/capabilities/`）：语言无关的**能力描述** schema（`additionalProperties:false`，写错字段名当场红）· 装载与"实现就位"校验（entry 存在、通道与扩展名相符、`deterministic:false` 必须给复现手段）· **双通道调用**（`kind: module` 进程内 / `kind: process` 进程边界；协议 stdin 一行 JSON → stdout 一行 JSON；退出码 0/2/其他；超时杀掉即失败）· 闸门 1 新增 `capabilities/descriptions`（34 项）· 自检 `make capabilities-selftest`
+- 07:21 自检的关键一条：**同一份规则的 JS 与 Python 两实现"对跑"** —— 语义一致的判据被写死为"`details` 深比较 + `refused` 相同 + 两边都有非空 `text`"（**文本允许不同**：它是呈现层，要求逐字相同等于把两种语言的 JSON 格式也钉死），并带**反向断言**（details/refused 不同必须判为不一致），防止这条判据是空的。另覆盖：拒答一致 · 非零退出/退出码 2/超时/stdout 非 JSON 各自响亮失败
+- 07:21 实现中被自己的测试抓两次（都对）：① 正例被内部注解 `__file/__rel` 绊倒（schema 是 `additionalProperties:false`，注解成了"未知字段"）⇒ 加 `toSchemaDocument()` 作**唯一剥注解处**并加断言；② 坏夹具缺实现文件，"通道与扩展名不符"先撞上"entry 不存在"⇒ 补齐夹具让该条真被触发
+- 07:21 回归：`make regression` **31 项全绿**（新增 `capabilities-selftest`）；闸门 1 33→**34** 项

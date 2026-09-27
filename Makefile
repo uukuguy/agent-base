@@ -19,7 +19,7 @@ JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest dsh-project-info-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest capabilities-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest dsh-project-info-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -32,6 +32,9 @@ help: ## 列出可用命令
 # --- 闸门 1：静态校验（S0 已交付）------------------------------------------
 validate: ## 闸门 1：schema + 引用 + 凭据引用 + 命名 + 层纪律
 	@node tools/validate.mjs $(AGENT_DIR)
+
+capabilities-selftest: ## 能力描述与双通道自检（同一份规则 JS 进程内 / Python 进程边界"对跑"，语义必须一致）
+	@node core/capabilities/selftest.mjs
 
 validate-selftest: ## 闸门 1 的注入式负向自检（非法样本必须全部变红）
 	@node tools/validate.mjs core/spec/fixtures/valid --selftest

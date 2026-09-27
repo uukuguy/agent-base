@@ -39,6 +39,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import Ajv2020 from "ajv/dist/2020.js";
+import { loadCapabilities, checkImplementation, toSchemaDocument, SCHEMA_PATH as CAPABILITY_SCHEMA } from "../core/capabilities/registry.mjs";
 import { spawnSync } from "node:child_process";
 import { buildLock } from "../core/image/gen-preinstall-lock.mjs";
 import { collectOpenNamespace } from "../core/spec/open-namespace.mjs";
@@ -159,6 +160,10 @@ function checkBase(report, agentDir = process.cwd()) {
 
   // A1 schema 可编译
   const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const capabilityAjv = new Ajv2020({ allErrors: true, strict: false });
+  capabilityAjv.addSchema(JSON.parse(fs.readFileSync(CAPABILITY_SCHEMA, "utf8")));
+  const capabilityValidate = capabilityAjv.getSchema("https://agent-base.local/schemas/capability-description.schema.json");
+  if (!capabilityValidate) throw new Error("能力描述 schema 编译失败（$id 与文件不一致？）");
   for (const [name, schema, file] of [
     ["agent", agentSchema, "agent.schema.json"],
     ["connectors", connectorsSchema, "connectors.schema.json"],
@@ -528,6 +533,24 @@ function checkBase(report, agentDir = process.cwd()) {
       } else {
         report.pass(GATE, "docs/gaps-not-done", `${rows.length} 行缺口都注明出处，且引用的待办都还没完成`);
       }
+    }
+  }
+
+  // A7 能力描述（D-0012/D-0018 的第一层）：描述过 schema + 实现就位 + 名字不重复
+  // 判据与自检**共用** core/capabilities/registry.mjs 的实现检查（不在这里另写一份规则）。
+  {
+    const loaded = loadCapabilities(agentDir, { yamlParse: (t) => YAML.parse(t) });
+    const problems = [...loaded.problems];
+    for (const cap of loaded.capabilities) {
+      if (!capabilityValidate(toSchemaDocument(cap))) problems.push(`${cap.__rel}: ${ajvErrors(capabilityValidate.errors)}`);
+      for (const p of checkImplementation(cap)) problems.push(`${cap.__rel}: ${p}`);
+    }
+    if (!fs.existsSync(loaded.dir)) {
+      report.pass(GATE, "capabilities/descriptions", "该定义没有 capabilities/ 目录（没有声明任何能力，无需校验）");
+    } else if (problems.length) {
+      report.fail(GATE, "capabilities/descriptions", problems.join("；"));
+    } else {
+      report.pass(GATE, "capabilities/descriptions", `${loaded.capabilities.length} 份描述都合法且实现就位`);
     }
   }
 

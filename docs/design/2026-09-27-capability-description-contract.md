@@ -1,6 +1,6 @@
 # 能力描述契约（提案 · 未实现）
 
-> 状态：**提案**（2026-09-27 起草）。它**改动公开契约**（描述文件形状、接入方式），
+> 状态：**已拍板并开始落地**（2026-09-28 用户答复：做；D-0018 记 A2 双通道 + B1 镜像预装 Python）。第一层已实现：描述 schema + 装载/校验 + 双通道调用 + 自检（`core/capabilities/`）。它**改动公开契约**（描述文件形状、接入方式），
 > 所以先评审再动手 —— 与路线图 §22 的"先把契约定清楚，比先写桥再改契约便宜"一致。
 > 本文只描述契约与判据，**不含实现**；落地项是路线图 §22 的三条（D-0012 / D-0013）。
 >
@@ -78,7 +78,7 @@ result:                               # 结果契约（闸门 4 用它断言"返
   required: [score, level, factors, ruleVersion]
 
 execution:                            # 可执行体：怎么跑
-  kind: process                       # 本期只有 process（进程边界）
+  kind: process                       # process=任意语言（进程边界）· module=JS/TS（进程内，双通道的 A2）
   runtime: node                       # node | python | shell …（决定镜像里要有什么）
   entry: risk-score.py                # 相对本目录
   timeoutMs: 5000                     # 超时即失败（不静默降级）
@@ -190,3 +190,16 @@ declaration:                          # 契约自陈（闸门 1 校验）
    要不要允许把描述与实现放在 `skills/<name>/` 旁边（技能已经是天然的能力容器）。
 4. **`result` 契约的严格度**：闸门 4 按 `result` 校验 `details` 到什么程度（只校验必填键，还是递归校验类型）。
 5. **拒答的语义**：`refused: true` 是否也要在轨迹里成为一等信号（便于审计"业务主动拒答"而非模型放弃）。
+
+---
+
+## 11. 实现中定下的两条细则（2026-09-28）
+
+1. **`kind: module`**（JS/TS 进程内）与 **`kind: process`**（任意语言，进程边界）并存 —— 这是 D-0018 的 A2 双通道。
+   校验规则：`module` 的 entry 必须是 `.mjs/.cjs/.js`；`process` 必须声明 `runtime`，且扩展名要与解释器相符
+   （把 `.py` 塞进 `module` 会在闸门 1 当场判红 —— "其他语言请用 process"）。
+2. **"语义一致"的判据被写死成一条**（`core/capabilities/registry.mjs` 的 `sameSemantics`）：
+   一致 = `details` 深比较相等 + `refused` 相同 + 两边都有非空 `text`。
+   **文本允许不同**：`text` 是呈现层（给模型看的文案），同一份规则换语言重写时措辞自然会变；
+   要求逐字相同等于把两种语言的 JSON 格式也钉死，那不是语义。要一致的是**结构化结果**（由 `result` schema 约束）。
+   自检里同时有反向断言（`details` 或 `refused` 不同必须判为不一致），防止这条判据是空的。
