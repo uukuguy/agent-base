@@ -26,6 +26,7 @@ import {
   resolvePath,
   runGates,
 } from "./index.mjs";
+import { buildInventory, resolveRefs } from "../spec/capability-judgements.mjs";
 
 let failures = 0;
 function check(name, cond, extra = "") {
@@ -168,6 +169,55 @@ console.log("\n── 摘要确定性（N19）──");
   check("内容变化后摘要改变", digestDirectory(dir) !== d1);
   check("键序不影响规范化摘要", digestCanonical({ a: 1, b: 2 }) === digestCanonical({ b: 2, a: 1 }));
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
+// 「能力 → 判据」解析器（§24 O4）：判据要能解析到**真实存在**的东西，
+// 解析不到就是"指不出的能力"；显式写「未实测」则算降级态（不是失败）。
+{
+  console.log("── 能力 → 判据解析器 ──");
+  const fakeRepo = fs.mkdtempSync(path.join(os.tmpdir(), "caps-"));
+  fs.mkdirSync(path.join(fakeRepo, "tools"), { recursive: true });
+  fs.writeFileSync(path.join(fakeRepo, "tools/real.mjs"), "export const x = 1;\n");
+  const ctx = {
+    targets: new Set(["validate", "walkthrough"]),
+    checkIds: new Set(["probe/hooks-evidenced"]),
+    repoDir: fakeRepo,
+  };
+  const good = resolveRefs("`make validate` + `probe/hooks-evidenced`", ctx);
+  check("解析到真实目标与检查 id", good.length === 2 && good.every((r) => r.ok), JSON.stringify(good));
+  const bad = resolveRefs("`make not-a-target` + `probe/nope`", ctx);
+  check("解析不到 ⇒ 每条都标 ok=false（由调用方判红）", bad.length === 2 && bad.every((r) => !r.ok), JSON.stringify(bad));
+  const script = resolveRefs("`node tools/real.mjs`", ctx);
+  check("脚本路径按存在性解析", script.length === 1 && script[0].kind === "script" && script[0].ok, JSON.stringify(script));
+
+  const docs = [
+    "## 1. 起点",
+    "",
+    "| 起点 | 现在有没有 | 证据 |",
+    "|---|---|---|",
+    "| 有判据的能力 | ✅ | `make validate` |",
+    "| 指不出的能力 | ✅ | 随便写点什么 |",
+    "| 缺口 | ❌ **缺** | 见 §4 缺口 3 |",
+    "",
+    "## 2. 保证",
+    "",
+    "| 保证 | 判据 | 现状 |",
+    "|---|---|---|",
+    "| 有判据的承诺 | `make walkthrough` | ✅ |",
+    "| 已降级的承诺 | 没有机器判据 | ⚠️ 未实测 |",
+    "",
+  ].join("\n");
+  const inv = buildInventory({ repoDir: fakeRepo, docs13: docs, makefileText: "validate:\n\techo\nwalkthrough:\n\techo\n", gateSources: [] });
+  check("§1/§2 都解析到了", inv.rows.length === 5, JSON.stringify(inv.rows.map((r) => r.what)));
+  check("解析不到的只有那一条（且它就是「指不出的能力」）",
+    inv.unresolvable.length === 1 && inv.unresolvable[0].what === "指不出的能力", JSON.stringify(inv.unresolvable.map((r) => r.what)));
+  check("缺口行按「指向缺口记录」判定，不需要可执行判据",
+    inv.rows.find((r) => r.what === "缺口")?.ok === true);
+  check("显式「未实测」算降级态、不算失败",
+    inv.rows.find((r) => r.what === "已降级的承诺")?.ok === true
+    && inv.rows.find((r) => r.what === "已降级的承诺")?.downgraded === true);
+  fs.rmSync(fakeRepo, { recursive: true, force: true });
 }
 
 // ---------------------------------------------------------------------------

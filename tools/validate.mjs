@@ -42,6 +42,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { spawnSync } from "node:child_process";
 import { buildLock } from "../core/image/gen-preinstall-lock.mjs";
 import { collectOpenNamespace } from "../core/spec/open-namespace.mjs";
+import { parseTable, inventoryOf } from "../core/spec/capability-judgements.mjs";
 import { EXIT_CODES, GateReport, digestDirectory } from "../core/gates/index.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../core/image/resolve-preinstall.mjs";
 
@@ -448,7 +449,8 @@ function checkBase(report, agentDir = process.cwd()) {
   // 手写的承诺表只能靠"逐行标注实测日期 + 命令"来守住 —— 标不出来就得写「未实测」。
   {
     const f = path.join(REPO, "docs/13-developer-contract.md");
-    const rows = parseSection2Rows(fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "");
+    const rows = parseTable(fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "", 2)
+      .map((r) => ({ claim: r.left, measures: r.right }));
     if (!fs.existsSync(f)) {
       report.fail(GATE, "docs/contract-dates", "缺 docs/13-developer-contract.md");
     } else if (rows.length < 15) {
@@ -467,6 +469,26 @@ function checkBase(report, agentDir = process.cwd()) {
         report.pass(GATE, "docs/contract-dates",
           `§2 的 ${rows.length} 条断言都标了实测（${rows.length - undated} 条有日期+命令，${undated} 条如实标「未实测」）`);
       }
+    }
+  }
+
+  // A5e **能力 → 判据**必须落地（§24 O4）
+  // docs/13 §7 的纪律：声称"已支持"的能力必须能指向真实判据；指不出的要删除或降级。
+  // 这里是它的**可执行**形态：解析 §1/§2 每行的判据，解析到真实存在的 Makefile 目标 /
+  // 脚本 / 路径 / 闸门检查 id ⇒ 过；解析不到 ⇒ 红（"指不出的能力"）。显式写「未实测」算降级态。
+  {
+    try {
+      const inv = inventoryOf(REPO);
+      if (inv.unresolvable.length) {
+        report.fail(GATE, "docs/capability-judgements",
+          `${inv.unresolvable.length} 条能力**指不出真实判据**（删除，或降级为"示例/未验证"并写明）：`
+          + inv.unresolvable.map((r) => `「${r.what.slice(0, 22)}」`).join(" "));
+      } else {
+        report.pass(GATE, "docs/capability-judgements",
+          `${inv.rows.length} 条能力都能指向真实判据（${inv.resolved} 条有判据 · ${inv.downgraded} 条显式标「未实测」）`);
+      }
+    } catch (e) {
+      report.fail(GATE, "docs/capability-judgements", `清单解析失败：${e.message}`);
     }
   }
 
@@ -495,28 +517,6 @@ function checkBase(report, agentDir = process.cwd()) {
 const CREDENTIAL_KINDS = ["none", "optional", "required"];
 const EXACT_VERSION_RE = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * 解析 `docs/13` §2 的契约表：返回每行的「保证」与「现状 · 最后一次实测」两格。
- * 只认 `## 2.` 之后、到下一个 `##` 之前的那张表；表头与分隔行跳过。
- * @returns {Array<{claim: string, measures: string}>}
- */
-function parseSection2Rows(md) {
-  const start = md.search(/^##\s*2\./m);
-  if (start < 0) return [];
-  const rest = md.slice(start + 1);
-  const end = rest.search(/^##\s/m);
-  const section = end < 0 ? rest : rest.slice(0, end);
-  const rows = [];
-  for (const line of section.split("\n")) {
-    if (!line.trim().startsWith("|")) continue;
-    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
-    if (cells.length < 3) continue;
-    if (/^-{2,}/.test(cells[0]) || cells[0] === "保证") continue;   // 分隔行 / 表头
-    rows.push({ claim: cells[0], measures: cells[cells.length - 1] });
-  }
-  return rows;
-}
 
 function checkPreinstall(report) {
   const file = path.join(CORE, "image", "preinstall.yaml");

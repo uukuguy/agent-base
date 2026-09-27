@@ -1,12 +1,12 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-27 06:0x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-27 06:5x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
 
 1. **L3 整条线已闭合**：阶段一 = A1+V2（`make verify-plan` / `make project-info` / `/project plan`）· E1b（接入缝事件名）· Q1+Q2（`make env-check`）；阶段二 = A2 受控容器入口 · A3 出处与覆盖 · A4 失败归因（五类）· A5 无人值守端到端判据（含结果缓存）· **A6/A6b 两侧的审批门**（主运行时扩展 `verify-container.ts` + 另一侧 cordis 插件，都记 `approval.decision`、都 fail-closed）
-2. **下一个具体动作**：**O4/O5**（自检清单落地 —— L5 最后两条小活），然后 L4 能力包（用户已定择机）或 L6 可移植业务代码；P5 已完成（§2 契约表 18 行逐条标实测 + `docs/contract-dates` 检查）
+2. **下一个具体动作**：**L5 已闭合**（O1–O4 + P5 + `CLAUDE.md`；O5 并入 E5–E8）。下一步是**战略分叉**：① 先做 L1 的**主运行时选型**（E5–E8 卡在这里）② L4 能力包（用户已定择机）③ L6 可移植业务代码 —— 需用户定序
 3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**
 
 ## Where things stand
