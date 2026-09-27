@@ -38,6 +38,9 @@ When adding a new file to `docs/status/`, **also add its row here** — otherwis
 | Path | Role |
 |---|---|
 | `docs/plans/IMPLEMENTATION-ROADMAP.md` | **唯一权威工作清单** —— 包 S0–S7、依赖顺序、包级验收、跨包纪律、待外部输入 |
+| `docs/plans/OPEN-DECISIONS.md` | **待拍板的三件事**（决策包）：主运行时选型 · 能力描述契约分叉 A/B · L4 能力包是否启动；每项含事实入口、我的建议与理由、拍完立刻能做什么、不拍的代价 |
+| `docs/design/2026-09-27-runtime-selection-facts.md` | **选型事实材料**（机器生成 + 闸门 1 守同步）：声明面覆盖 · 12 个能力维度逐项对比 · 基座不变量的落地形态 |
+| `docs/design/2026-09-27-capability-description-contract.md` | 能力描述契约**提案**（未实现）：描述/可执行体/通用桥三件套 · 进程边界协议 · 各闸门判据 · 迁移三步 · 10 个待拍点 |
 | `docs/research/2026-09-25-mcp-ecosystem-survey.md` | MCP 生态调研：企业常用服务器 + **npm 实测存活表**（废弃包警示）+ pi 侧客户端生态 |
 | `docs/design/2026-09-25-unified-agent-base-design.md` | 最终设计 v2.4 —— 架构 / 适配契约 / 四闸门 / 落地设计的唯一真源 |
 | `docs/design/2026-09-25-pi-harness-design.md` | pi 专有实测约束上位依据 |

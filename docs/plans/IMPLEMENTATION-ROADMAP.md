@@ -72,6 +72,8 @@
 
 ### 决策门（需要用户拍，别人替不了）
 
+> **一句话版（含我的建议与工作量）在 [`OPEN-DECISIONS.md`](OPEN-DECISIONS.md)** —— 拍板时看那一页就够，本节是它的展开依据。
+
 | 门 | 影响 | 现在该不该定 |
 |---|---|---|
 | **主运行时选型**（pi / dsh / 最终收敛到一个） | 解 E5–E8 与默认 HARNESS | **事实材料已备**（2026-09-27）：`docs/design/2026-09-27-runtime-selection-facts.md` —— 机器生成 + 闸门 1 守同步（`docs/selection-facts-sync`），含声明面覆盖（dsh 23 supported/23 verified vs pi 20/22 + 1 unknown）、11 个能力维度的逐项对比、基座不变量的**落地形态**（`project-info` 只有 pi 有 ⇒ 选 dsh 要先补 V3）、以及机器能判的开放问题 |
