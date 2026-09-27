@@ -22,6 +22,8 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { CATEGORIES, collect, complete, render } from "../../core/introspect/project-info.mjs";
+// 本运行时的产物读法：与真实扩展**同一份**（自省逻辑运行时无关，读法由适配器给）
+import { projectLayout } from "./project-layout.mjs";
 import { piRpc, stageRenderDir } from "./run.mjs";
 import { localPlatformEnv } from "../../core/image/platform-env.mjs";
 
@@ -89,7 +91,7 @@ const env = (productDir, artifactDir) => ({
 console.log("── A. 纯逻辑：命令说的必须是真的 ──");
 
 const two = renderAgent({ name: "selftest-two", skills: ["alpha", "beta"] });
-const facts = collect({ productDir: two.productDir, artifactDir: two.out, gatesDir: REPO });
+const facts = collect({ productDir: two.productDir, artifactDir: two.out, gatesDir: REPO, layout: projectLayout });
 check("产物齐全时 collect 无 problem", facts.problems.length === 0, facts.problems.join("；"));
 
 const skillsText = render("skills", facts);
@@ -100,7 +102,7 @@ check("同一输入渲染两次结果相同（可复算）", skillsText === skil
 
 // 定义变了 ⇒ 输出跟着变（这条就是"不是硬编码文案"的证据）
 const one = renderAgent({ name: "selftest-one", skills: ["alpha"] });
-const oneFacts = collect({ productDir: one.productDir, artifactDir: one.out, gatesDir: REPO });
+const oneFacts = collect({ productDir: one.productDir, artifactDir: one.out, gatesDir: REPO, layout: projectLayout });
 const oneSkills = render("skills", oneFacts);
 check("删掉一个技能 ⇒ 输出里它消失（不是硬编码文案）",
   !oneSkills.includes("beta") && oneSkills.includes("alpha"), oneSkills.slice(0, 200));
@@ -134,7 +136,7 @@ const good = renderAgent({
   name: "selftest-hook-ok", skills: ["alpha"],
   hookEnhancement: "apiVersion: agent-base/v1\nharness: pi\nenhancements:\n  - kind: hook\n    id: probe-hook\n    entry: extensions/hook.ts\n    events: [tool_call]\n",
 });
-const goodFacts = collect({ productDir: good.productDir, artifactDir: good.out, gatesDir: REPO });
+const goodFacts = collect({ productDir: good.productDir, artifactDir: good.out, gatesDir: REPO, layout: projectLayout });
 check("钩子订阅真事件 ⇒ 报 ✅ 且在集合内", /✅ 订阅的 \d+ 个事件都在集合内/.test(render("hooks", goodFacts)),
   render("hooks", goodFacts));
 
@@ -143,15 +145,15 @@ const bad = renderAgent({
   name: "selftest-hook-bad", skills: ["alpha"],
   hookEnhancement: "apiVersion: agent-base/v1\nharness: pi\nenhancements:\n  - kind: hook\n    id: probe-hook\n    entry: extensions/hook.ts\n    events: [tool_calls]\n",
 });
-const badFacts = collect({ productDir: bad.productDir, artifactDir: bad.out, gatesDir: REPO });
+const badFacts = collect({ productDir: bad.productDir, artifactDir: bad.out, gatesDir: REPO, layout: projectLayout });
 check("钩子订阅不存在的事件 ⇒ 报 ❌ 并点名该事件",
   /❌/.test(render("hooks", badFacts)) && render("hooks", badFacts).includes("tool_calls"),
   render("hooks", badFacts));
 
 // 读不到产物 ⇒ 响亮失败（不给半份报告）
 const missing = collect({ productDir: path.join(os.tmpdir(), "pi-does-not-exist-xyz"), artifactDir: null, gatesDir: REPO });
-check("产物不存在 ⇒ problems 非空（调用方据此响亮失败）", missing.problems.length === 1, JSON.stringify(missing.problems));
-const empty = collect({});
+check("产物不存在 ⇒ problems 非空（调用方据此响亮失败）", missing.problems.length >= 1 && /读不到渲染清单/.test(missing.problems.join("；")), JSON.stringify(missing.problems));
+const empty = collect({});   // 什么都不知道时：交给调用方响亮失败
 check("没给产物目录 ⇒ problems 非空并说明原因", empty.problems.length === 1, JSON.stringify(empty.problems));
 check("未知分类给出可用分类列表", /未知分类/.test(render("nope", facts)));
 

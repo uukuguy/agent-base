@@ -21,6 +21,8 @@
 // ============================================================================
 
 import { collect, complete, render, renderAll, summaryLine } from "./_project-info.mjs";
+// 本运行时的产物读法（渲染器拷进同目录）：自省逻辑运行时无关，读法由各运行时提供
+import { projectLayout } from "./_project-layout.mjs";
 
 const COMMAND = "project";
 
@@ -30,6 +32,7 @@ export default function projectInfoExtension(pi) {
       productDir: process.env.PI_CODING_AGENT_DIR ?? null,
       artifactDir: process.env.AGENT_ARTIFACT_DIR ?? null,
       gatesDir: process.env.AGENT_GATES_DIR ?? null,
+      layout: projectLayout,
     });
 
   pi.registerCommand(COMMAND, {

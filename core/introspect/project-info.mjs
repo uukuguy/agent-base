@@ -39,13 +39,16 @@ export const CATEGORIES = [
 ];
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import path from "node:path";
+import pathMod from "node:path";
+const path = pathMod;
 
 import { CONTAINER_ONLY } from "./_container-only.mjs";
 
 const readJson = (file) => {
   try { return JSON.parse(readFileSync(file, "utf8")); } catch { return null; }
 };
+/** 供**各运行时的布局模块**复用（`adapters/<h>/project-layout.mjs`）——它们读自己的产物形状。 */
+export { readJson };
 
 /** 极简 frontmatter：只取 `name` / `description` 的第一行，够展示用（不引入 YAML 依赖）。 */
 function skillBlurb(dir) {
@@ -75,39 +78,49 @@ function skillBlurb(dir) {
  * 采集一份"当前项目"的事实。返回 `{ problems, ... }`：
  * **problems 非空时调用方必须响亮失败**，而不是拿半份数据编一份好看报告。
  */
-export function collect({ productDir, artifactDir, gatesDir } = {}) {
+export function collect({ productDir, artifactDir, gatesDir, layout } = {}) {
   const problems = [];
-  if (!productDir) return { problems: ["没有产物配置目录（PI_CODING_AGENT_DIR 未设置）—— 这个命令只能在已渲染的产物里跑"] };
-  if (!existsSync(productDir)) return { problems: [`产物配置目录不存在：${productDir}`] };
+  // **清单是硬要求**（它才是"这是一个已渲染产物"的证据）；产物配置目录**可选** ——
+  // 各运行时的产物形状不同（有的把配置摊在一个目录里，有的没有独立配置目录），
+  // 读法由调用方通过 `layout` 传进来（`adapters/<h>/project-layout.mjs`），core 不认识任何运行时。
+  const artifact = artifactDir && existsSync(artifactDir) ? artifactDir
+    : productDir && existsSync(productDir) ? path.dirname(productDir) : null;
+  const manifest = artifact ? readJson(path.join(artifact, "render-manifest.json")) : null;
+  if (!manifest) {
+    problems.push("读不到渲染清单（render-manifest.json）"
+      + " —— 声明类信息只能显示「未知」。原因是本进程不知道**产物根**在哪："
+      + "应设 AGENT_ARTIFACT_DIR=<渲染输出根>（清单在产物根，暂存的运行目录里没有它）");
+  }
+  if (productDir && !existsSync(productDir)) problems.push(`产物配置目录不存在：${productDir}`);
 
-  const artifact = artifactDir && existsSync(artifactDir) ? artifactDir : path.dirname(productDir);
-  const manifest = readJson(path.join(artifact, "render-manifest.json"));
-  if (!manifest) problems.push(`读不到渲染清单（${path.join(artifact, "render-manifest.json")}）`
-    + ` —— 声明类信息只能显示"未知"。原因是本进程不知道**产物根**在哪：`
-    + `应设 AGENT_ARTIFACT_DIR=<渲染输出根>（清单在产物根，暂存的运行目录里没有它）`);
+  // 运行期专有的产物读法（可选）：没有 layout 时，一切以清单为准。
+  const reads = (productDir && existsSync(productDir) && typeof layout?.read === "function")
+    ? (layout.read({ productDir, artifact, readJson, path: pathMod }) ?? {})
+    : {};
 
-  const settings = readJson(path.join(productDir, "settings.json"));
-  const models = readJson(path.join(productDir, "models.json.tmpl")) ?? readJson(path.join(productDir, "models.json"));
-  const enhancementsDoc = readJson(path.join(productDir, "enhancements.yaml"));
-  const mcp = readJson(path.join(productDir, "mcp.json"));
-
-  const skillsDir = path.join(productDir, "skills");
-  const skills = existsSync(skillsDir)
+  // 技能：配置目录下优先，其次产物根（两种形态都被实测过：一个在配置目录，一个在产物根）
+  const skillsDir = [productDir && path.join(productDir, "skills"), artifact && path.join(artifact, "skills")]
+    .filter((d) => d && existsSync(d))
+    .map((d) => d)
+    .find((d) => readdirSync(d).some((n) => statSync(path.join(d, n)).isDirectory())) ?? null;
+  const skills = skillsDir
     ? readdirSync(skillsDir).filter((n) => statSync(path.join(skillsDir, n)).isDirectory())
         .map((n) => ({ dir: n, ...(skillBlurb(path.join(skillsDir, n)) ?? { description: null }) }))
     : [];
 
-  const enhancements = (enhancementsDoc?.enhancements ?? []).map((e) => ({
-    id: e.id, kind: e.kind, target: e.entry ?? e.package ?? null, events: Array.isArray(e.events) ? e.events : null,
-  }));
-
-  const servers = Object.entries(mcp?.mcpServers ?? {}).map(([name, cfg]) => ({
-    name, transport: cfg.url ? "streamable-http" : "stdio", hasCommand: !!cfg.command, hasUrl: !!cfg.url,
-  }));
-
   return {
-    problems, productDir, artifact, manifest, settings, models, enhancements, servers, skills,
-    trace: traceFacts({ gatesDir, productDir, manifest }),
+    problems,
+    productDir: productDir ?? null,
+    artifact,
+    layoutId: layout?.id ?? null,
+    manifest,
+    settings: reads.settings ?? null,
+    models: reads.models ?? null,
+    enhancements: reads.enhancements ?? [],
+    servers: reads.servers ?? [],
+    skills,
+    skillsDir,
+    trace: traceFacts({ gatesDir, productDir: productDir ?? artifact, manifest }),
   };
 }
 
@@ -120,7 +133,10 @@ function traceFacts({ gatesDir, productDir, manifest }) {
     runMode: process.env.AGENT_RUN_MODE ?? null,
     eventTypes: null, schemaFrom: null,
   };
-  for (const base of [gatesDir, path.join(productDir, ".."), process.env.AGENT_BASE_ROOT].filter(Boolean)) {
+  // ⚠️ 逐个算、**先过滤再 join**：没有产物目录时 `path.join(null, "..")` 会**抛异常**，
+  // 而这条命令的纪律是"绝不抛异常，最坏只是响亮地说读不到"（本轮自检抓到过）。
+  const bases = [gatesDir, process.env.AGENT_BASE_ROOT, productDir ? path.join(productDir, "..") : null].filter(Boolean);
+  for (const base of bases) {
     const file = path.join(base, "core", "trace", "schema.json");
     const schema = readJson(file);
     if (!schema) continue;
@@ -166,7 +182,11 @@ export function render(category, facts) {
       } else {
         lines.push("（产物里找不到该 provider 的条目）");
       }
-      return [...lines, "（来源：settings.json + models.json.tmpl）"].join("\n");
+      if (provider?.unevaluated) {
+        lines.push("⚠️ 上面带 `process.env` 的值是**未求值的表达式原文**（该运行时原生支持运行期插值）——"
+          + "要看到生效值就在会话里问（那时这份报告是运行期视角）。");
+      }
+      return [...lines, `（来源：render-manifest.json + 本运行时的产物读法${facts.layoutId ? `（${facts.layoutId}）` : ""}）`].join("\n");
     }
 
     case "skills":
@@ -176,12 +196,18 @@ export function render(category, facts) {
         : "（未声明任何技能 —— 技能落点是产物 skills/<name>/SKILL.md）（来源：产物 skills/）";
 
     case "connectors": {
-      const clientDeclared = (settings?.extensions ?? []).some((e) => /mcp/i.test(e));
+      // **清单优先**：`mcpClient` / `connectorsNote` 是产物自己写的（各运行时形态不同：
+      // 一个靠扩展补客户端，一个原生支持）。没有这两个字段时才退回"看配置里有没有 mcp 扩展"。
+      const declared = (settings?.extensions ?? []).some((e) => /mcp/i.test(e));
+      const client = manifest?.mcpClient ?? null;
       const lines = servers.length
         ? servers.map((s) => `· ${s.name}  transport=${s.transport}  ${s.hasCommand ? "command✓" : ""}${s.hasUrl ? "url✓" : ""}`)
         : ["（未声明任何连接器）"];
-      lines.push(`MCP 客户端扩展  ${clientDeclared ? "已声明" : (servers.length ? "未声明 ← 有连接器却没有客户端，连不上" : "未声明（本项目没有连接器，无需客户端）")}`);
-      lines.push("（来源：产物 mcp.json + settings.json.extensions）");
+      const clientLine = client
+        ? `MCP 客户端      ${client}${manifest?.connectorsNote ? ` —— ${manifest.connectorsNote}` : ""}`
+        : `MCP 客户端扩展  ${declared ? "已声明" : (servers.length ? "未声明 ← 有连接器却没有客户端，连不上" : "未声明（本项目没有连接器，无需客户端）")}`;
+      lines.push(clientLine);
+      lines.push("（来源：render-manifest.json 的 connectors/mcpClient + 该运行时的产物配置）");
       return lines.join("\n");
     }
 

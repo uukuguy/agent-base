@@ -22,3 +22,16 @@ enhancements:
       再走本运行时的审批接缝 `ctx.approval.request`（放行/拒绝/无应答者⇒fail-closed），
       决定记成 `approval.decision` 事件，只有放行才调用参数表封闭的 `tools/verify-container.mjs`。
       本插件**不自己拼 docker 参数**。
+
+  # ---------------------------------------------------------------------------
+  # 会话内项目自省：`/project`（路线图 §26 V3）—— 与另一个运行时**同一份逻辑**
+  # 读法由本运行时的布局提供；命令注册接口没有动态补全 ⇒ 用 `input.hint` 作最接近的等价物，
+  # 并在 `exemptions.yaml` 里如实声明这条不对称。
+  # ---------------------------------------------------------------------------
+  - kind: command
+    id: project-info
+    package: ./plugins/project-info/index.js
+    description: >
+      基座不变量：注册 `/project` 命令，把产物里的事实（技能/连接器/增强/钩子事件/模型/轨迹/
+      可移植性/验证计划）摊开给人看。逻辑与另一个运行时共用 `core/introspect/project-info.mjs`，
+      读法由本运行时的 `project-layout.mjs` 提供。

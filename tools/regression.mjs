@@ -33,7 +33,7 @@ const SELFTESTS = [
   "validate", "validate-selftest", "gates-selftest", "trace-selftest", "emit-selftest", "trace-view-selftest",
   "gateway-selftest", "providers-selftest", "startup-selftest", "pi-selftest", "pi-trace-selftest",
   "pi-trace-ext-selftest", "pi-project-info-selftest", "pi-verify-container-selftest",
-  "dsh-verify-container-selftest", "probe-selftest", "project-info-selftest", "env-check-selftest",
+  "dsh-verify-container-selftest", "dsh-project-info-selftest", "probe-selftest", "project-info-selftest", "env-check-selftest",
   "verify-container-selftest", "unattended-selftest", "new-agent-selftest", "local-selftest",
 ];
 /** 要真跑容器/真跑运行时的项：`--fast` 时跳过（并明确标"没验"）。 */

@@ -62,10 +62,8 @@ if (r.status !== 0) {
 }
 const manifest = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
 
-// ---- 产物配置目录：**由运行期布局契约给出**（不猜目录形状）----
+// ---- 产物配置目录：**由本运行时的布局回答**（各运行时的产物形状不同，不猜）----
 const layoutEnv = manifest.runtimePlan?.env ?? {};
-const configRel = Object.values(layoutEnv)[0];
-const productDir = configRel ? path.join(renderDir, configRel) : renderDir;
 
 // ---- 镜像输入摘要（现在按**源码树**算，不再需要构建上下文）----
 let imageInputsDigest = null;
@@ -74,7 +72,19 @@ try {
   imageInputsDigest = mod.imageInputsDigest(REPO);
 } catch { /* 拿不到就如实写 null */ }
 
-const facts = collect({ productDir, artifactDir: renderDir, gatesDir: REPO });
+// ---- 本运行时的产物读法（core 不认识运行时，读法由各适配器提供）----
+let projectLayout = null;
+try {
+  ({ projectLayout } = await import(`../adapters/${harness}/project-layout.mjs`));
+} catch { projectLayout = null; }   // 该运行时还没有布局模块 ⇒ 退回"只读清单"
+
+// 配置目录：**由布局回答**（各运行时的产物形状不同），布局没提供时才用布局值兜底
+const layoutEnvForDir = manifest.runtimePlan?.env ?? {};
+const configRel2 = Object.values(layoutEnvForDir)[0];
+const fromLayout = projectLayout?.configDir?.({ artifact: renderDir, env: layoutEnvForDir, agent: manifest.agent }) ?? null;
+const productDir = fromLayout ?? (configRel2 ? path.join(renderDir, configRel2) : renderDir);
+
+const facts = collect({ productDir, artifactDir: renderDir, gatesDir: REPO, layout: projectLayout });
 const plan = verifyPlan(facts, {
   agentDir: path.relative(REPO, agentDir) || agentDir,
   renderDir: path.relative(REPO, renderDir) || renderDir,

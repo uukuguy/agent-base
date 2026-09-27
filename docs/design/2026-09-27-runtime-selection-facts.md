@@ -46,7 +46,7 @@
 | 轨迹通道 | 事后映射（`trace.mjs`，emitter=post-hoc） | 进程内钩子（`seed/extensions/trace.ts`，emitter=hook） + 事后映射（`trace.mjs`，emitter=post-hoc） |
 | 有 seed（基座不变量落地处） | 有 | 有 |
 | 已记录的坑（adapter 声明） | 11 条 failures + 18 条 failureCases | 11 条 failures |
-| 已声明的等价性豁免 | 9 条 | 9 条 |
+| 已声明的等价性豁免 | 10 条 | 9 条 |
 
 各能力维度的**实测备注**（真源里就写在 `*Note` 字段，这里只截首段；要全文看 adapter.yaml）：
 
@@ -77,7 +77,7 @@
 
 | 不变量 | `dsh` | `pi` |
 |---|---|---|
-| `project-info` | **缺** | 产物内声明（seed 的 `project-info`） |
+| `project-info` | 产物内声明（seed 的 `project-info`） | 产物内声明（seed 的 `project-info`） |
 | `trace` | 事后映射（`trace.mjs`，emitter=post-hoc） | 产物内声明（seed 的 `trace`） |
 | `verify-container` | 产物内声明（seed 的 `verify-container`） | 产物内声明（seed 的 `verify-container`） |
 
@@ -85,7 +85,6 @@
 
 - `dsh` 的生命周期事件集合**未穷举** ⇒ 该侧钩子声明只能标「未验证」（要穷举得先量清运行时的可订阅集合）。
 - `dsh` 当前 pin 是**预发布版本**（`0.1.7-rc.1`）⇒ 升级抖动风险需要单独评估。
-- `dsh` 的基座不变量**没有任何落地形态**：`project-info`（选它当主运行时就得先补，见 §26 V3）。
 
 ## 5. 怎么复核这份文件
 

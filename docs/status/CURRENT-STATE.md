@@ -147,6 +147,7 @@
 - `adapters/dsh/approval-probe.mjs` —— 探针：另一侧原生流/会话文件里有没有审批记录、相对路径插件 row 能不能加载（`make dsh-approval-probe`）
 - `adapters/dsh/seed/` —— **基座不变量插件**（声明 + `plugins/verify-container/`）：渲染器拷进 profile、row 指向入口文件、注入事件写入器
 - `tools/verify-container.mjs` —— **受控容器验证入口**（docker 参数全由基座生成、调用方不能追加：绑定面=当前项目只读、网络 none、根只读、能力全丢；`DRY=1` 可审阅；**镜像与源码不同源 ⇒ 先拒绝并要求重建**，D13）
+- `adapters/<h>/project-layout.mjs` —— 各运行时的**产物读法**（`configDir()` + `read()`）：core 的自省逻辑运行时无关，形状差异都在这里
 - `tools/project-info.mjs` —— **项目自省的命令行出口**（与会话内 `/project` 共用 `core/introspect/` 的同一份逻辑）；`--plan` 给验证计划
 - `core/introspect/{project-info,_container-only}.mjs` —— 自省与"只能在容器验"的**声明**（后者被自检盯着与 C9 实现一致）
 - `tools/{dev-env,run-local}.mjs` —— 本地开发环境（按 pin 对齐版本；临时 HOME 跑制品；复用前校验定义摘要）

@@ -252,6 +252,9 @@ function main() {
     fs.readFileSync(path.join(REPO, "core/introspect/project-info.mjs"), "utf8"));
   writeFile(path.join(agentOut, "extensions", "_container-only.mjs"),
     fs.readFileSync(path.join(REPO, "core/introspect/_container-only.mjs"), "utf8"));
+  // 本运行时的**产物读法**也要进产物：自省逻辑（core，运行时无关）靠它知道"从哪儿读事实"
+  writeFile(path.join(agentOut, "extensions", "_project-layout.mjs"),
+    fs.readFileSync(path.join(HERE, "project-layout.mjs"), "utf8"));
 
   const declaredEnhancements = [...new Set([...baseEnh, ...agentEnh].map((e) => e.id))].sort();
   // 哪些声明是**钩子**：闸门 3 的 probe/hooks-evidenced 靠它判断"要不要断言钩子真的触发了"

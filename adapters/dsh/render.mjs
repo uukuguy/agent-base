@@ -328,8 +328,17 @@ function main() {
         + `（${path.relative(HERE, src)}）—— 基座种子插件必须放在 adapters/${HARNESS}/seed/plugins/<id>/。`);
     }
     copyTree(src, path.join(profileDir, "plugins", id));
-    writeFile(path.join(profileDir, "plugins", id, "_trace-emit.mjs"),
-      fs.readFileSync(path.join(REPO, "core/trace/emit.mjs"), "utf8"));
+    // 基座**共享模块**注入到插件同目录（插件用相对路径 import 它们）：
+    // 事件写入器（core/trace/emit.mjs）+ 自省逻辑与它的助手（core/introspect/*）+ 本运行时的产物读法。
+    // 一次全注入而不是按插件声明清单：这几份都很小，而"少注入一份 ⇒ 运行期 failed to import"
+    // 是启动期才暴露的糊涂账（本仓库踩过）。新增共享模块时在这里加一行即可。
+    const shared = [
+      ["_trace-emit.mjs", path.join(REPO, "core/trace/emit.mjs")],
+      ["_project-info.mjs", path.join(REPO, "core/introspect/project-info.mjs")],
+      ["_container-only.mjs", path.join(REPO, "core/introspect/_container-only.mjs")],
+      ["_project-layout.mjs", path.join(HERE, "project-layout.mjs")],
+    ];
+    for (const [dest, from] of shared) writeFile(path.join(profileDir, "plugins", id, dest), fs.readFileSync(from, "utf8"));
   }
 
   // ---- profile 四件套 ----
