@@ -222,7 +222,7 @@ export async function runAgent({
  * 放在这里而不是各个消费者里，是为了**probe 与 doctor 用同一种观测方式** ——
  * 两处各写一份 RPC 客户端，迟早会出现"doctor 说加载了、probe 说没加载"的分裂。
  */
-export function piRpc({ env, cwd, staging, requests, timeoutMs = 20000 }) {
+export function piRpc({ env, cwd, staging, requests, timeoutMs = 20000, untilMessage = null }) {
   return new Promise((resolve) => {
     const args = ["--mode", "rpc", "--no-session", "--no-skills"];
     const skills = path.join(staging, "skills");
@@ -230,14 +230,18 @@ export function piRpc({ env, cwd, staging, requests, timeoutMs = 20000 }) {
 
     const proc = spawn("pi", args, { env, cwd, stdio: ["pipe", "pipe", "pipe"] });
     const responses = new Map();
+    // 除"请求-响应"之外的消息（会话里注入的自定义消息、事件…）也收下来：
+    // 有些能力（如斜杠命令）**只以消息形式出现**，没有对应的 response —— 想端到端验它就得看消息。
+    const messages = [];
     let stderr = "";
     let buf = "";
     const want = new Set(requests.map((r) => r.type));
     const done = () => {
       try { proc.kill("SIGKILL"); } catch { /* 已退出 */ }
-      resolve({ responses, stderr, complete: [...want].every((t) => responses.has(t)) });
+      resolve({ responses, messages, stderr, complete: [...want].every((t) => responses.has(t)) });
     };
     const timer = setTimeout(done, timeoutMs);
+    const finish = () => { clearTimeout(timer); done(); };
     proc.stdout.on("data", (d) => {
       buf += d;
       let i;
@@ -249,13 +253,16 @@ export function piRpc({ env, cwd, staging, requests, timeoutMs = 20000 }) {
         try {
           const rec = JSON.parse(line);
           if (rec.type === "response" && rec.command) responses.set(rec.command, rec);
+          else messages.push(rec);
+          // `untilMessage`：出现想要的消息就立刻收工（不必等超时）——命令类测试靠它
+          if (untilMessage && untilMessage(rec)) { finish(); return; }
         } catch { /* 非 JSON 行忽略 */ }
       }
-      if ([...want].every((t) => responses.has(t))) { clearTimeout(timer); done(); }
+      if ([...want].every((t) => responses.has(t))) finish();
     });
     proc.stderr.on("data", (d) => { stderr += d; });
-    proc.on("error", (e) => { clearTimeout(timer); resolve({ responses, stderr: String(e), complete: false }); });
-    proc.on("close", () => { clearTimeout(timer); resolve({ responses, stderr, complete: [...want].every((t) => responses.has(t)) }); });
+    proc.on("error", (e) => { clearTimeout(timer); resolve({ responses, messages, stderr: String(e), complete: false }); });
+    proc.on("close", () => { clearTimeout(timer); resolve({ responses, messages, stderr, complete: [...want].every((t) => responses.has(t)) }); });
     for (const r of requests) proc.stdin.write(JSON.stringify(r) + "\n");
   });
 }

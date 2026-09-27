@@ -346,6 +346,7 @@
 | **G** | 权限模式 `ask` 下重跑同一实验 | 同上，**审批记录仍是 0 条**；会话文件只有 `session` 引导事件 | 审批审计事件**不在**我们读的通道里 ⇒ 事后映射拿不到「谁放行」 |
 | **H** | profile patch `insert` 一个**相对路径** row：`./plugins/ab-probe`（目录）vs `./plugins/ab-probe/index.js`（入口文件） | 目录 ⇒ `failed to import`（ESM 无目录解析）；入口文件 ⇒ `apply` 执行、`ctx.commands.register` 返回 disposer | 基座插件脚手架可行，但 row 的 `name` **必须指入口文件** |
 
+| **I** | 无头模式（`--json`）里把 `/project skills` 当提示词发进去 | **没有被当命令派发**：无 command 事件，输出里也没有报告；文本进了模型 | 斜杠命令的交互面需要 UI 宿主（tui/ACP）⇒ 本基座**无法无头验**该侧的交互面（另一侧的 RPC 模式可以）。为此在 `adapter.yaml` 记了 `capabilities.commandsHeadless: unsupported`，并在 `dsh-project-info-selftest` 里留了一条**边界检查**（该运行时若开始支持无头派发，它会变红） |
 > F/G/H 由 `make dsh-approval-probe` 一并复现（探针脚本即证据；**不放进默认回归**，因为它要真跑 dsh）。
 
 ### 3.12 【dsh 专有】静默失败清单（必须写进 troubleshooting 文档）

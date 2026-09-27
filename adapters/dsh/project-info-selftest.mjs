@@ -126,6 +126,22 @@ console.log("── E. 集成：产物就位 + 闸门 2 认得 + 真跑无 impor
     check("stderr 里没有 project-info 的 import 失败",
       !/project-info.*failed to import/.test(String(run.stderr ?? "")),
       String(run.stderr ?? "").split("\n").filter((l) => /project-info/.test(l)).slice(0, 2).join(" | ").slice(0, 240));
+
+    // ---- 交互面：**本运行时的无头模式不派发斜杠命令**（实测边界，不是回归）----
+    // 另一个运行时的同名命令能通过 RPC 真敲一次（那边有正向端到端检查）；
+    // 这里把斜杠命令当提示词送进去，观察它**没有**被当命令派发 —— 于是交互面只能由 UI 宿主（tui/ACP）验。
+    // 把这条写成检查而不是散文的理由：**将来该运行时支持无头派发时它会变红**，那时应升级成正向检查。
+    const cmdRun = await runner.runAgent({
+      renderDir: s.renderDir, endpoint: gateway.url, prompt: "/project skills", timeoutMs: 120000, zeroCredential: true,
+    });
+    const commandEvents = cmdRun.native.filter((e) => /command/i.test(String(e?.type ?? "")));
+    const reportInOutput = /· alpha/.test(String(cmdRun.stdout ?? ""));
+    check("无头模式**没有**把它当命令派发（提示词进了模型）⇒ 交互面需 UI 宿主，属已声明限制",
+      cmdRun.exitCode === 0 && commandEvents.length === 0 && !reportInOutput,
+      `exit=${cmdRun.exitCode} commandEvents=${commandEvents.length} reportInOutput=${reportInOutput}`);
+    if (commandEvents.length || reportInOutput) {
+      console.log("    ⚠️ 本运行时开始支持无头派发命令了 —— 请把这条**升级成「真敲一次」的正向检查**（照另一个运行时的做法）");
+    }
   } finally { await gateway.close?.(); }
 }
 

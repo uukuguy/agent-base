@@ -82,6 +82,8 @@ capabilities:
     原生权限预设 + 审批；**无应答者时 fail closed**【文档 §11.1】。
     无人值守运行必须显式自动放行，否则卡死 —— 这条要进 failures.md。
 
+  commandsHeadless: unsupported
+  commandsHeadlessNote: 实测：无头 `--json` 模式下 `/project skills` 被当成**提示词**送进模型（无 command 事件、输出里没有报告）⇒ 斜杠命令的交互面需要 UI 宿主（tui/ACP），本基座**无法无头验它**。边界检查在 `dsh-project-info-selftest`（该运行时若开始支持无头派发，那条检查会变红）
   traceEmit: supported
   traceEmitNote: >
     原生会话轨迹：`$DSH_HOME/sessions/--<cwd>--/<id>/session.v4.jsonl`（**zstd 压缩的 JSONL**，

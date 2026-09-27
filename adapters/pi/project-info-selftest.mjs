@@ -219,6 +219,25 @@ if (integration.skipped) {
   check("它的 source 是 extension（不是 skill/内建）", mine[0]?.source === "extension", String(mine[0]?.source));
   check("它带 description（补全列表里能看出这是干什么的）",
     typeof mine[0]?.description === "string" && mine[0].description.length > 0, String(mine[0]?.description));
+  // ---- 端到端：**真敲一次命令**（RPC 发 `/project skills`）----
+  // 只验"注册了"是不够的：注册了但 handler 不产出、或产出的东西不是那份报告，用户照样用不了。
+  // 用 `untilMessage` 命中注入的自定义消息即可收工（不必等超时）。
+  const e2e = await (async () => {
+    const staged2 = stageRenderDir(two.out, null, { zeroCredential: true });
+    const rpc2 = await piRpc({
+      env: env(staged2.staging, two.out),
+      cwd: os.tmpdir(),
+      staging: staged2.staging,
+      requests: [{ id: "p1", type: "prompt", message: "/project skills" }],
+      timeoutMs: 30000,
+      untilMessage: (r) => r?.type === "message_start" && r?.message?.customType === "agent-base.project-info",
+    });
+    return rpc2.messages.filter((m) => m?.message?.customType === "agent-base.project-info");
+  })();
+  const report = String(e2e[0]?.message?.content ?? "");
+  check("真敲 `/project skills` ⇒ 会话里出现那份报告（端到端）", e2e.length === 1 && /alpha/.test(report), report.slice(0, 200));
+  check("报告里说的是真实事实（技能名来自产物、不是模板）", /· alpha/.test(report) && /SKILL\.md/.test(report), report.slice(0, 200));
+
   const helper = integration.cmds.filter((c) => c.name.includes("_project-info"));
   check("助手文件 `_project-info.mjs` **没有**被当成扩展登记", helper.length === 0, helper.map((c) => c.name).join(","));
 

@@ -113,6 +113,8 @@ capabilities:
   permissionModel: extension
   permissionModelNote: 靠 protected-paths 扩展。
 
+  commandsHeadless: supported
+  commandsHeadlessNote: 实测：`pi --mode rpc` 发一个 `/project skills` 提示 ⇒ 命令被执行、报告作为自定义消息进会话（正向端到端检查在 `pi-project-info-selftest`）。⇒ 本运行时的斜杠命令**可被无头驱动**
   traceEmit: supported
   traceEmitNote: >
     **原生支持，不需要自建审计扩展**（实测修正：原文曾标为 extension；也不要自创 "native" 这种取值——它就是 supported）。

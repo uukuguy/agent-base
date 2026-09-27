@@ -41,7 +41,9 @@ const pending = (detail) => ({ ok: false, pending: true, detail });
 const REQUIRED_CAPABILITIES = [
   "nativeParamInterpolation", "runtimeWritableConfig", "implicitSkillSources",
   "configInclude", "hmr", "childAgents", "osSandbox",
-  "permissionModel", "traceEmit", "mcpClient", "runModes",
+  // commandsHeadless：斜杠命令能不能被**无头驱动**（实测差异见两侧 adapter.yaml 的 Note；
+  // 它决定"交互面能否进自动化验证"，与选型相关）
+  "permissionModel", "traceEmit", "mcpClient", "commandsHeadless", "runModes",
 ];
 const CAPABILITY_VALUES = ["supported", "partial", "unsupported", "extension"];
 // modelApis = 该运行时支持的模型协议形状（provider 里 api: 的合法取值）——

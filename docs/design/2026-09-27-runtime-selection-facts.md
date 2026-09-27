@@ -19,11 +19,12 @@
 
 ## 2. 机制差异（两侧**必然不同**的地方，来自各自的 adapter.yaml）
 
-能力维度（两侧 adapter.yaml 声明的键的并集，共 11 个）：
+能力维度（两侧 adapter.yaml 声明的键的并集，共 12 个）：
 
 | 能力 | `dsh` | `pi` |
 |---|---|---|
 | `childAgents` | `supported` | `partial` |
+| `commandsHeadless` | `unsupported` | `supported` |
 | `configInclude` | `partial` | `unsupported` |
 | `hmr` | `supported` | `unsupported` |
 | `implicitSkillSources` | `partial` | `partial` |
@@ -52,6 +53,8 @@
 
 - `dsh` / `childAgents`：原生 subagent 体系【实测：组合树含 dsh-subagent / dsh-subagent-spawn-in-process / dsh-tool-subagent 等 row】，另有 agent-team 实验插件。 
 - `pi` / `childAgents`：subagent 扩展已加载，未跑真实委派（N20 的解除条件）。
+- `dsh` / `commandsHeadless`：实测：无头 `--json` 模式下 `/project skills` 被当成**提示词**送进模型（无 command 事件、输出里没有报告）⇒ 斜杠命令的交互面需要 UI 宿主（tui/ACP），本基座**无法无头验它**。边界检查在 `dsh-project-info-selftest`（该…
+- `pi` / `commandsHeadless`：实测：`pi --mode rpc` 发一个 `/project skills` 提示 ⇒ 命令被执行、报告作为自定义消息进会话（正向端到端检查在 `pi-project-info-selftest`）。⇒ 本运行时的斜杠命令**可被无头驱动**
 - `dsh` / `configInclude`：四层合成（bundle → profile → home → `--patch`），但 patch 的 `config` 是**整体替换**而非深合并， 且 bundle 之间不可嵌套【文档 §11.1】。处置：渲染器产出**完整** config，不做增量假设。 
 - `pi` / `configInclude`：settings.json 无 include/extends，不能多文件拼接。处置：构建期扁平化，渲染器产出完整最终值。 
 - `dsh` / `hmr`：tui 上启用，headless/SDK/ACP 显式禁用（§9.1）。本地迭代用 tui，容器内验契约。
