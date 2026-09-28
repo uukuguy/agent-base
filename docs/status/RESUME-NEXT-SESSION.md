@@ -1,12 +1,12 @@
 # Live Session Checkpoint
 
-> Updated: 2026-09-28 06:4x. **Session remains active — not a final handoff.**
+> Updated: 2026-09-28 12:0x. **Session remains active — not a final handoff.**
 > 工作线总览在路线图 **§1.1**（六条线 + 三阶段顺序 + 决策门）。
 
 ## TL;DR
 
 1. **L3 整条线已闭合**：阶段一 = A1+V2（`make verify-plan` / `make project-info` / `/project plan`）· E1b（接入缝事件名）· Q1+Q2（`make env-check`）；阶段二 = A2 受控容器入口 · A3 出处与覆盖 · A4 失败归因（五类）· A5 无人值守端到端判据（含结果缓存）· **A6/A6b 两侧的审批门**（主运行时扩展 `verify-container.ts` + 另一侧 cordis 插件，都记 `approval.decision`、都 fail-closed）
-2. **拍板三件事 —— 一页材料：[`docs/plans/OPEN-DECISIONS.md`](../plans/OPEN-DECISIONS.md)**（主运行时选型 · 能力描述契约分叉 A/B · L4 能力包是否启动；每项含事实入口、我的建议与理由、拍完立刻能做什么、不拍的代价）。原有表述：L2 已闭合，**下一个具体动作是等两个决策**（① 主运行时选型 ② 能力描述契约分叉 A/B；事实材料 `docs/design/2026-09-27-runtime-selection-facts.md`，机器生成 + `docs/selection-facts-sync` 守同步）。**不定也不阻塞**：L4 能力包（用户已说择机）与 L6 的 E9 都不依赖这个决定
+2. **L1–L3、L5 已闭合**（L1 的 E5–E8 与 L6 的 E9 均在 2026-09-28 结清；L4 能力包按用户指示「择机」，需其开工指令）。历史记录：**拍板三件事 —— 一页材料：[`docs/plans/OPEN-DECISIONS.md`](../plans/OPEN-DECISIONS.md)**（主运行时选型 · 能力描述契约分叉 A/B · L4 能力包是否启动；每项含事实入口、我的建议与理由、拍完立刻能做什么、不拍的代价）。原有表述：L2 已闭合，**下一个具体动作是等两个决策**（① 主运行时选型 ② 能力描述契约分叉 A/B；事实材料 `docs/design/2026-09-27-runtime-selection-facts.md`，机器生成 + `docs/selection-facts-sync` 守同步）。**不定也不阻塞**：L4 能力包（用户已说择机）与 L6 的 E9 都不依赖这个决定
 3. 阶段三（择机，用户已定）：bundle 线 **B1 → C4 → B2 → C3 → C5**
 
 ## Where things stand
