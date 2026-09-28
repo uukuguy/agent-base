@@ -44,7 +44,7 @@ import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 import { dshRenderInputsDigest } from "./render-inputs.mjs";
 // 能力的**描述契约与双通道调用**只有一份实现（core），两个运行时的渲染器都用它做装载/就位校验
 import { loadCapabilities, checkImplementation, toSchemaDocument } from "../../core/capabilities/registry.mjs";
-import { availableIds, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
+import { availableIds, bundleOwnedSkills, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** 仓库根：`core/` 下的共享实现（事件写入器等）要从这里取，注入产物而不是让产物去猜基座目录。 */
@@ -306,6 +306,22 @@ function main() {
     : [];
   copyTree(skillsSrc, path.join(outRoot, "skills"));
 
+  // ---- 基座技能（L4）：属于能力包的也要进产物；**不进 declaredSkills**（那是定义声明）----
+  // 变量在函数作用域声明：清单那一段要用它（放块里会 ReferenceError —— 本轮实测踩到）。
+  const baseSkillNames = [];
+  {
+    const owned = bundleOwnedSkills(CAPABILITY_BUNDLES.bundles);
+    for (const name of owned) {
+      const src = path.join(REPO, "core/skills", name);
+      if (!fs.existsSync(path.join(src, "SKILL.md"))) {
+        throw new Error(`能力包引用了基座技能「${name}」，但 core/skills/${name}/SKILL.md 不存在（渲染期就拦住）`);
+      }
+      copyTree(src, path.join(outRoot, "skills", name));
+      baseSkillNames.push(name);
+    }
+    baseSkillNames.sort();
+  }
+
   // ---- 人设 → 工作区（Q1）----
   const persona = (agent.persona?.instructions ?? "").trim();
   writeFile(path.join(outRoot, "workspace", "AGENTS.md"), [
@@ -447,8 +463,12 @@ function main() {
     // 写一个不存在的包名会被 startup 响亮拒绝（不许静默忽略）。
     // ⚠️ 变量名用 CAPABILITY_BUNDLES：本文件里的 `BUNDLES` 是**插件包列表**（同词不同物，
     // 撞过一次 —— 表现为渲染期 `bundles.map is not a function`）。
+    // 技能落点（能力包按激活集合摘除时读它）
+    skillSurface: { path: "skills", kind: "skill-dirs" },
     bundles: {
       available: availableIds(CAPABILITY_BUNDLES),
+      baseSkills: baseSkillNames,
+      // 产物携带的基座技能（由包决定是否加载；不是定义声明 ⇒ 不进 declaredSkills）
       defaults: defaultSelection(CAPABILITY_BUNDLES),
     },
     declaredSkills,

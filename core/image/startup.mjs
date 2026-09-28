@@ -37,7 +37,7 @@ import { spawn } from "node:child_process";
 
 // 能力包（L4/B1）：运行期的**选择**在这一层校验与解析（选择型参数，与环境型分开记账）
 import { BUNDLES_ENV, availableIds, bundleDigest, defaultSelection, loadBundles, parseSelection } from "../bundles/index.mjs";
-import { enforceConnectorSurface } from "../bundles/filter.mjs";
+import { enforceConnectorSurface, enforceSkillSurface } from "../bundles/filter.mjs";
 
 const EXIT_USAGE = 2;
 const die = (msg) => { process.stderr.write(`❌ ${msg}\n`); process.exit(EXIT_USAGE); };
@@ -382,7 +382,14 @@ function prepare({ artifact, runDir }) {
       if (!ownedBySomeBundle.has(ref) || activeRefs.has(ref)) keep.push(c.serverName ?? ref);
     }
     const res = enforceConnectorSurface({ runDir: effectiveRunDir, surface: manifest.connectorSurface ?? null, keep });
-    return { active: [...bundleSelection.active].sort(), keep: [...keep].sort(), ...res };
+    // 技能同一条纪律：属于某个包的技能，只有该包激活才留（技能是纯目录，两侧都能真的摘）
+    const activeSkills = new Set(bundleSelection.active.flatMap((id) => byId.get(id)?.skills ?? []).map(String));
+    const ownedSkills = new Set(bundleSelection.doc.bundles.flatMap((b) => b.skills ?? []).map(String));
+    const keepSkills = (manifest.declaredSkills ?? []).filter((name) => !ownedSkills.has(name) || activeSkills.has(name));
+    const skillRes = enforceSkillSurface({
+      runDir: effectiveRunDir, surface: manifest.skillSurface ?? null, keep: keepSkills, ownedByBundles: [...ownedSkills],
+    });
+    return { active: [...bundleSelection.active].sort(), keep: [...keep].sort(), skills: { keep: keepSkills.sort(), ...skillRes }, ...res };
   })();
 
   const values = Object.fromEntries(Object.entries(resolved).map(([k, v]) => [k, v.value]));
@@ -429,7 +436,10 @@ function prepare({ artifact, runDir }) {
       defaults: defaultSelection(bundleSelection.doc),
       digest: bundleDigest(bundleSelection.active),
       // 摘除结果：**真的摘了谁**（没声明落点时 enforced=false —— 不假装已生效）
-      filter: { enforced: bundleApplied.enforced, kind: bundleApplied.kind, kept: bundleApplied.kept, removed: bundleApplied.removed, note: bundleApplied.note },
+      filter: {
+        connectors: { enforced: bundleApplied.enforced, kind: bundleApplied.kind, kept: bundleApplied.kept, removed: bundleApplied.removed, note: bundleApplied.note },
+        skills: { enforced: bundleApplied.skills?.enforced ?? false, kept: bundleApplied.skills?.kept ?? [], removed: bundleApplied.skills?.removed ?? [], note: bundleApplied.skills?.note ?? null },
+      },
     },
     effectiveConfigDigest: manifest.effectiveConfigDigest ?? null,
   };

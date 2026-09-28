@@ -41,7 +41,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 // 暂存/渲染**共用运行期那一份实现**（run.mjs → core/image/startup.mjs），不在这里另写一遍
 import { stageRenderDir } from "./run.mjs";
-import { BUNDLES_ENV, expectedConnectorNames, loadBundles } from "../../core/bundles/index.mjs";
+import { BUNDLES_ENV, expectedConnectorNames, expectedSkillNames, loadBundles } from "../../core/bundles/index.mjs";
 import {
   DEFAULT_EXCLUDES, EXIT_CODES, GateReport, computeEffectiveConfigDigest,
   digestDirectory, runGates,
@@ -479,24 +479,20 @@ async function main() {
     },
   ];
 
-  // 断言上下文：把 manifest 的声明与"基座不变量技能"合并成期望集合
-  ctx.declaredSkills = [...(manifest.declaredSkills ?? [])].sort();
+  // 断言上下文：期望技能集合 = **声明 ∩ 当前启用**（L4 能力包：基座技能由包决定是否进产物，
+  // 渲染器已把它们写进 manifest.declaredSkills；这里按激活集合过滤——与 startup 的摘除同源）
   // 清单里的字段是 serverName（渲染器与两个 harness 统一用这个名）；早期这里写 c.name，
   // 于是"声明集合"变成了 [undefined] —— 集合断言必错，而且错得看不懂。
   // 期望集合 = **声明 ∩ 当前启用**（L4 能力包）：与 startup 的摘除共用同一份实现，避免两处漂移
   ctx.bundles = expectedConnectorNames({ manifest, bundles: loadBundles().bundles, rawSelection: process.env[BUNDLES_ENV] ?? null });
+  ctx.expectedSkills = expectedSkillNames({ manifest, bundles: loadBundles().bundles, rawSelection: process.env[BUNDLES_ENV] ?? null }).expected;
+  ctx.declaredSkills = ctx.expectedSkills;
   ctx.enabledConnectors = ctx.bundles.expected;
   ctx.expectedRoutes = [...(manifest.modelProviders ?? [])].sort();
 
-  // 基座不变量技能（清单里声明为 shipped 且默认启用）也要进期望集合
-  try {
-    const { loadPreinstall } = await import("../../core/image/resolve-preinstall.mjs");
-    const pre = loadPreinstall();
-    const baseSkills = (pre.list.entries ?? [])
-      .filter((e) => e.kind === "skill" && e.status === "shipped" && e.enabledByDefault)
-      .map((e) => e.id.replace(/^skill-/, ""));
-    if (baseSkills.length) ctx.declaredSkills = [...new Set([...ctx.declaredSkills, ...baseSkills])].sort();
-  } catch { /* 清单缺失时不影响主流程 */ }
+  // （旧逻辑：把"清单里 shipped 且默认启用的基座技能"并进期望集合。
+  //  L4 之后基座技能**由能力包决定是否进产物**，渲染器已写进 manifest.declaredSkills，
+  //  再由 expectedSkillNames 按激活集合过滤 —— 所以这段并集不再需要，留着会双重计数。）
 
   await runGates({ gates, ctx, report });
 

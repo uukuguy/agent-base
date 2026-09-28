@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const CONNECTOR_SURFACE_KINDS = Object.freeze(["json-mcp-servers"]);
+export const SKILL_SURFACE_KINDS = Object.freeze(["skill-dirs"]);
 
 /**
  * @param {{runDir: string, surface: object|null, keep: string[]}} args
@@ -53,4 +54,36 @@ export function enforceConnectorSurface({ runDir, surface = null, keep = [] }) {
   if (removed.length) fs.writeFileSync(file, JSON.stringify({ ...doc, mcpServers: next }, null, 2) + "\n");
   return { enforced: true, kind: surface.kind, kept: kept.sort(), removed: removed.sort(), file,
     note: removed.length ? `按激活集合摘掉了 ${removed.length} 个未激活连接器：${removed.sort().join(", ")}` : "无需摘除（激活集合覆盖了全部连接器）" };
+}
+
+/**
+ * 技能落点：把**未激活包**带来的技能目录从暂存产物里删掉（与连接器同一套纪律）。
+ * 只认格式（`skill-dirs`：目录下每个子目录是一个技能，名字即技能名），不认运行时。
+ * @param {{runDir: string, surface: object|null, keep: string[], ownedByBundles?: string[]}} args
+ */
+export function enforceSkillSurface({ runDir, surface = null, keep = [], ownedByBundles = [] }) {
+  if (!surface || !surface.path) {
+    return { enforced: false, kind: null, kept: [], removed: [], note: "产物没有声明技能落点（skillSurface）⇒ 未摘除" };
+  }
+  if (!SKILL_SURFACE_KINDS.includes(surface.kind)) {
+    return { enforced: false, kind: surface.kind ?? null, kept: [], removed: [], note: `未知的技能落点格式「${surface.kind}」⇒ 未摘除（不猜格式）` };
+  }
+  const dir = path.join(runDir, surface.path);
+  if (!fs.existsSync(dir)) {
+    return { enforced: false, kind: surface.kind, kept: [], removed: [], note: `技能落点不存在（${surface.path}）` };
+  }
+  const owned = new Set(ownedByBundles);
+  const keepSet = new Set(keep);
+  const kept = [];
+  const removed = [];
+  for (const name of fs.readdirSync(dir)) {
+    const full = path.join(dir, name);
+    if (!fs.statSync(full).isDirectory()) continue;
+    // 属于某个包的技能 ⇒ 只有激活了才留；不属于任何包的 ⇒ 智能体自己的，照留
+    if (!owned.has(name) || keepSet.has(name)) { kept.push(name); continue; }
+    fs.rmSync(full, { recursive: true, force: true });
+    removed.push(name);
+  }
+  return { enforced: true, kind: surface.kind, kept: kept.sort(), removed: removed.sort(), dir,
+    note: removed.length ? `按激活集合摘掉了 ${removed.length} 个未激活技能：${removed.sort().join(", ")}` : "无需摘除（激活集合覆盖了全部技能）" };
 }

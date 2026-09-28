@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 // 暂存走运行期那一份实现（run.mjs → core/image/startup.mjs）：自证要验的是"运行时会加载什么"
 import { stageRenderDir } from "./run.mjs";
-import { BUNDLES_ENV, expectedConnectorNames, loadBundles } from "../../core/bundles/index.mjs";
+import { BUNDLES_ENV, expectedConnectorNames, expectedSkillNames, loadBundles } from "../../core/bundles/index.mjs";
 import { EXIT_CODES, GateReport, computeEffectiveConfigDigest, parseArgs } from "../../core/gates/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -194,7 +194,8 @@ function main() {
   // 口径差异（进 exemptions）：这边只能验"已配置 + 已就位"，拿不到"已被发现"。
   const sf = byId.get("skill-filesystem");
   const dirs = sf ? [sf.config.customSkillDirs].flat().filter(Boolean) : [];   // 组合树里是数组
-  const declaredSkills = [...(manifest.declaredSkills ?? [])].sort();
+  // 期望技能集合 = **声明 ∩ 当前启用**（L4 能力包；技能是纯目录，本侧也真的摘除）
+  const declaredSkills = expectedSkillNames({ manifest, bundles: loadBundles().bundles, rawSelection: process.env[BUNDLES_ENV] ?? null }).expected;
   const present = declaredSkills.filter((s) => fs.existsSync(path.join(renderDir, "skills", s, "SKILL.md")));
   const wantDir = manifest.skillsInImage;
   // 暂存会把**镜像内固定路径**改写成本地实际路径（`runtimePlan.pathRewrites`），

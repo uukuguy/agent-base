@@ -48,8 +48,8 @@ bundles:
     purpose: 让它能真的读改代码、跑命令、查文档（验证时不必开）
     # 具名引用：都指向 preinstall.yaml 里已有的条目（闸门 1 逐条核）
     refs: [filesystem, git, repomix, shell-toolchain]
-    # 技能：编码三件套（C4 落盘后填进来；此刻留空 —— 空的比写个不存在的名字诚实）
-    skills: []
+    # 技能：编码三件套（C4 已落盘于 core/skills/；**由本包决定是否进产物**）
+    skills: [code-navigation, debugging, verification]
     # 插件是 **harness 专有** ⇒ 必须显式分侧标注；两侧都没有就留空列表，不许假装等价
     plugins:
       pi: []

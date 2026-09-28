@@ -19,7 +19,7 @@ JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest capabilities-selftest bundles-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest capabilities-selftest bundles-selftest base-skills-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -32,6 +32,9 @@ help: ## 列出可用命令
 # --- 闸门 1：静态校验（S0 已交付）------------------------------------------
 validate: ## 闸门 1：schema + 引用 + 凭据引用 + 命名 + 层纪律
 	@node tools/validate.mjs $(AGENT_DIR)
+
+base-skills-selftest: ## 基座技能自检（C4）：frontmatter · 实质内容 · 无占位字样 · 与预装条目一一对应 · 归属能力包
+	@node core/skills/selftest.mjs
 
 bundles-selftest: ## 能力包自检（L4/B1）：未知包名响亮失败 · 默认组合 · 期望集合=声明∩启用 · 摘要随组合变
 	@node core/bundles/selftest.mjs

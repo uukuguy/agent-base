@@ -492,3 +492,7 @@
 - 18:39 **B1 落地完成**（补上最后三件）：① 激活**真的生效** —— startup 按激活集合从暂存产物里摘掉未激活包的连接器（core 按清单声明的落点与**格式**处理，不认运行时；没声明落点就不摘并如实记 `enforced=false`）② **期望集合 = 声明 ∩ 当前启用**（`expectedConnectorNames()` 一份实现，startup 与闸门 2 共用，避免两处漂移）③ `verify --json` 带 `bundles` 字段。实测：同一产物默认组合 ⇒ 暂存里只剩 `memory`；开 `coding` ⇒ `filesystem` 也进来
 - 18:39 另一侧**如实声明差异**而不悄悄弱化：它的连接器是构建期烤进 patch 的 insert row，且该文件含 `!!js` 表达式 —— 解析后重写会把插值变成普通字符串（会悄悄改语义）。所以该侧**不摘**，写进 `exemptions.yaml`（`bundle-connector-removal-not-enforced`，含解除条件），闸门 2 的期望集合在那侧按"声明全量"写实；激活集合在两侧都进轨迹与摘要。这条差异是被 examples-check 抓出来的（"组合树里多了一个连接器"）
 - 18:39 回归：`make regression` **35 项全绿**；闸门 1 34 项；两侧 conformance 10/10；examples-check 全绿（含跨侧等价性）
+- 20:09 **C4 完成：三个编码技能落盘并进包**（`code-navigation` / `debugging` / `verification`）：`preinstall.lock.txt` 技能数 **0 → 3**；每个技能有 SKILL.md（frontmatter + 实质内容 + 无占位字样）+ 可执行自检 `make base-skills-selftest`；`coding` 包挂上它们
+- 20:09 C4 的机制（27.2）定下来了：**基座技能不塞进 `declaredSkills`** —— 那个字段的语义是"定义声明了什么"（跨侧 C3/C4 按它核对定义→产物），塞进去会让 C3/C4 与闸门 2 三方打架（本轮实测：C3 报"声明的技能集合不对"、C4 报"doctor 与声明不一致"）。改为记进清单的 `bundles.baseSkills`，并由**与连接器同一份共享实现** `expectedSkillNames()` 算「定义技能 ∪ 激活包的技能」；startup 按激活集合**真的删掉**未激活包的技能目录（技能是纯目录 ⇒ 两侧都能摘，不像连接器那样有豁免）
+- 20:09 我自己的检查又抓到一次：B1 标 done 后，`docs/gaps-not-done` 立刻报"缺口清单还引用着已完成的 B1" ⇒ 两份缺口清单改成"能力包只差发现面与模板默认"（B2/C3/C5）。这类"做完忘删旧话"的腐烂第三次被抓，说明这条检查物有所值
+- 20:09 回归：`make regression` **36 项全绿**（新增 `base-skills-selftest`）；闸门 1 34 项；两侧 conformance 10/10

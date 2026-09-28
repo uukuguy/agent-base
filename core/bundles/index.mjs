@@ -144,3 +144,27 @@ export function expectedConnectorNames({ manifest = {}, bundles = [], rawSelecti
   return { expected: expected.sort(), removed: removed.sort(), active: [...sel.active].sort(), explicit: sel.explicit, problems: [] };
 }
 
+/**
+ * **期望的技能集合**（声明 ∩ 当前启用）—— startup（摘除）与两侧闸门 2（断言）共用。
+ * 规则与连接器一致：属于某个包的技能 ⇒ 只有激活才在；不属于任何包的 ⇒ 智能体自己的，始终在。
+ */
+export function expectedSkillNames({ manifest = {}, bundles = [], rawSelection = null }) {
+  const sel = parseSelection(rawSelection, { bundles });
+  if (sel.problems.length) return { expected: [], removed: [], active: [], explicit: sel.explicit, problems: sel.problems };
+  const byId = new Map(bundles.map((b) => [b.id, b]));
+  const activeSkills = new Set(sel.active.flatMap((id) => byId.get(id)?.skills ?? []).map(String));
+  const ownedBySomeBundle = new Set(bundles.flatMap((b) => b.skills ?? []).map(String));
+  // 期望集合 = **定义声明的技能** ∪ **激活包带来的技能**
+  // （包技能不在 declaredSkills 里：那个字段的语义是"定义声明了什么"，C3/C4 按它核对定义→产物）
+  const declared = (manifest.declaredSkills ?? []).filter((name) => !ownedBySomeBundle.has(name));
+  const fromBundles = [...activeSkills];
+  const expected = [...new Set([...declared, ...fromBundles])];
+  const removed = [...ownedBySomeBundle].filter((name) => !activeSkills.has(name)).sort();
+  return { expected: expected.sort(), removed, active: [...sel.active].sort(), explicit: sel.explicit, problems: [] };
+}
+
+/** 某个技能是否属于**任何**包（供 startup 摘除时判断"这个技能是谁的"）。 */
+export function bundleOwnedSkills(bundles = []) {
+  return [...new Set(bundles.flatMap((b) => b.skills ?? []).map(String))].sort();
+}
+

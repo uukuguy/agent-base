@@ -353,14 +353,11 @@ entries:
     category: skills
     source: core/skills/code-navigation/
     credentials: none
-    enabledByDefault: true
-    status: planned
-    targetPackage: S3
+    enabledByDefault: false
+    status: shipped
     devUse: 跨文件定位与依赖追踪 —— 上手陌生代码库时省掉大量摸索
-    rationale: 通用方法，与业务无关
-    notes: >
-      status: planned 表示 SKILL.md 尚未落盘。本清单**刻意不生成空占位文件**（基座不接受空骨架）；
-      写内容属 S3，validator 强制 planned 条目写明 targetPackage。
+    rationale: 通用方法，与业务无关（**由 `coding` 能力包决定是否进产物**：验证基线不含它，保持纯净）
+    notes: 落盘于 core/skills/，自检 make base-skills-selftest（frontmatter + 实质内容 + 无占位字样）
 
   - id: skill-debugging
     refName: null
@@ -368,12 +365,11 @@ entries:
     category: skills
     source: core/skills/debugging/
     credentials: none
-    enabledByDefault: true
-    status: planned
-    targetPackage: S3
+    enabledByDefault: false
+    status: shipped
     devUse: 系统化排障（先复现、再二分、后修）—— 把「越改越乱」变成有章法
-    rationale: 通用方法，与业务无关
-    notes: ""
+    rationale: 通用方法，与业务无关（**由 `coding` 能力包决定是否进产物**：验证基线不含它，保持纯净）
+    notes: 落盘于 core/skills/，自检 make base-skills-selftest
 
   - id: skill-verification
     refName: null
@@ -381,12 +377,11 @@ entries:
     category: skills
     source: core/skills/verification/
     credentials: none
-    enabledByDefault: true
-    status: planned
-    targetPackage: S3
+    enabledByDefault: false
+    status: shipped
     devUse: 「先跑验证再声称完成」—— 避免开发者在假成功上继续投入
-    rationale: 本基座对业务方的核心承诺，属基座不变量
-    notes: ""
+    rationale: 本基座对业务方的核心承诺（**由 `coding` 能力包决定是否进产物**）
+    notes: 落盘于 core/skills/，自检 make base-skills-selftest
 
 # ---------------------------------------------------------------------------
 # 已知缺口：不影响首个走通，但特定验证场景会撞上

@@ -29,7 +29,7 @@ import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 import { piRenderInputsDigest } from "./render-inputs.mjs";
 // 能力的**描述契约与双通道调用**只有一份实现（core）；渲染器只用它的装载/校验，运行期用同一份调用
 import { loadCapabilities, checkImplementation, toSchemaDocument } from "../../core/capabilities/registry.mjs";
-import { availableIds, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
+import { availableIds, bundleOwnedSkills, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -171,6 +171,27 @@ function main() {
     }
   }
   copyTree(skillsAbs, path.join(agentOut, "skills"));
+
+  // ---- 2b. 基座技能（L4）：**属于能力包**的那些也要进产物 ----
+  // 内容烤进产物、是否加载由运行期包选择决定（startup 按激活集合摘除未激活的）——
+  // 与连接器同一套纪律。技能是纯目录，两侧都能真的摘除。
+  // 变量在**函数作用域**声明：清单那一段要用它（放进块里会 ReferenceError —— 本轮实测踩到）。
+  const baseSkillNames = [];
+  {
+    const BUNDLES_FOR_SKILLS = loadBundles();
+    const owned = bundleOwnedSkills(BUNDLES_FOR_SKILLS.bundles);
+    for (const name of owned) {
+      const src = path.join(REPO, "core/skills", name);
+      if (!fs.existsSync(path.join(src, "SKILL.md"))) {
+        throw new Error(`能力包引用了基座技能「${name}」，但 core/skills/${name}/SKILL.md 不存在`
+          + ` —— 包不许引用不存在的能力（渲染期就拦住）`);
+      }
+      copyTree(src, path.join(agentOut, "skills", name));
+      baseSkillNames.push(name);
+    }
+    // ⚠️ 包技能**不进 declaredSkills**：那个字段的语义是「定义声明了什么」（跨侧 C3/C4 按它核对定义→产物）。
+    // 包技能是基座带来的、由包决定是否加载的，单独记在清单的 `bundles.baseSkills` 里。
+  }
 
   // ---- 3. 自研连接器代码 → agent-dir/mcp-servers/（§4.3 设计点 3）----
   const mcpServersCopied = copyTree(path.join(agentDir, "mcp-servers"), path.join(agentOut, "mcp-servers"));
@@ -441,6 +462,8 @@ function main() {
     // 写一个不存在的包名会被 startup 响亮拒绝（不许静默忽略）。
     bundles: {
       available: availableIds(BUNDLES),
+      // 产物**携带**的基座技能（由包决定是否加载；不是定义声明 ⇒ 不进 declaredSkills）
+      baseSkills: baseSkillNames.sort(),
       defaults: defaultSelection(BUNDLES),
     },
     declaredSkills,
@@ -456,6 +479,8 @@ function main() {
     // `ref` 也要记：能力包按**具名引用**（refName/id）过滤连接器，只靠服务器名会漏
     // 连接器落点（能力包按激活集合摘除时读它）：core 只认**格式**，不认运行时
     connectorSurface: { path: "agent-dir/mcp.json", kind: "json-mcp-servers" },
+    // 技能落点（能力包按激活集合摘除时读它；技能是纯目录，两侧都能真的摘）
+    skillSurface: { path: "agent-dir/skills", kind: "skill-dirs" },
     connectors: enabledConnectors.map((c) => ({ serverName: c.name, ref: c.ref ?? c.refName ?? c.id ?? null, transport: c.transport })),
     // 连接器的包坐标：闸门 3 据此断言"运行期能离线启动它"（不是"我们写了配置"）
     connectorPackages: enabledConnectors.filter((c) => c.pin).map((c) => `${c.pin.package}@${c.pin.version}`),
