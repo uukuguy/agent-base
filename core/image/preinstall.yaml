@@ -85,6 +85,8 @@ categories:
     label: 基座不变量技能
   - id: capability-runtime
     label: 业务能力运行时（业务代码用哪门语言写）
+  - id: coding-plugins
+    label: 编码插件（**运行时专有**：两侧各一条，不假装等价）
 
 # ---------------------------------------------------------------------------
 # 不预装：只有「装了也没用」或「装了会误导」才排除，不做生产式裁剪
@@ -263,6 +265,41 @@ entries:
       与 `shell-toolchain` 分开列：升级节奏不同（语言版本 vs shell 工具），
       而且**不是每个业务都需要它** —— 不需要的业务不该被它拖累（同一份清单服务所有智能体，
       但只有声明了 `runtime: python` 的能力才会用到它）。
+
+  - id: pi-web-access-plugin
+    refName: null
+    kind: plugin
+    category: coding-plugins
+    harness: pi
+    transport: null
+    install: { registry: npm, package: auspia-web-access, version: "1.0.0" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-28"
+    runsOffline: true
+    devUse: 编码时查文档 / 查 API（离线不需要它，所以默认不开）
+    rationale: >
+      插件是**运行时专有**的：这一条只对 pi 有意义，另一侧没有对应物（差异写进各自 exemptions，不假装等价）。
+      用途是"编码辅助"这一类：读改代码之外最常做的事就是查文档/查接口形状。
+      运行期无外网 ⇒ 必须**构建期**装好（本清单就是构建期安装的输入）。
+    notes: 属 `coding` 能力包（`bundles.coding.plugins.pi`）—— 开了 coding 才会被加载
+
+  - id: dsh-plan-plugin
+    refName: null
+    kind: plugin
+    category: coding-plugins
+    harness: dsh
+    transport: null
+    install: { registry: npm, package: "@deepseek-ai/dsh-client-ui-plan", version: "0.1.7-rc.1" }
+    credentials: none
+    enabledByDefault: false
+    verifiedAlive: "2026-09-28"
+    runsOffline: true
+    devUse: 先只读地探一遍再动手（计划模式）—— 编码时避免"边想边改"
+    rationale: >
+      与 pi 侧那一条**不是等价物**（插件必然专有）：这是本运行时的计划模式插件。
+      pin 与本运行时自身一致（`0.1.7-rc.1`，见 adapters 的 `adapter.yaml`）—— 预发布版本这点在选型材料里已如实记录。
+    notes: 属 `coding` 能力包（`bundles.coding.plugins.dsh`）
 
   - id: shell-toolchain
     refName: null

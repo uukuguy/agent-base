@@ -503,3 +503,7 @@
 - 21:43 C3 的判据②用**端点侧工具名**取证（不是"声明了"）：`coding` ⇒ 8 个工具含 `mcp__filesystem / mcp__git / mcp__repomix`；`verify-baseline` ⇒ 5 个、没有这三个。⚠️ 这个对比**起初偶发红**：真因是 MCP 服务器**异步**注册工具、取数时还没到位 ⇒ 改为**有界等待**（最多 20s），不是加重试掩盖问题。另修一处我自己的取数错误：从探针文本里 grep `tools=N` 两种组合都得到 8（差点把好功能判成坏的）⇒ 改成问端点"请求里带了哪些工具名"
 - 21:43 顺带修一个**真 bug**：技能摘除算 `keep` 时只看了定义技能、**漏了"激活包带来的技能"** ⇒ 开了 `coding` 包三个技能照样被删（闸门 2 报"少 3 项"）。修好后两种组合各 4 项 / 1 项，断言都对
 - 21:43 回归：`make regression` **36 项全绿**；闸门 1 34 项；`new-agent-selftest` 新增 7 条
+- 23:08 **C5 完成 ⇒ L4 能力包整条闭合（L1–L5 全部完成）**。新类目 `coding-plugins`（运行时专有，两侧各一条，不假装等价）：pi 侧 `auspia-web-access@1.0.0`（编码时查文档/API）· dsh 侧 `@deepseek-ai/dsh-client-ui-plan@0.1.7-rc.1`（先只读探一遍再动手），pin + `verifiedAlive`（实测 npm view）+ 「开发时拿它做什么」都齐
+- 23:08 C5 的加载（判据③）：**pi 侧已接线** —— 包插件随激活集合进 `settings.packages`（新的 `pluginSurface`，kind `json-packages`），实测默认组合 `[]`、开 coding ⇒ `["auspia-web-access"]`；自检 4 条。⚠️ **dsh 侧不接线、也不声称已加载**（插件写在 profile 的 bundles 里、该 patch 含 `!!js`，且无头模式下 UI 插件无意义）⇒ 写进 exemptions（`bundle-plugin-loading-not-wired`，含解除条件）。闸门 1 新增校验：包引用的插件必须在预装清单里、且必须是**该侧自己的**
+- 23:08 本轮踩到两个坑，都靠自检/实测当场抓到：① 插件包写在了"有连接器"的分支里 ⇒ 没有连接器的智能体**插件静默不加载**（渲染成功、settings.packages 为空）；② 包定义里记的是**条目 id**、settings 里写的是**包坐标**，不做一次翻译就永远对不上（表现为"两种组合都留着"）⇒ 清单加 `bundles.pluginPackages` 映射。另外按 harness 过滤了一次：不带侧过滤会把另一侧的插件也写进来
+- 23:08 回归：`make regression` **36 项全绿**（含 `bundles-selftest` 新增 4 条插件落点断言）；闸门 1 34 项；两侧 conformance 10/10

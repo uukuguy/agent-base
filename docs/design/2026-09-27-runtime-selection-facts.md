@@ -47,7 +47,7 @@
 | 轨迹通道 | 事后映射（`trace.mjs`，emitter=post-hoc） | 进程内钩子（`seed/extensions/trace.ts`，emitter=hook） + 事后映射（`trace.mjs`，emitter=post-hoc） |
 | 有 seed（基座不变量落地处） | 有 | 有 |
 | 已记录的坑（adapter 声明） | 11 条 failures + 18 条 failureCases | 11 条 failures |
-| 已声明的等价性豁免 | 11 条 | 9 条 |
+| 已声明的等价性豁免 | 12 条 | 9 条 |
 
 各能力维度的**实测备注**（真源里就写在 `*Note` 字段，这里只截首段；要全文看 adapter.yaml）：
 

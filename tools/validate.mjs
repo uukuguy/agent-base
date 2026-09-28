@@ -540,13 +540,32 @@ function checkBase(report, agentDir = process.cwd()) {
     const available = new Set(availableIds(loaded));
     // 包只能引用**预装清单里真实存在的**具名能力（包不许发明能力）。
     // 注意用具：`loadPreinstall()` 返回 `{ list, named, byId, byRefName }` —— 条目在 `list.entries` 里。
-    const preinstallEntries = new Set((() => {
+    const preinstallEntryById = new Map((() => {
       try {
         const loadedDoc = loadPreinstall();
         const list = loadedDoc && loadedDoc.list;
-        return list && Array.isArray(list.entries) ? list.entries.map((e) => e.id) : [];
+        return list && Array.isArray(list.entries) ? list.entries.map((e) => [e.id, e]) : [];
       } catch { return []; }
     })());
+    const preinstallEntries = new Set(preinstallEntryById.keys());
+    // 包引用的**插件**同样必须在预装清单里解析得到（包不许发明能力；插件还必须是该侧自己的）
+    const pluginProblems = [];
+    const harnessNames = fs.readdirSync(path.join(REPO, "adapters"), { withFileTypes: true })
+      .filter((e) => e.isDirectory() && fs.existsSync(path.join(REPO, "adapters", e.name, "adapter.yaml")))
+      .map((e) => e.name);
+    for (const b of loaded.bundles ?? []) {
+      for (const [h, list] of Object.entries(b.plugins ?? {})) {
+        if (!harnessNames.includes(h)) pluginProblems.push(`${b.id}: plugins 里写了未知运行时「${h}」`);
+        for (const pid of list ?? []) {
+          if (!preinstallEntries.has(pid)) pluginProblems.push(`${b.id}: 插件「${pid}」在预装清单里找不到`);
+          else {
+            const entry = preinstallEntryById.get(pid);
+            if (entry?.harness && entry.harness !== h) pluginProblems.push(`${b.id}: 插件「${pid}」属于 ${entry.harness}，却写在 ${h} 一侧`);
+          }
+        }
+      }
+    }
+
     const harnessList = fs.readdirSync(path.join(REPO, "adapters"), { withFileTypes: true })
       .filter((e) => e.isDirectory()).map((e) => e.name).sort();
     const ids = new Set();
@@ -569,6 +588,7 @@ function checkBase(report, agentDir = process.cwd()) {
     }
     const defs = defaultSelection(loaded);
     if (defs.length === 0) problems.push("默认组合为空 —— 至少要有一个默认开的包，否则开箱不可跑");
+    problems.push(...pluginProblems);
     if (problems.length) report.fail(GATE, "bundles/definition", problems.join("；"));
     else report.pass(GATE, "bundles/definition",
       `${loaded.bundles.length} 个包定义自洽（可用：${[...available].join(", ")}；默认：${defs.join(", ")}）`);

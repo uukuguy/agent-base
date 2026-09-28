@@ -37,7 +37,7 @@ import { spawn } from "node:child_process";
 
 // 能力包（L4/B1）：运行期的**选择**在这一层校验与解析（选择型参数，与环境型分开记账）
 import { BUNDLES_ENV, availableIds, bundleDigest, defaultSelection, loadBundles, parseSelection } from "../bundles/index.mjs";
-import { enforceConnectorSurface, enforceSkillSurface } from "../bundles/filter.mjs";
+import { enforceConnectorSurface, enforcePluginSurface, enforceSkillSurface } from "../bundles/filter.mjs";
 
 const EXIT_USAGE = 2;
 const die = (msg) => { process.stderr.write(`❌ ${msg}\n`); process.exit(EXIT_USAGE); };
@@ -394,7 +394,23 @@ function prepare({ artifact, runDir }) {
     const skillRes = enforceSkillSurface({
       runDir: effectiveRunDir, surface: manifest.skillSurface ?? null, keep: keepSkills, ownedByBundles: [...ownedSkills],
     });
-    return { active: [...bundleSelection.active].sort(), keep: [...keep].sort(), skills: { keep: keepSkills.sort(), ...skillRes }, ...res };
+    // 插件同一条纪律：属于某个包的插件坐标，只有该包激活才留（不属于任何包的照留，如基座自带的 MCP 客户端）
+    // ⚠️ 包定义里记的是**条目 id**，settings 里写的是**包坐标** —— 必须翻译一次（清单给映射）。
+    // 不翻译就永远对不上，表现为"两种组合都留着"（本轮实测踩到）。
+    const pkgById = manifest.bundles?.pluginPackages ?? {};
+    const toSources = (ids) => ids.map((id) => pkgById[id] ?? id).filter(Boolean);
+    const activeSources = new Set(toSources(bundleSelection.active.flatMap((id) => byId.get(id)?.plugins?.[manifest.harness] ?? []).map(String)));
+    const ownedSources = new Set(toSources(bundleSelection.doc.bundles.flatMap((b) => b.plugins?.[manifest.harness] ?? []).map(String)));
+    const pluginRes = enforcePluginSurface({
+      runDir: effectiveRunDir, surface: manifest.pluginSurface ?? null,
+      ownedSources: [...ownedSources], keepSources: [...activeSources],
+    });
+    return {
+      active: [...bundleSelection.active].sort(), keep: [...keep].sort(),
+      skills: { keep: keepSkills.sort(), ...skillRes },
+      plugins: { keep: [...activeSources].sort(), ...pluginRes },
+      ...res,
+    };
   })();
 
   const values = Object.fromEntries(Object.entries(resolved).map(([k, v]) => [k, v.value]));
@@ -444,6 +460,7 @@ function prepare({ artifact, runDir }) {
       filter: {
         connectors: { enforced: bundleApplied.enforced, kind: bundleApplied.kind, kept: bundleApplied.kept, removed: bundleApplied.removed, note: bundleApplied.note },
         skills: { enforced: bundleApplied.skills?.enforced ?? false, kept: bundleApplied.skills?.kept ?? [], removed: bundleApplied.skills?.removed ?? [], note: bundleApplied.skills?.note ?? null },
+        plugins: { enforced: bundleApplied.plugins?.enforced ?? false, kept: bundleApplied.plugins?.kept ?? [], removed: bundleApplied.plugins?.removed ?? [], note: bundleApplied.plugins?.note ?? null },
       },
     },
     effectiveConfigDigest: manifest.effectiveConfigDigest ?? null,

@@ -29,7 +29,7 @@ import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 import { piRenderInputsDigest } from "./render-inputs.mjs";
 // 能力的**描述契约与双通道调用**只有一份实现（core）；渲染器只用它的装载/校验，运行期用同一份调用
 import { loadCapabilities, checkImplementation, toSchemaDocument } from "../../core/capabilities/registry.mjs";
-import { availableIds, bundleOwnedSkills, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
+import { availableIds, bundleOwnedPlugins, bundleOwnedSkills, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -164,6 +164,9 @@ function main() {
   // ---- 2. 技能 → agent-dir/skills/（§4.4 / §10.2）----
   const skillsRel = agent.skillsDir ?? "skills";
   const skillsAbs = path.join(agentDir, skillsRel);
+  // 能力包与预装清单：本文件多处要用（技能/连接器/插件），**读一次**放函数作用域
+  const BUNDLES_DOC = loadBundles();
+  const PREINSTALL_DOC = loadPreinstall();
   const declaredSkills = [];
   if (fs.existsSync(skillsAbs)) {
     for (const e of fs.readdirSync(skillsAbs, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
@@ -178,7 +181,7 @@ function main() {
   // 变量在**函数作用域**声明：清单那一段要用它（放进块里会 ReferenceError —— 本轮实测踩到）。
   const baseSkillNames = [];
   {
-    const BUNDLES_FOR_SKILLS = loadBundles();
+    const BUNDLES_FOR_SKILLS = BUNDLES_DOC;
     const owned = bundleOwnedSkills(BUNDLES_FOR_SKILLS.bundles);
     for (const name of owned) {
       const src = path.join(REPO, "core/skills", name);
@@ -420,10 +423,40 @@ function main() {
     // 于是"实际加载的技能集合"多一项、闸门 2 的硬断言与跨运行时等价性双双告警。
     // 一个第三方包不该往我们的技能集合里塞东西：不是我们声明的，就不该出现。
     settings.packages = [{ source: MCP_ADAPTER_IN_IMAGE, skills: [], prompts: [] }];
+
     // 注意：settings.json 在上一节已落盘，这里改了内存对象必须**再写一次**
     //       （第一版漏了这步：mcp.json 里连接器有、settings 里却没有包声明 ⇒ 静默不生效）
     writeFile(path.join(agentOut, "settings.json"), stableJson(settings));
     log(`  连接器：${enabledConnectors.length} 个 → agent-dir/mcp.json（MCP 客户端走基座种子扩展）`);
+  }
+
+  // ---- 6b. 能力包（L4/C5）：本运行时侧的**编码插件**进 settings.packages ----
+  // ⚠️ 必须**无条件**执行：第一版写在上面的"有连接器"分支里 ⇒ 没有连接器的智能体插件静默不加载
+  // （本轮实测：渲染成功、settings.packages 却是空）。产物与组合无关地带上全部包插件，
+  // 运行期由 startup 按激活集合摘除 —— 与连接器/技能同一套纪律。
+  {
+    // ⚠️ 按**本运行时**取插件：不带 harness 会把另一侧的插件也写进来
+    // （本轮实测：pi 的 settings 里出现了 dsh 的插件包）。插件必然专有，必须逐侧取。
+    const pluginUnits = bundleOwnedPlugins(BUNDLES_DOC.bundles, path.basename(HERE)).units;
+    if (pluginUnits.length) {
+      settings.packages = Array.isArray(settings.packages) ? settings.packages : [];
+      for (const id of pluginUnits) {
+        const entry = PREINSTALL_DOC.byId.get(id);
+        const source = entry?.install?.package ?? null;
+        if (!source) {
+          throw new Error(`能力包引用了插件「${id}」，但预装清单里找不到它的包坐标（渲染期就拦住）`);
+        }
+        if (settings.packages.some((x) => (typeof x === "string" ? x : x.source) === source)) continue;
+        // 对象形式：只从这个包加载扩展，不带它的 skills / prompts（第三方包不许往我们的技能集合里塞东西）
+        settings.packages.push({ source, skills: [], prompts: [] });
+      }
+      writeFile(path.join(agentOut, "settings.json"), stableJson(settings));
+      log(`  插件：${pluginUnits.length} 个进 settings.packages（按激活集合加载）`);
+      // id → 包坐标：startup 要按激活集合摘除 settings 里的**包坐标**，而包定义里记的是**条目 id**
+      // （不翻译一次就永远对不上 ⇒ 实测表现为"两种组合都留着"）。
+      globalThis.__bundlePluginPackages = Object.fromEntries(
+        pluginUnits.map((id) => [id, PREINSTALL_DOC.byId.get(id)?.install?.package ?? null]));
+    }
   }
 
   // ---- 7. 清单与摘要 ----
@@ -451,6 +484,7 @@ function main() {
   ];
   // 适配器自身的声明读一次就够（此前同一份文件被 readYaml 读了四遍）
   const adapterDoc = readYaml(path.join(HERE, "adapter.yaml"));
+  // 能力包与预装清单：本文件多处要用（技能/连接器/插件），**读一次**放函数作用域
   const BUNDLES = loadBundles();
   const manifest = {
     harness: HARNESS,
@@ -472,6 +506,8 @@ function main() {
       }])),
       // 产物**携带**的基座技能（由包决定是否加载；不是定义声明 ⇒ 不进 declaredSkills）
       baseSkills: baseSkillNames.sort(),
+      // 插件条目 id → 包坐标（startup 据此摘除；见 6b 段注释）
+      pluginPackages: globalThis.__bundlePluginPackages ?? {},
       defaults: defaultSelection(BUNDLES),
     },
     declaredSkills,
@@ -489,6 +525,8 @@ function main() {
     connectorSurface: { path: "agent-dir/mcp.json", kind: "json-mcp-servers" },
     // 技能落点（能力包按激活集合摘除时读它；技能是纯目录，两侧都能真的摘）
     skillSurface: { path: "agent-dir/skills", kind: "skill-dirs" },
+    // 插件落点：settings.packages 里那些**属于能力包**的包（按激活集合摘除）
+    pluginSurface: { path: "agent-dir/settings.json", kind: "json-packages", field: "packages" },
     connectors: enabledConnectors.map((c) => ({ serverName: c.name, ref: c.ref ?? c.refName ?? c.id ?? null, transport: c.transport })),
     // 连接器的包坐标：闸门 3 据此断言"运行期能离线启动它"（不是"我们写了配置"）
     connectorPackages: enabledConnectors.filter((c) => c.pin).map((c) => `${c.pin.package}@${c.pin.version}`),

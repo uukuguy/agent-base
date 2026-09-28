@@ -168,3 +168,21 @@ export function bundleOwnedSkills(bundles = []) {
   return [...new Set(bundles.flatMap((b) => b.skills ?? []).map(String))].sort();
 }
 
+/**
+ * 某个包里声明的**插件**（按运行时取那一侧）。
+ * 插件必然专有 ⇒ 每个包都必须逐侧写明（空列表也算写明），闸门 1 会查。
+ * @returns {{units: string[], perHarness: Record<string, string[]>}}
+ */
+export function bundleOwnedPlugins(bundles = [], harness = null) {
+  const units = [];
+  const perHarness = {};
+  for (const b of bundles) {
+    const map = b.plugins ?? {};
+    for (const [h, list] of Object.entries(map)) {
+      perHarness[h] = [...new Set([...(perHarness[h] ?? []), ...(list ?? []).map(String)])].sort();
+      if (harness === null || h === harness) units.push(...(list ?? []).map(String));
+    }
+  }
+  return { units: [...new Set(units)].sort(), perHarness };
+}
+

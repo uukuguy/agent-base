@@ -15,6 +15,7 @@ import {
   BUNDLES_ENV, availableIds, bundleDigest, defaultSelection, describeSelection,
   loadBundles, materialize, parseSelection,
 } from "./index.mjs";
+import { enforcePluginSurface } from "./filter.mjs";
 
 let failures = 0;
 const check = (name, cond, extra = "") => {
@@ -80,6 +81,33 @@ console.log("── E. 一条如实边界：**不承诺热插拔**（写在代�
   const src = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), "index.mjs"), "utf8");
   check("模块里写明「切换需重载/重启、不承诺热插拔」", /不承诺热插拔/.test(src) && /重载\/重启/.test(src));
   check("选择型参数有唯一的环境变量名（与环境型参数分开记账）", BUNDLES_ENV === "AGENT_BUNDLES");
+}
+
+// ---------------------------------------------------------------------------
+// F. 插件落点（L4/C5）：只摘"属于未激活包"的那些，不属于任何包的照留
+// ---------------------------------------------------------------------------
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plug-surface-"));
+  const file = path.join(dir, "settings.json");
+  const seed = () => fs.writeFileSync(file, JSON.stringify({
+    packages: [{ source: "base-mcp-adapter", skills: [] }, { source: "plugin-of-b", skills: [] }],
+  }, null, 2) + "\n");
+  const surface = { path: "settings.json", kind: "json-packages", field: "packages" };
+  seed();
+  const r1 = enforcePluginSurface({ runDir: dir, surface, ownedSources: ["plugin-of-b"], keepSources: [] });
+  const after1 = JSON.parse(fs.readFileSync(file, "utf8")).packages.map((x) => x.source);
+  check("未激活包的插件被摘掉，不属于任何包的照留",
+    r1.removed.includes("plugin-of-b") && after1.includes("base-mcp-adapter") && !after1.includes("plugin-of-b"),
+    JSON.stringify({ removed: r1.removed, after: after1 }));
+  seed();
+  const r2 = enforcePluginSurface({ runDir: dir, surface, ownedSources: ["plugin-of-b"], keepSources: ["plugin-of-b"] });
+  check("激活包的插件留下（enforced 且没摘）", r2.enforced && r2.removed.length === 0, JSON.stringify(r2));
+  check("没声明插件落点 ⇒ enforced=false 并说明（不假装摘过）",
+    enforcePluginSurface({ runDir: dir, surface: null }).enforced === false,
+    enforcePluginSurface({ runDir: dir, surface: null }).note);
+  check("未知格式 ⇒ enforced=false（不猜格式）",
+    enforcePluginSurface({ runDir: dir, surface: { path: "settings.json", kind: "unknown-kind" } }).enforced === false);
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 void os; void fs;

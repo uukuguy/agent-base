@@ -21,6 +21,7 @@ import path from "node:path";
 
 export const CONNECTOR_SURFACE_KINDS = Object.freeze(["json-mcp-servers"]);
 export const SKILL_SURFACE_KINDS = Object.freeze(["skill-dirs"]);
+export const PLUGIN_SURFACE_KINDS = Object.freeze(["json-packages"]);
 
 /**
  * @param {{runDir: string, surface: object|null, keep: string[]}} args
@@ -86,4 +87,44 @@ export function enforceSkillSurface({ runDir, surface = null, keep = [], ownedBy
   }
   return { enforced: true, kind: surface.kind, kept: kept.sort(), removed: removed.sort(), dir,
     note: removed.length ? `按激活集合摘掉了 ${removed.length} 个未激活技能：${removed.sort().join(", ")}` : "无需摘除（激活集合覆盖了全部技能）" };
+}
+
+/**
+ * 插件落点：把**未激活包**带来的插件（包坐标）从暂存产物里摘掉。
+ * 只认格式（`json-packages`：某个 JSON 文件里的字符串/对象数组，按 `source` 比对包坐标）。
+ * @param {{runDir: string, surface: object|null, ownedSources: string[], keepSources: string[]}} args
+ */
+export function enforcePluginSurface({ runDir, surface = null, ownedSources = [], keepSources = [] }) {
+  if (!surface || !surface.path) {
+    return { enforced: false, kind: null, kept: [], removed: [], note: "产物没有声明插件落点（pluginSurface）⇒ 未摘除" };
+  }
+  if (!PLUGIN_SURFACE_KINDS.includes(surface.kind)) {
+    return { enforced: false, kind: surface.kind ?? null, kept: [], removed: [], note: `未知的插件落点格式「${surface.kind}」⇒ 未摘除（不猜格式）` };
+  }
+  const file = path.join(runDir, surface.path);
+  if (!fs.existsSync(file)) {
+    return { enforced: false, kind: surface.kind, kept: [], removed: [], note: `插件落点不存在（${surface.path}）` };
+  }
+  const field = surface.field ?? "packages";
+  let doc;
+  try { doc = JSON.parse(fs.readFileSync(file, "utf8")); }
+  catch (e) { return { enforced: false, kind: surface.kind, kept: [], removed: [], note: `落点不是合法 JSON：${e.message}` }; }
+  const list = doc && Array.isArray(doc[field]) ? doc[field] : null;
+  if (!list) return { enforced: false, kind: surface.kind, kept: [], removed: [], note: `落点里没有数组字段「${field}」` };
+  const owned = new Set(ownedSources);
+  const keep = new Set(keepSources);
+  const kept = [];
+  const removed = [];
+  const next = [];
+  for (const item of list) {
+    const source = typeof item === "string" ? item : item && item.source;
+    // 属于某个包的插件 ⇒ 只有激活了才留；不属于任何包的（如基座自带的 MCP 客户端）⇒ 照留
+    if (!owned.has(source) || keep.has(source)) { next.push(item); kept.push(source); }
+    else removed.push(source);
+  }
+  if (removed.length) {
+    fs.writeFileSync(file, JSON.stringify({ ...doc, [field]: next }, null, 2) + "\n");
+  }
+  return { enforced: true, kind: surface.kind, kept: kept.sort(), removed: removed.sort(), file,
+    note: removed.length ? `按激活集合摘掉了 ${removed.length} 个未激活插件：${removed.sort().join(", ")}` : "无需摘除（激活集合覆盖了全部插件）" };
 }

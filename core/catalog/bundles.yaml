@@ -52,8 +52,9 @@ bundles:
     skills: [code-navigation, debugging, verification]
     # 插件是 **harness 专有** ⇒ 必须显式分侧标注；两侧都没有就留空列表，不许假装等价
     plugins:
-      pi: []
-      dsh: []
+      # 插件**必然专有**：两侧各一条，不假装等价（见 preinstall 的 coding-plugins 类目）
+      pi: [pi-web-access-plugin]
+      dsh: [dsh-plan-plugin]
 
   - id: browser
     label: 浏览器与网页
