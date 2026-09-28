@@ -76,10 +76,11 @@
 
 ## 3. 基座不变量（同一份能力，两侧各自的落地形态）
 
-基座不变量的声明 id 全集（两侧 seed 的并集）：`project-info` · `trace` · `verify-container`
+基座不变量的声明 id 全集（两侧 seed 的并集）：`capabilities` · `project-info` · `trace` · `verify-container`
 
 | 不变量 | `dsh` | `pi` |
 |---|---|---|
+| `capabilities` | **缺** | 产物内声明（seed 的 `capabilities`） |
 | `project-info` | 产物内声明（seed 的 `project-info`） | 产物内声明（seed 的 `project-info`） |
 | `trace` | 事后映射（`trace.mjs`，emitter=post-hoc） | 产物内声明（seed 的 `trace`） |
 | `verify-container` | 产物内声明（seed 的 `verify-container`） | 产物内声明（seed 的 `verify-container`） |
@@ -88,6 +89,7 @@
 
 - `dsh` 的生命周期事件集合**未穷举** ⇒ 该侧钩子声明只能标「未验证」（要穷举得先量清运行时的可订阅集合）。
 - `dsh` 当前 pin 是**预发布版本**（`0.1.7-rc.1`）⇒ 升级抖动风险需要单独评估。
+- `dsh` 的基座不变量**没有任何落地形态**：`capabilities`（选它当主运行时就得先补，见 §26 V3）。
 
 ## 5. 怎么复核这份文件
 

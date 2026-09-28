@@ -255,6 +255,9 @@ async function handleChatCompletion(req, res, { config, emitter }) {
     provider: normalized.provider,
     model: normalized.model,
     tools: normalized.tools.length,
+    // 工具**名字**也记下来（加法字段）：只有计数时，"声明的能力真的被提供给了模型"
+    // 就只能靠"总数变多了"间接推；有名字才能逐条断言（自检与探针都用它）。
+    toolNames: normalized.tools.map((t) => t?.name).filter(Boolean),
     stream: normalized.stream,
   });
 

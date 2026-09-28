@@ -53,3 +53,15 @@ enhancements:
       （来自受控入口的干跑），再通过会话审批（放行/拒绝/无应答者⇒fail-closed）决定是否执行，
       并把这次决定记成 `approval.decision` 事件 ⇒「谁放行了这次容器验证」可回答。
       本扩展**不自己拼 docker 参数**，只调用参数表封闭的 `tools/verify-container.mjs`。
+
+  # ---------------------------------------------------------------------------
+  # 通用桥：按**描述**把业务能力注册成本运行时的工具（D-0013）
+  # 它不含任何具体能力名 —— 清单在 `<产物>/capabilities/index.json`（构建期由描述生成），
+  # "桥是通用的"由 `make capabilities-selftest` 逐条比对守着。
+  # ---------------------------------------------------------------------------
+  - kind: tool
+    id: capabilities
+    entry: extensions/capabilities.ts
+    description: >
+      基座不变量：读产物里的能力清单，按本运行时的工具形状逐个注册；调用交给
+      `core/capabilities/registry.mjs`（进程内 / 进程边界两条通道在那里，桥不区分）。

@@ -27,6 +27,8 @@ import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/i
 // Provider 目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/providers.mjs
 import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 import { piRenderInputsDigest } from "./render-inputs.mjs";
+// 能力的**描述契约与双通道调用**只有一份实现（core）；渲染器只用它的装载/校验，运行期用同一份调用
+import { loadCapabilities, checkImplementation, toSchemaDocument } from "../../core/capabilities/registry.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -256,6 +258,41 @@ function main() {
   writeFile(path.join(agentOut, "extensions", "_project-layout.mjs"),
     fs.readFileSync(path.join(HERE, "project-layout.mjs"), "utf8"));
 
+  // ---- 能力（D-0012/D-0018）：描述 + 实现进产物，桥只按描述注册 ----
+  // ① 描述与实现整棵拷进产物（实现相对描述定位，所以必须保持相对结构）
+  // ② YAML 在**构建期**解析成 JSON（产物里的模块**不许裸导入**，`yaml` 在产物里解析不到）
+  // ③ 调用协议与一致性判据来自 core（`_capabilities.mjs`），桥不含任何具体能力名
+  const capsSrc = path.join(agentDir, "capabilities");
+  const capsLoaded = loadCapabilities(agentDir, { yamlParse: (t) => YAML.parse(t) });
+  const capabilityProblems = [...capsLoaded.problems];
+  for (const cap of capsLoaded.capabilities) {
+    for (const p of checkImplementation(cap)) capabilityProblems.push(`${cap.__rel}: ${p}`);
+  }
+  if (capabilityProblems.length) {
+    throw new Error(`能力描述有问题（渲染期就拦住，别等到运行期）：\n  · ${capabilityProblems.join("\n  · ")}`);
+  }
+  const capabilityList = capsLoaded.capabilities.map((cap) => {
+    const doc = toSchemaDocument(cap);
+    return {
+      name: doc.name,
+      label: doc.label ?? doc.name,
+      description: doc.description,
+      promptSnippet: doc.promptSnippet ?? null,
+      parameters: doc.parameters,
+      result: doc.result,
+      execution: doc.execution,
+      declaration: doc.declaration,
+      // 实现文件相对**产物内**的能力目录（桥从那里起进程 / import）
+      entry: path.relative(capsSrc, path.resolve(path.dirname(cap.__file), doc.execution.entry)),
+    };
+  });
+  if (capsLoaded.capabilities.length) {
+    copyTree(capsSrc, path.join(agentOut, "capabilities"));
+    writeFile(path.join(agentOut, "capabilities", "index.json"), stableJson({ apiVersion: "agent-base/v1", capabilities: capabilityList }));
+  }
+  writeFile(path.join(agentOut, "extensions", "_capabilities.mjs"),
+    fs.readFileSync(path.join(REPO, "core/capabilities/registry.mjs"), "utf8"));
+
   const declaredEnhancements = [...new Set([...baseEnh, ...agentEnh].map((e) => e.id))].sort();
   // 哪些声明是**钩子**：闸门 3 的 probe/hooks-evidenced 靠它判断"要不要断言钩子真的触发了"
   const hookEnhancements = [...new Set([...baseEnh, ...agentEnh]
@@ -393,6 +430,10 @@ function main() {
     harnessVersion: adapterDoc.version,
     agent: agent.name,
     declaredSkills,
+    // 能力（D-0012）：名字 + 通道 + 确定性 —— 供闸门、自省、`/project` 与"桥是通用的"静态检查用
+    capabilities: capabilityList.map((c) => ({
+      name: c.name, kind: c.execution.kind, runtime: c.execution.runtime ?? null, deterministic: c.declaration.deterministic,
+    })),
     declaredEnhancements,
     hookEnhancements,
     connectors: enabledConnectors.map((c) => ({ serverName: c.name, transport: c.transport })),
