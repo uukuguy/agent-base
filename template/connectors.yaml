@@ -17,4 +17,24 @@ apiVersion: agent-base/v1
 #        description: 工单系统            # 会进系统提示词，写给模型看
 #
 # 可用名字见基座仓库的 core/image/preinstall.yaml（namedReferences）。
-mcpServers: []
+# ---------------------------------------------------------------------------
+# 默认启用「开发常用子集」（路线图 §27 D9 / L4 C3）
+#
+# **只用 `ref:`**：不写包名、不写版本 —— 那些是基座能力目录的事（换 pin 只改基座一处）。
+# 这三条都在基座预装清单里、离线可跑（镜像构建期装齐；本地 `make dev-env` 装到 .local-packages）。
+#
+# 它们属于 `coding` 能力包：**默认组合带 coding**（见 Makefile 的 BUNDLES），
+# 所以新派生的智能体开箱就能读改代码、查 git、打包仓库上下文。
+# 想要"纯验证"环境（结论更可复现、失败原因不被无关能力淹没）：
+#     make verify BUNDLES=verify-baseline
+# ---------------------------------------------------------------------------
+mcpServers:
+  - ref: filesystem
+    enabled: true
+    description: 沙箱内读写文件（把工作区限定在声明过的目录里）
+  - ref: git
+    enabled: true
+    description: 查仓库状态/历史/差异 —— 改代码前先看清现状
+  - ref: repomix
+    enabled: true
+    description: 把一个仓库打包成一份上下文（上手陌生代码库时省事）

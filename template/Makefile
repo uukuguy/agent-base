@@ -8,6 +8,12 @@
 AGENT_BASE_DIR ?= {{AGENT_BASE_DIR}}
 HARNESS ?= pi
 
+# 能力包（L4）：**新智能体的初始组合由模板决定**（设计稿 §7 未决项 3）。
+# 默认带 `coding`（编码辅助：filesystem/git/repomix + 三个编码技能）—— 开箱就能读改代码。
+# 想要"纯验证"环境：make verify BUNDLES=verify-baseline
+BUNDLES ?= coding
+export AGENT_BUNDLES := $(BUNDLES)
+
 # 智能体自己的**供应商配置**（可选）：旁边有 providers.yaml 就自动用它，
 # **不必改基座代码**、也不必记环境变量。没有就退回基座内置的常用供应商。
 #
@@ -34,7 +40,8 @@ help: ## 列出可用命令
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "参数：HARNESS=pi|dsh   AGENT_PROVIDERS_FILE=<你的 provider 目录>   RENDER_DIR=<渲染输出>   JSON=1"
+	@echo "参数：HARNESS=pi|dsh   BUNDLES=$(BUNDLES)   AGENT_PROVIDERS_FILE=<你的 provider 目录>   RENDER_DIR=<渲染输出>   JSON=1"
+	@echo "      能力包默认 coding（编码辅助）；纯验证用 BUNDLES=verify-baseline"
 
 validate: check-base ## 闸门 1：检查定义（改完先跑这个）
 	@node $(AGENT_BASE_DIR)/tools/validate.mjs .

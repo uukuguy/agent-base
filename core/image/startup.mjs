@@ -385,7 +385,12 @@ function prepare({ artifact, runDir }) {
     // 技能同一条纪律：属于某个包的技能，只有该包激活才留（技能是纯目录，两侧都能真的摘）
     const activeSkills = new Set(bundleSelection.active.flatMap((id) => byId.get(id)?.skills ?? []).map(String));
     const ownedSkills = new Set(bundleSelection.doc.bundles.flatMap((b) => b.skills ?? []).map(String));
-    const keepSkills = (manifest.declaredSkills ?? []).filter((name) => !ownedSkills.has(name) || activeSkills.has(name));
+    // ⚠️ keep = 定义声明的技能 **∪ 激活包带来的技能**。只写前者会把激活包自己的技能也删掉
+    // （本轮实测踩到：开了 coding 包，三个技能照样被删 ⇒ 闸门 2 报「少 3 项」）。
+    const keepSkills = [...new Set([
+      ...(manifest.declaredSkills ?? []).filter((name) => !ownedSkills.has(name)),
+      ...[...activeSkills],
+    ])].sort();
     const skillRes = enforceSkillSurface({
       runDir: effectiveRunDir, surface: manifest.skillSurface ?? null, keep: keepSkills, ownedByBundles: [...ownedSkills],
     });
