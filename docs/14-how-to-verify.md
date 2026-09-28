@@ -29,7 +29,7 @@ make verify-all               # 全部示例 × 两个运行时，四道闸门
 | **渲染** | 确定性产物：同一定义渲两次结果相同，产可复算摘要 | `make compare AGENT_DIR=…` |
 | **本地跑** | 零凭据假网关 / 真实端点 / 本地模型，三种跑法 | `make run-local …`、`LIVE=1` |
 | **闸门** | 四道闸门回答"可用/不可用"，且带证据（端点侧取证） | `make verify AGENT_DIR=…` |
-| **轨迹** | 统一轨迹：11 类事件、可回放、业务可扩展 | `make trace-view TRACE=…` |
+| **轨迹** | 统一轨迹：12 类事件、可回放、业务可扩展 | `make trace-view TRACE=…` |
 | **容器** | 基座镜像：产物挂载或**烤进镜像**都能跑；缺配置 fail-fast | `docker run … config-check` |
 | **自证** | **镜像内**跑闸门（离线、零凭据） | `docker run <镜像> verify` |
 | **接入缝** | 上层镜像在**运行期**加业务代码与钩子（不动产物） | `make image-derived … OVERLAY_DIR=…` |
@@ -128,7 +128,7 @@ docker run --rm --network none \
 | 另一个运行时的钩子 | `make verify … HARNESS=dsh` | 如实报「事后映射 ⇒ 该断言在此运行时不适用」（**不算通过**） |
 | 钩子订阅的**事件名真的存在** | `make validate AGENT_DIR=…` | `enhance/events`：声明的每个事件名都在 `adapters/<h>/adapter.yaml` 的 `hookEvents` 里（pi 39 个，逐个对名字）⚠️ dsh 侧事件集合**未穷举** ⇒ 如实标「未验证」，不做假校验 |
 | 被禁的工具真的调不到 | `make smoke AGENT_DIR=…` | `smoke/no-denied-tools` |
-| 轨迹合法可回放 | `make trace-selftest` + `make trace-view TRACE=…` | 11 类事件全过 schema；视图能按 run 回放 |
+| 轨迹合法可回放 | `make trace-selftest` + `make trace-view TRACE=…` | 12 类事件全过 schema；视图能按 run 回放 |
 | 镜像与源码同源 | `make conformance HARNESS=pi`（C9） | 四个镜像 + 归档的 LABEL 等于源码指纹 |
 | 容器安全下限 | 同上 | C9 十六项（非 root、只读根、能力全丢、断网可用…） |
 | **镜像内**能自证 | `docker run <镜像> verify` | 闸门 2/3/4（有定义连闸门 1）—— 离线、零凭据 |
@@ -139,7 +139,7 @@ docker run --rm --network none \
 | **镜像是过期的那份吗** | `make verify-container …`（前置自动比指纹） | 镜像 LABEL ≠ 当前源码指纹 ⇒ **拒绝执行**并给出重建命令（闸门判据是烤进镜像的，用旧镜像验新产物会得到「容器挂、本地过」的假差异）；确实要用旧镜像加 `--allow-stale-image` |
 | **声称的能力都有判据吗** | `make selfcheck`（`JSON=1` 给 AI） | 逐条把 `docs/13` §1/§2 的"判据"解析到真实存在的 `make` 目标 / 脚本 / 路径 / 闸门检查 id；解析不到 ⇒ 非零退出（"指不出的能力"要删除或降级）；显式「未实测」算降级态并单独计数；闸门 1 的 `docs/capability-judgements` 同一条判据 |
 | **收尾回归一条命令** | `make regression`（`FAST=1` 快检、`JSON=1` 给 AI） | 先查镜像指纹（过期先重建）→ 22 项自检 → 两侧 conformance → examples-check → selfcheck；跳过的项**明确标注「没验」**，不算通过 |
-| **这次运行贵在哪里** | `make cost-report TRACE=<轨迹 JSONL>`（`JSON=1` 给 AI） | 每个 run 的模型调用/工具调用/挂钟 + 钩子失败/审批次数；**轨迹里没有 token 用量就如实说没有**（实测：该运行时的响应钩子只给 status/headers），不编造成本数字；**归因到「人」目前做不到**（缺身份入口） |
+| **这次运行贵在哪里** | `make cost-report TRACE=<轨迹 JSONL>`（`JSON=1` 给 AI） | 每个 run 的模型调用/工具调用/挂钟 + 钩子失败/审批次数；**轨迹里没有 token 用量就如实说没有**（实测：该运行时的响应钩子只给 status/headers），不编造成本数字；**归因到「人」目前做不到**（缺身份入口）；报告还写明每个 run **有没有收到结束标记**（没有 ⇒ 这份轨迹分不出「跑完」与「被掐断」） |
 | **会话里请求容器验证（需审批）** | 会话内 `/verify-container`（`make local` 之后） | 先摊开将要执行的 docker 参数 → 你放行/拒绝 → 只有放行才跑；决定记进轨迹 `approval.decision`；无应答者时 **fail-closed 不执行**；自检 `make pi-verify-container-selftest` |
 | **同上（另一侧）** | 该运行时会话内 `/verify-container`（同一套判据的另一个落地形态） | 走它的原生审批接缝（四种结果；无应答者/无审批服务 ⇒ **fail-closed 放弃**）；事件同样进轨迹；自检 `make dsh-verify-container-selftest` |
 | **同上（另一侧）：项目自省** | 该运行时会话内 `/project`（同一份逻辑，读法由该运行时的布局提供） | 产物里的事实照常摊开；分类清单在 `input.hint` 里（该运行时**没有动态补全回调** ⇒ 已在 `exemptions.yaml` 声明这条不对称）；自检 `make dsh-project-info-selftest` |

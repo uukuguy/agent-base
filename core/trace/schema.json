@@ -147,6 +147,9 @@
         },
         {
           "$ref": "#/$defs/hookError"
+        },
+        {
+          "$ref": "#/$defs/runEnd"
         }
       ]
     },
@@ -572,6 +575,29 @@
         "stack": {
           "type": "string",
           "description": "可选：栈摘要（截断）"
+        }
+      }
+    },
+    "runEnd": {
+      "type": "object",
+      "description": "运行结束标记。**为什么要有它**：没有它时，一份被掐断的轨迹与一份正常跑完的轨迹在证据上无法区分（审计分不出「它跑完了」和「它跑到一半就没了」）。reason 用运行时给的原话（实测该运行时 shutdown 载荷带 {type, reason}），基座不解释、不翻译。缺这条标记**不等于失败**（有的运行时/模式不给）—— 但要**如实说看不到**。",
+      "required": [
+        "type",
+        "reason"
+      ],
+      "properties": {
+        "type": {
+          "const": "run.end"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "运行时给的结束原因原话（如 quit）；基座不解释。"
+        },
+        "elapsedMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "可选：本次运行时长"
         }
       }
     }

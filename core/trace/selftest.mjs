@@ -118,6 +118,19 @@ console.log("\n── 用量归因 ──");
   check("没有用量时如实说明（点出「只能按次数与时长」）", /只能\*\*按次数与时长\*\*归因|只能按\*\*次数与时长\*\*归因/.test(noUsage.note), noUsage.note);
   check("给人看的报告里写明「归因到人做不到」", /归因到「人」/.test(renderUsage(noUsage)) && /做不到/.test(renderUsage(noUsage)));
   check("空轨迹不炸", usageReport([]).runs.length === 0 && /没有任何 run/.test(renderUsage(usageReport([]))));
+  {
+    // 结束标记：分得清"跑完了"与"跑到一半没了"
+    const ended = usageReport([
+      { ...base, run: "r4", seq: 0, type: "model.request" },
+      { ...base, run: "r4", seq: 1, type: "run.end", reason: "quit" },
+      { ...base, run: "r5", seq: 0, type: "model.request" },   // 没有结束标记（可能被掐断）
+    ]);
+    const r4 = ended.runs.find((x) => x.run === "r4");
+    const r5 = ended.runs.find((x) => x.run === "r5");
+    check("有结束标记 ⇒ 记下 reason（运行时原话）", r4.ended === true && r4.endReason === "quit", JSON.stringify(r4));
+    check("没有结束标记 ⇒ 如实标未收到（不当成失败，也不当成正常）",
+      r5.ended === false && /看不到结束标记/.test(renderUsage(ended)), renderUsage(ended).split("\n").filter((l) => /结束/.test(l)).join(" | "));
+  }
 }
 
 console.log(`\n${failures === 0 ? "统一轨迹 schema 自检：全绿" : `统一轨迹 schema 自检：失败 ${failures} 项`}`);

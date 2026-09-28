@@ -37,10 +37,11 @@ export function usageReport(events = []) {
         effectiveConfigDigest: e.effectiveConfigDigest ?? null,
         modelCalls: 0, toolCalls: 0, first: null, last: null,
         tokens: { input: 0, output: 0, total: 0, seen: false },
-        hookErrors: 0, approvals: 0,
+        hookErrors: 0, approvals: 0, ended: false, endReason: null,
       });
     }
     const u = byRun.get(e.run);
+    if (e.type === "run.end") { u.ended = true; u.endReason = String(e.reason ?? ""); }
     if (e.type === "model.request") {
       u.modelCalls++;
       // 有就用、没有就不算 —— 绝不拿"次数 × 猜测的每 token 单价"造一个看起来像成本的数
@@ -62,6 +63,9 @@ export function usageReport(events = []) {
     run: u.run, agent: u.agent, harness: u.harness, effectiveConfigDigest: u.effectiveConfigDigest,
     modelCalls: u.modelCalls, toolCalls: u.toolCalls, hookErrors: u.hookErrors, approvals: u.approvals,
     wallClockMs: u.first !== null && u.last !== null ? u.last - u.first : null,
+    // 结束标记：**有 ⇒ 正常收到结束信号；没有 ⇒ 看不到结束信号**（可能被掐断，也可能是该运行时不给）——
+    // 两种情况都不由本报告判成败，但它必须被说清楚（否则截断的轨迹会被当成完整记录）。
+    ended: u.ended, endReason: u.endReason,
     tokens: u.tokens.seen ? { input: u.tokens.input, output: u.tokens.output, total: u.tokens.total } : null,
   }));
   const hasUsage = runs.some((r) => r.tokens);
@@ -95,6 +99,8 @@ export function renderUsage(report, { label = null } = {}) {
     lines.push(`    用量      模型调用 ${r.modelCalls} · 工具调用 ${r.toolCalls} · 挂钟 ${r.wallClockMs === null ? "数不出" : `${Math.round(r.wallClockMs / 1000)}s`}`
       + (r.tokens ? ` · tokens 输入 ${r.tokens.input}/输出 ${r.tokens.output}/合计 ${r.tokens.total}` : " · tokens **不可得**"));
     if (r.hookErrors || r.approvals) lines.push(`    事件      钩子失败 ${r.hookErrors} · 审批 ${r.approvals}`);
+    // 结束标记：缺它时这份轨迹分不出「正常跑完」与「中途被掐断」—— 必须写出来，但不据此判成败
+    lines.push(`    结束      ${r.ended ? `收到结束标记（reason=${r.endReason}）` : "看不到结束标记（可能被掐断，也可能该运行时不提供）"}`);
   }
   lines.push("");
   lines.push(`合计        ${report.totals.runs} 个 run · 模型调用 ${report.totals.modelCalls} · 工具调用 ${report.totals.toolCalls} · 钩子失败 ${report.totals.hookErrors}`);

@@ -193,7 +193,13 @@ export default function (pi) {
     });
   }));
 
-  pi.on("session_shutdown", () => safe(() => {
+  pi.on("session_shutdown", (event) => safe(() => {
+    // **结束标记**：没有它，被掐断的轨迹与正常跑完的轨迹在证据上分不开。
+    // reason 用运行时给的原话（实测 shutdown 载荷是 { type, reason }），基座不解释。
+    writer.write({
+      type: "run.end",
+      reason: String((event && event.reason) || "unspecified"),
+    });
     callStartedAt.clear(); // 幂等：多条清理路径汇聚到这里都不出错
   }));
 }

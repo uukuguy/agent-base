@@ -162,6 +162,23 @@ const renderDir = path.resolve(renderDirArg);
             }
           }
 
+          // 3c) 结束标记：**分得清"跑完了"与"跑到一半没了"**
+          // 没有这条时，截断的轨迹与正常结束的轨迹在证据上一样（审计的真空）。
+          // 判据：有 run.end ⇒ 报出 reason（运行时原话）；没有 ⇒ **如实说看不到**，
+          // 但**不据此判成败**（有的运行时/模式不给这个标记，那既不是 agent 的错也不能假装正常）。
+          {
+            const ends = allEventsForHooks.filter((e) => e.type === "run.end");
+            if (!ends.length) {
+              rep.pass(GATE, "smoke/run-end",
+                "看不到运行结束标记（该运行时/该模式不提供）—— **这不等于失败**，但这份轨迹分不出"
+                + "「正常跑完」与「中途被掐断」，审计时要知道这一点");
+            } else {
+              const bad = ends.filter((e) => !String(e.reason ?? "").trim());
+              if (bad.length) rep.fail(GATE, "smoke/run-end", `${bad.length} 条 run.end 缺 reason（结束原因不明）`);
+              else rep.pass(GATE, "smoke/run-end", `运行结束标记已留痕：reason=${ends.map((e) => e.reason).join(", ")}`);
+            }
+          }
+
           // 4) loop 预算：**从轨迹数**，越界判红并给出数字（声明不是装饰）
           let c_loopSource = "";
           {
