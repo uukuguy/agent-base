@@ -106,7 +106,15 @@ export default function (pi) {
   };
 
   pi.on("session_start", () => safe(() => {
-    writer.write({ type: "run.meta", mode: RUN_MODE, contentMode: CONTENT_MODE });
+    writer.write({
+      type: "run.meta",
+      mode: RUN_MODE,
+      contentMode: CONTENT_MODE,
+      // 会话身份与"是否续跑"：**来自基座的平台变量**（运行时不给钩子这个信息，实测）——
+      // 有了它，"这次运行是在续哪一次"在轨迹里可对（E6 续跑留痕）。
+      ...(process.env.AGENT_SESSION_ID ? { session: process.env.AGENT_SESSION_ID } : {}),
+      ...(process.env.AGENT_RESUMED === "1" ? { resumed: true } : {}),
+    });
   }));
 
   pi.on("before_provider_request", (event) => safe(() => {

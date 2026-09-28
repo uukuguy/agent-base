@@ -25,6 +25,10 @@ export const PLATFORM_ENV_NAMES = [
   "AGENT_RUN_MODE",
   "AGENT_HARNESS_ARGS",
   "AGENT_TRACE_DEST",
+  // 会话身份（E6"续跑可留痕"）：**基座持有** —— 实测运行时不会把它给钩子（`session_start` 只给 type/reason），
+  // 所以由基座生成/传入（`--session-id`），并写进轨迹。续跑 = 同一个 id + `AGENT_RESUMED=1`。
+  "AGENT_SESSION_ID",
+  "AGENT_RESUMED",
   // 定义目录只在"项目所在处"存在：本地入口由 run-local 给（会话内需要它才能请求容器验证）；
   // 容器里**不挂定义**（产物是烤进去的），所以它由调用方按需 `-e` 给（镜像内自证就跑闸门 1）。
   "AGENT_DEFINITION_DIR",
@@ -45,9 +49,11 @@ export const IMAGE_ONLY_ENV_NAMES = [
  * 注意暂存副本里**只有运行目录那一份**，没有清单 —— 所以任何"读清单"的能力
  * （会话内 `/project`、闸门 2 等）都必须拿到这个变量，而不是去猜 `dirname(配置目录)`。
  */
-export function localPlatformEnv({ renderDir, runDir, definitionDir }) {
+export function localPlatformEnv({ renderDir, runDir, definitionDir, sessionId = null, resumed = false }) {
   return {
     AGENT_ARTIFACT_DIR: path.resolve(renderDir),
+    ...(sessionId ? { AGENT_SESSION_ID: sessionId } : {}),
+    ...(resumed ? { AGENT_RESUMED: "1" } : {}),
     // 本地对应物 = 仓库根（容器里是 /opt/agent-base/gates：core/ + tools/ + adapters/ 都在它下面）
     AGENT_GATES_DIR: REPO,
     ...(runDir ? { AGENT_RUN_DIR: path.resolve(runDir) } : {}),

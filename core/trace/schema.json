@@ -184,6 +184,15 @@
           "type": "string",
           "pattern": "^sha256:[0-9a-f]{64}$",
           "description": "本次运行所用**中性定义**的摘要（§6.7 报告的 definitionDigest）。业务标签（技能/连接器的业务描述）不在轨迹里重复，而是由查看方按这个 digest 去标签索引 join —— 单一真源留在定义里，改一句描述不会改写历史轨迹。"
+        },
+        "session": {
+          "type": "string",
+          "minLength": 1,
+          "description": "会话身份（可选）：由**基座**持有并传入（运行时不会把它给钩子 —— 实测 session_start 只给 type/reason）。续跑时同一个会话 id 出现在多条 run 里，于是「这次是在续哪一次」可对。"
+        },
+        "resumed": {
+          "type": "boolean",
+          "description": "本次 run 是否是**续跑**（接着既有会话跑）。与 session 一起构成「续跑留痕」的判据。"
         }
       }
     },

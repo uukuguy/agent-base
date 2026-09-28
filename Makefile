@@ -87,6 +87,9 @@ pi-trace-selftest: ## pi 事后映射自检：不许丢事件 / 推算值必须�
 pi-trace-ext-selftest: ## 基座轨迹扩展自检（回调式主路径）：真实 tools/stream、配对、判定口径
 	@node adapters/pi/trace-ext-selftest.mjs
 
+pi-session-selftest: ## 会话续跑自检（续跑可留痕：同一会话进轨迹 + 标 resumed + 接错会话响亮失败）
+	@node adapters/pi/session-selftest.mjs
+
 pi-capabilities-selftest: ## 能力通用桥自检（桥里无能力名 · 真注册工具数+2 · 两条通道一致 · 坏描述挡在渲染期）
 	@node adapters/pi/capabilities-selftest.mjs
 

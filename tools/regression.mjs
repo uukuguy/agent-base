@@ -32,7 +32,7 @@ const fast = flags.has("--fast");
 const SELFTESTS = [
   "validate", "validate-selftest", "capabilities-selftest", "gates-selftest", "trace-selftest", "emit-selftest", "trace-view-selftest",
   "gateway-selftest", "providers-selftest", "startup-selftest", "pi-selftest", "pi-trace-selftest",
-  "pi-trace-ext-selftest", "pi-project-info-selftest", "pi-capabilities-selftest", "pi-verify-container-selftest",
+  "pi-trace-ext-selftest", "pi-project-info-selftest", "pi-capabilities-selftest", "pi-session-selftest", "pi-verify-container-selftest",
   "dsh-verify-container-selftest", "dsh-project-info-selftest", "dsh-capabilities-selftest", "probe-selftest", "project-info-selftest", "env-check-selftest",
   "verify-container-selftest", "unattended-selftest", "new-agent-selftest", "local-selftest",
 ];

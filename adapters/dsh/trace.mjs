@@ -61,7 +61,12 @@ export function mapEventStream(records, ctx, opts = {}) {
   records.forEach((r, i) => {
     switch (r?.type) {
       case "session":
-        done({ ...base(r, i), type: "run.meta", mode: ctx.mode ?? "oneshot", contentMode: ctx.contentMode ?? "digest" });
+        done({
+          ...base(r, i), type: "run.meta", mode: ctx.mode ?? "oneshot", contentMode: ctx.contentMode ?? "digest",
+          // 会话身份：来自基座的平台变量（与另一侧同一套判据，见 core/image/platform-env.mjs）
+          ...(process.env.AGENT_SESSION_ID ? { session: process.env.AGENT_SESSION_ID } : {}),
+          ...(process.env.AGENT_RESUMED === "1" ? { resumed: true } : {}),
+        });
         return;
 
       case "tool_call": {

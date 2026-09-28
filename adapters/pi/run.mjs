@@ -161,10 +161,19 @@ export async function runAgent({
   // 默认 **false**：真实运行不许静默用占位凭据（那会跑出"看起来正常、其实连不上"的结果）。
   zeroCredential = false,
   env: extraEnv = {},
+  // 会话身份（E6）：**由基座给**（运行时不给钩子这个信息）。给 sessionDir 才会落盘会话；
+  // continueSession=true 时接着同一个会话跑，并在轨迹里标 resumed。
+  sessionId = null,
+  sessionDir = null,
+  continueSession = false,
+  workDir = null,
 }) {
   const { staging, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: extraEnv });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "agent-home-"));
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agent-cwd-"));
+  // 工作目录也是**会话身份的一部分**：该运行时的"项目会话"按 cwd 归属，
+  // 续跑要接对会话就必须两次跑在同一个 cwd（实测：各跑各的新临时目录 ⇒ `--continue` 接到了别的会话）。
+  // 所以调用方（基座）可以指定它；不指定时才用一次性临时目录。
+  const cwd = workDir ? path.resolve(workDir) : fs.mkdtempSync(path.join(os.tmpdir(), "agent-cwd-"));
   const traceFile = trace ? path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-")), "trace.jsonl") : null;
 
   const manifest = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
@@ -179,11 +188,20 @@ export async function runAgent({
     AGENT_RUN_MODE: runMode,
     AGENT_TRACE_CONTENT: contentMode,
     AGENT_EFFECTIVE_CONFIG_DIGEST: digestOfRender(renderDir),
+    ...(sessionId ? { AGENT_SESSION_ID: sessionId } : {}),
+    ...(continueSession ? { AGENT_RESUMED: "1" } : {}),
     ...(manifest.modelProviders?.[0] ? { AGENT_MODEL_ROUTE: manifest.modelProviders[0] } : {}),
     ...(traceFile ? { AGENT_TRACE_DEST: traceFile } : {}),
   };
 
   const args = ["--mode", "json", "-p", prompt, "--no-skills"];
+  // 会话：给目录才落盘；给 id 才可复现；续跑加 --continue（三者都由调用方决定，基座不猜）
+  // ⚠️ 实测：`--session-id` 与 `--continue` **互斥**（组合使用直接退出 1，报错说明得很清楚）。
+  // 所以：首次运行用基座给的 id 建会话；续跑只用 `--continue`，然后**核验**运行时实际用的 id
+  // 是否就是基座持有的那个 —— 不核验的话，轨迹里的 session 只是"声称"，不是事实。
+  if (sessionDir) args.push("--session-dir", sessionDir);
+  if (sessionId && !continueSession) args.push("--session-id", sessionId);
+  if (continueSession) args.push("--continue");
   const skills = path.join(staging, "skills");
   if (fs.existsSync(skills)) args.push("--skill", skills);
   // 工具边界：**声明在产物清单里**（runtimePlan.prependArgs），两条启动路径都按同一份执行 ——
@@ -208,12 +226,26 @@ export async function runAgent({
     await new Promise((r) => setTimeout(r, 400));
   }
 
+  // 运行时把会话身份作为**第一行**输出（`{"type":"session","id":…}`）—— 这是"事实"来源。
+  // 核验：给了期望 id（基座持有）就对一下；不一致 = 续跑接错了会话，**响亮失败**（不许静默）。
+  let observedSession = null;
+  for (const line of String(stdout ?? "").split("\n")) {
+    if (!line.trim()) continue;
+    try { const rec = JSON.parse(line); if (rec?.type === "session" && rec.id) { observedSession = rec.id; break; } } catch { /* 非 JSON 行 */ }
+  }
+  if (sessionId && observedSession && observedSession !== sessionId) {
+    return { exitCode: exited, stdout, stderr: `${stderr}\n[session-mismatch] 期望会话 ${sessionId}，运行时实际用的是 ${observedSession}`,
+      events: [], staging, placeholders, traceFile, sessionId: observedSession, sessionVerified: false };
+  }
+
   let events = [];
   if (traceFile && fs.existsSync(traceFile)) {
     events = fs.readFileSync(traceFile, "utf8").split("\n").filter(Boolean)
       .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   }
-  return { exitCode: exited, stdout, stderr, events, staging, placeholders, traceFile };
+  return { exitCode: exited, stdout, stderr, events, staging, placeholders, traceFile,
+    sessionId: observedSession ?? sessionId ?? null,
+    sessionVerified: sessionId ? observedSession === sessionId : null };
 }
 
 /**
