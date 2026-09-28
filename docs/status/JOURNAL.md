@@ -516,3 +516,8 @@
 - 01:08 🔴 **我自己的操作造成了一次真事故，并因此补上一条纪律**：为了让新插件本地可用，我跑了 `npm install --prefix .local-packages <两个包>` —— npm 顺手把**其余包全剪掉**（filesystem/git/repomix 当场消失），于是闸门 3、模板自检、examples-check 连锁失败。根因是 `.local-packages` 是**手工目录**（无锁无校验，正是待办 Q4）。已补：`make local-packages`（**按同一份锁**装齐）+ `make local-packages-check`（并进回归）。Q4 记为 partial
 - 01:08 **C5 的判据③在容器里取证**：`AGENT_BUNDLES=coding` 下 staged `settings.packages` = `[pi-mcp-adapter(镜像路径), auspia-web-access(镜像路径)]`，两条**在镜像里都真实存在**（裸包名在运行期解析不到 —— 与既有 MCP 客户端同一条实测结论，故改用镜像内绝对路径 + 本地改写）
 - 01:44 **Q4 完成（本地预装集有锁）**：新增 `.local-packages.lock.json`（可复算指纹：npm 逐项 name@version + apt 逐项标"宿主提供" + `lockDigest` 指向同一份镜锁）+ `make local-packages-lock`；`make local-packages-check` 三项检查（与锁一致 · 版本全对 · **锁变了而镜像没重刷**）并进回归（37 项）。期间我自己的 `core/harness-name` 判红一次：指纹文件放在 `core/` 里带进了运行时名 ⇒ 挪到仓库根（它本就描述"开发机上的对应物"）
+- 02:09 **业务方走查（只按派生出来的 README 走）**。结论：**开箱可用**（`make validate` 51 项绿 · `make verify` 四道闸门全过 · `run-local` 真跑起来、端点侧 12 个工具 —— 默认 coding 组合生效）。但抓到 3 个**真摩擦点**，全部已修并复验：
+   ① `run-local` 结尾建议的"看轨迹"命令**在派生目录里跑不了**（写死 `node tools/…`，基座里能跑、派生目录 MODULE_NOT_FOUND）⇒ 改成打印**基座绝对路径 + 派生目录里的 `make trace-view`**；
+   ② 第一次修**修了一半**（命令漏了必填的 `AGENT_DIR` 位）—— 复走当场抓到："修一半"比不修更坏，因为它看起来像修好了 ⇒ 补上后用**打印出来的原样命令**执行验证（能跑，时间轴正常）；
+   ③ 派生目录**没有交互入口、没有看轨迹入口**（`make local` / `make trace-view` 都不存在），而 README 的开发循环只写了一次性用法 ⇒ 模板补这两个目标 + README 写清"进交互会话"与两个斜杠命令（`/project`、`/verify-container`）。
+   走查确认没问题的：`/project` 与 `/verify-container` 确实在产物里；默认 coding 组合开箱带 3 个连接器 + 3 个编码技能（12 个工具）。回归 37 项全绿。

@@ -21,10 +21,15 @@
 
 ```bash
 make validate     # ① 改完先跑：秒级、不用网络、不用密钥（定义/引用/分层/增强声明都查）
-make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="…"   # ② 真跑一次
+make local ENDPOINT=<端点> API_KEY=<密钥>          # ② **进交互会话**（最常用；会话里用 /project 看真相）
+make run-local ENDPOINT=<端点> API_KEY=<密钥> PROMPT="…"   # ②′ 只跑一句话（脚本/回归用）
 make verify       # ③ 四道闸门 → 「可用 / 不可用」
 make compare      # ④ 换个运行时再验、看等价性（差异必须有声明）
+make trace-view TRACE=<轨迹 JSONL>   # ⑤ 看这一次到底发生了什么（业务可读时间轴）
 ```
+
+会话里可用的两个斜杠命令：`/project`（项目真相：有哪些技能/连接器/能力包、开着哪些）与
+`/verify-container`（需审批的容器内自证）。
 
 **能力包默认是 `coding`**（编码辅助）：filesystem / git / repomix 三个连接器 + 三个编码技能
 （跨文件定位 · 系统化排障 · 先跑验证再声称完成），所以开箱就能读改代码。

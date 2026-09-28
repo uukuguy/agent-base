@@ -28,7 +28,7 @@ RENDER_DIR ?= .render/$(HARNESS)
 JSON ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help check-base validate render doctor probe smoke verify clean
+.PHONY: help check-base validate render doctor probe smoke compare verify run-local local trace-view clean
 
 # 找不到基座时给一句人话，而不是让 node 抛 MODULE_NOT_FOUND
 # （最常见的原因：把智能体目录挪走了，相对路径失效 → 用 AGENT_BASE_DIR=... 覆盖）
@@ -60,6 +60,14 @@ smoke: check-base ## 闸门 4：端到端冒烟
 
 compare: check-base ## 跨运行时等价性比对（同一份定义在两个运行时里是否等价）
 	@node $(AGENT_BASE_DIR)/tools/compare.mjs . $(if $(HARNESSES),--harnesses $(HARNESSES),) $(if $(JSON),--json,)
+
+local: check-base ## 进交互会话（最常用的开发入口；ENDPOINT=https://… API_KEY=… [MODEL=…]）
+	@node $(AGENT_BASE_DIR)/tools/run-local.mjs . --harness $(HARNESS) \
+	  $(if $(ENDPOINT),--endpoint "$(ENDPOINT)",) $(if $(API_KEY),--api-key "$(API_KEY)",) \
+	  $(if $(MODEL),--model "$(MODEL)",) $(if $(RENDER_DIR),--render-dir $(RENDER_DIR),)
+
+trace-view: check-base ## 看一条轨迹（业务可读时间轴）：TRACE=<轨迹 JSONL>（不给就只列标签覆盖）
+	@node $(AGENT_BASE_DIR)/tools/trace-view/labels.mjs . $(if $(TRACE),--timeline $(TRACE),)
 
 run-local: check-base ## 本地真跑一次（ENDPOINT=https://… API_KEY=… [MODEL=…] [PROMPT="…"]）
 	@node $(AGENT_BASE_DIR)/tools/run-local.mjs . --harness $(HARNESS) \

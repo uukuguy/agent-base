@@ -225,7 +225,13 @@ const main = async () => {
     : 0;
   process.stderr.write(`\n── 结束（退出码 ${code}）—— 轨迹 ${events} 条：${traceFile}\n`);
   if (events) {
-    process.stderr.write("   看轨迹：node tools/trace-view/labels.mjs 或直接读上面的文件\n");
+    // ⚠️ 这句话必须是**用户所在目录里真能跑**的命令。早期版本写 `node tools/trace-view/labels.mjs`，
+    // 在基座里能跑、在**派生出来的智能体目录**里是 MODULE_NOT_FOUND（业务方按提示照做会撞墙）——
+    // 本轮业务方走查抓到的第一个摩擦点。给两个都能用的：基座绝对路径 + 派生目录里的 make 目标。
+    // ⚠️ 必须带上 `AGENT_DIR` 参数（这是必填位）。第一版漏了 ⇒ 复走时命令照旧跑不起来：
+    // "修一半"比不修更坏，因为它看起来像修好了。
+    process.stderr.write(`   看轨迹：node ${path.join(HERE, "trace-view/labels.mjs")} ${path.resolve(agentDir)} --timeline ${traceFile}\n`);
+    process.stderr.write(`   （在派生目录里也可以：make trace-view TRACE=${traceFile}）\n`);
   }
   process.exit(code === 0 ? EXIT_CODES.ok : code >= 128 ? EXIT_CODES.crash : code);
 };
