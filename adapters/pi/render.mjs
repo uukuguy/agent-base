@@ -462,6 +462,14 @@ function main() {
     // 写一个不存在的包名会被 startup 响亮拒绝（不许静默忽略）。
     bundles: {
       available: availableIds(BUNDLES),
+      // 每个包里有什么（供 `/project bundles` 与「本组合实际加载了什么」计算）——
+      // 成员表来自基座能力目录，是**数据**：运行期不重新解释包定义
+      members: Object.fromEntries(BUNDLES.bundles.map((b) => [b.id, {
+        label: b.label, category: b.category ?? null, purpose: b.purpose ?? null,
+        default: b.default === true, planned: b.planned === true,
+        refs: [...(b.refs ?? [])], skills: [...(b.skills ?? [])],
+        plugins: [...(b.plugins?.[HARNESS] ?? [])],
+      }])),
       // 产物**携带**的基座技能（由包决定是否加载；不是定义声明 ⇒ 不进 declaredSkills）
       baseSkills: baseSkillNames.sort(),
       defaults: defaultSelection(BUNDLES),

@@ -157,6 +157,23 @@ const empty = collect({});   // 什么都不知道时：交给调用方响亮失
 check("没给产物目录 ⇒ problems 非空并说明原因", empty.problems.length === 1, JSON.stringify(empty.problems));
 check("未知分类给出可用分类列表", /未知分类/.test(render("nope", facts)));
 
+// 能力包（L4 / B2）：发现面接线
+{
+  const catNames = CATEGORIES.map((c) => c.name);
+  check("分类里有 `bundles`（补全即目录）", catNames.includes("bundles"), catNames.join(","));
+  const bundleCompletions = complete("bundles ", facts).map((c) => c.value);
+  check("二级补全 = 清单里可用的包名", bundleCompletions.length > 0 && bundleCompletions.includes("verify-baseline"),
+    JSON.stringify(bundleCompletions));
+  const text = render("bundles", facts);
+  check("列出了当前组合与默认组合（未显式指定时显示默认，而不是「空」）", /当前组合/.test(text) && /默认组合/.test(text), text.split("\n")[0]);
+  check("每个包都标了「已激活 / 未激活」", /已激活/.test(text) && /未激活/.test(text));
+  check("写明了**包里有什么**", /含：/.test(text));
+  check("写明了**怎么开**（环境变量）", /AGENT_BUNDLES=/.test(text));
+  check("写明了切换需要重载（不承诺热插拔）", /重载/.test(text));
+  const sk = render("skills", facts);
+  check("技能分类如实标出「属于未激活包、因此未加载」的那些", /未加载/.test(sk) && /AGENT_BUNDLES=/.test(sk), sk.split("\n").slice(-2).join(" "));
+}
+
 // 本地入口（run-local）的环境必须**足够让本命令工作** —— 本轮真踩中：
 // 容器入口会给 AGENT_ARTIFACT_DIR，而 run-local 自己手搓 env 漏了它 ⇒ 会话里报"读不到渲染清单"。
 // 这里按 run-local 的**同一套拼装方式**（布局契约 + platform-env）重建一次，断言命令能读到清单。

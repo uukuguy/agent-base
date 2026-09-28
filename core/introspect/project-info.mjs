@@ -30,6 +30,7 @@ export const CATEGORIES = [
   { name: "overview", doc: "这个智能体是什么：harness、摘要、声明计数" },
   { name: "model", doc: "模型路由：provider / 模型名 / 端点与凭据的**引用名**" },
   { name: "skills", doc: "技能清单（含每个技能的一句话与落点）" },
+  { name: "bundles", doc: "能力包（L4）：可用包 / 当前激活 / 包里有什么 / 怎么开（切换需重载会话）" },
   { name: "connectors", doc: "连接器（MCP 服务器）与客户端扩展是否就位" },
   { name: "enhancements", doc: "业务级/基座增强：id、kind、接入件" },
   { name: "hooks", doc: "钩子：订阅了哪些事件、这些事件在运行时可订阅集合里是否真的存在" },
@@ -114,6 +115,35 @@ export function collect({ productDir, artifactDir, gatesDir, layout } = {}) {
     artifact,
     layoutId: layout?.id ?? null,
     manifest,
+    // 能力包（L4）：激活集合来自**运行期**（基座解析后放在平台变量里），可用集合/成员表来自**清单**。
+    // 技能与连接器的"实际加载"= 定义声明 ∪ 激活包带来的（未激活包的**不进**，如实标注）。
+    bundles: (() => {
+      const m = manifest?.bundles ?? null;
+      if (!m) return null;
+      // 激活集合：显式给了就用它；**没给就用清单里的默认组合**（那才是这次运行的生效集合——
+      // 显示成"空"会让人以为什么都没开，而实际上默认包是开的）。
+      const explicitRaw = process.env.AGENT_BUNDLES_ACTIVE;
+      const active = (explicitRaw !== undefined && explicitRaw !== null)
+        ? String(explicitRaw).split(",").map((x) => x.trim()).filter(Boolean)
+        : [...(m.defaults ?? [])];
+      const members = m.members ?? {};
+      const fromActive = active.flatMap((id) => members[id]?.skills ?? []);
+      const declared = (manifest?.declaredSkills ?? []).filter((n) => !Object.values(members).some((b) => (b.skills ?? []).includes(n)));
+      return {
+        available: m.available ?? [],
+        defaults: m.defaults ?? [],
+        baseSkills: m.baseSkills ?? [],
+        members,
+        active,
+        explicit: explicitRaw !== undefined && explicitRaw !== null,
+        effectiveSkills: [...new Set([...declared, ...fromActive])].sort(),
+        inactiveOwnedSkills: Object.entries(members)
+          .filter(([id]) => !active.includes(id))
+          .flatMap(([, b]) => b.skills ?? [])
+          .filter((n) => !active.flatMap((id) => members[id]?.skills ?? []).includes(n))
+          .sort(),
+      };
+    })(),
     settings: reads.settings ?? null,
     models: reads.models ?? null,
     enhancements: reads.enhancements ?? [],
@@ -189,11 +219,56 @@ export function render(category, facts) {
       return [...lines, `（来源：render-manifest.json + 本运行时的产物读法${facts.layoutId ? `（${facts.layoutId}）` : ""}）`].join("\n");
     }
 
-    case "skills":
-      return skills.length
-        ? [ ...skills.map((s) => `· ${s.name}\n    ${say(s.description)}`),
-            "（来源：产物 skills/ 的 SKILL.md；技能同时会自动成为 `skill:<name>` 命令）" ].join("\n")
-        : "（未声明任何技能 —— 技能落点是产物 skills/<name>/SKILL.md）（来源：产物 skills/）";
+    case "skills": {
+      // **本组合实际加载的技能**：定义声明的 ∪ 激活包带来的。未激活包带来的**明确列出来**，
+      // 免得"为什么调不到那个技能"要靠猜（设计稿 §5：期望集合 = 声明 ∩ 当前启用）。
+      const b = facts.bundles;
+      const listed = b ? skills.filter((s) => b.effectiveSkills.includes(s.name)) : skills;
+      const lines = listed.length
+        ? [ ...listed.map((s) => `· ${s.name}\n    ${say(s.description)}`),
+            "（来源：产物 skills/ 的 SKILL.md；技能同时会自动成为 `skill:<name>` 命令）" ]
+        : ["（本组合没有加载任何技能 —— 技能落点是产物 skills/<name>/SKILL.md）"];
+      if (b && b.inactiveOwnedSkills.length) {
+        lines.push("");
+        lines.push(`未加载（属于**未激活**的能力包）：${b.inactiveOwnedSkills.join(", ")}`);
+        lines.push(`    要它们就带上包重启：\`AGENT_BUNDLES=${[...b.active, ...b.available.filter((x) => (b.members[x]?.skills ?? []).some((n) => b.inactiveOwnedSkills.includes(n)))].join(",")}\``);
+      }
+      return lines.join("\n");
+    }
+
+    case "bundles": {
+      const b = facts.bundles;
+      if (!b) return "（这份产物没有能力包信息 —— 清单里没有 `bundles` 节）";
+      const lines = [];
+      lines.push(`当前组合      ${b.active.length ? b.active.join(" + ") : "（空）"}${b.explicit ? "" : "  ← 未显式指定，用的是默认组合"}`);
+      lines.push(`默认组合      ${b.defaults.join(" + ") || "（无）"}`);
+      lines.push("");
+      lines.push("可用包：");
+      for (const id of b.available) {
+        const m = b.members[id] ?? {};
+        const on = b.active.includes(id);
+        const marks = [
+          on ? "**已激活**" : "未激活",
+          b.defaults.includes(id) ? "默认开" : null,
+          m.planned ? "尚未成形（登记在案）" : null,
+        ].filter(Boolean).join(" · ");
+        lines.push(`· ${id}（${m.label ?? "?"}）  ${marks}`);
+        if (m.purpose) lines.push(`    ${m.purpose}`);
+        const owns = [
+          (m.skills ?? []).length ? `技能 ${m.skills.join(", ")}` : null,
+          (m.refs ?? []).length ? `连接器 ${m.refs.join(", ")}` : null,
+          (m.plugins ?? []).length ? `插件 ${m.plugins.join(", ")}` : null,
+        ].filter(Boolean);
+        lines.push(`    含：${owns.length ? owns.join(" · ") : "（只含基座不变量）"}`);
+      }
+      lines.push("");
+      lines.push(`怎么开        在起会话前设 \`AGENT_BUNDLES=${b.available.filter((x) => x !== "verify-baseline").join(",") || "…"}\``
+        + "（逗号分隔；不设 = 默认组合）");
+      lines.push("               ⚠️ 切换**需要重载/重启会话**（技能与连接器的加载点在启动期；两侧实测都做不到无感热插拔）");
+      lines.push("               ⚠️ 写一个**不存在的包名** ⇒ 启动直接失败并列出允许的包名（不静默忽略）");
+      lines.push("（来源：render-manifest.json 的 bundles + 运行期平台变量 AGENT_BUNDLES_ACTIVE）");
+      return lines.join("\n");
+    }
 
     case "connectors": {
       // **清单优先**：`mcpClient` / `connectorsNote` 是产物自己写的（各运行时形态不同：
@@ -305,7 +380,8 @@ export function complete(prefix, facts) {
   // 二级：已经选了分类，补它真实存在的值
   const [category, partial = ""] = parts;
   const values =
-    category === "skills" ? (facts.manifest?.declaredSkills ?? facts.skills.map((s) => s.name))
+    category === "bundles" ? (facts.bundles?.available ?? [])
+    : category === "skills" ? (facts.bundles?.effectiveSkills ?? facts.manifest?.declaredSkills ?? facts.skills.map((s) => s.name))
     : category === "connectors" ? (facts.manifest?.connectors ?? facts.servers.map((s) => s.name))
     : category === "enhancements" ? (facts.manifest?.declaredEnhancements ?? facts.enhancements.map((e) => e.id))
     : category === "hooks" ? (facts.manifest?.hookEnhancements ?? facts.enhancements.filter((e) => e.kind === "hook").map((e) => e.id))

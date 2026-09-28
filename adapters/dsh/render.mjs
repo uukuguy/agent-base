@@ -467,6 +467,14 @@ function main() {
     skillSurface: { path: "skills", kind: "skill-dirs" },
     bundles: {
       available: availableIds(CAPABILITY_BUNDLES),
+      // 每个包里有什么（供 `/project bundles` 与「本组合实际加载了什么」计算）——
+      // 成员表来自基座能力目录，是**数据**：运行期不重新解释包定义
+      members: Object.fromEntries(CAPABILITY_BUNDLES.bundles.map((b) => [b.id, {
+        label: b.label, category: b.category ?? null, purpose: b.purpose ?? null,
+        default: b.default === true, planned: b.planned === true,
+        refs: [...(b.refs ?? [])], skills: [...(b.skills ?? [])],
+        plugins: [...(b.plugins?.[HARNESS] ?? [])],
+      }])),
       baseSkills: baseSkillNames,
       // 产物携带的基座技能（由包决定是否加载；不是定义声明 ⇒ 不进 declaredSkills）
       defaults: defaultSelection(CAPABILITY_BUNDLES),
