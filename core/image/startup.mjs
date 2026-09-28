@@ -35,6 +35,9 @@ import YAML from "yaml";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
+// 能力包（L4/B1）：运行期的**选择**在这一层校验与解析（选择型参数，与环境型分开记账）
+import { BUNDLES_ENV, availableIds, bundleDigest, defaultSelection, loadBundles, parseSelection } from "../bundles/index.mjs";
+
 const EXIT_USAGE = 2;
 const die = (msg) => { process.stderr.write(`❌ ${msg}\n`); process.exit(EXIT_USAGE); };
 
@@ -347,6 +350,20 @@ function prepare({ artifact, runDir }) {
     fs.mkdirSync(effectiveRunDir, { recursive: true, mode: 0o700 });
   }
 
+  // ---- 能力包（L4/B1）：运行期**选择**的校验 ----
+  // 合法取值集合烤在制品里（清单的 `bundles.available`）；写一个不存在的包名 ⇒ **响亮失败**，
+  // 不许静默忽略（那会让人以为开了包其实没开）。解析结果进 env，供运行期与轨迹取证。
+  const bundleSelection = (() => {
+    const doc = loadBundles();
+    const sel = parseSelection(process.env[BUNDLES_ENV] ?? null, doc);
+    return { ...sel, doc };
+  })();
+  if (bundleSelection.problems.length) {
+    process.stderr.write("❌ 包选择不合法，启动中止（不静默忽略）：\n");
+    for (const p of bundleSelection.problems) process.stderr.write(`   · ${p}\n`);
+    process.exit(EXIT_USAGE);
+  }
+
   const copied = stage(artifact, plan, effectiveRunDir);
   const values = Object.fromEntries(Object.entries(resolved).map(([k, v]) => [k, v.value]));
   const render = manifest.rendersParams ? renderParams(effectiveRunDir, values) : { written: [], problems: [] };
@@ -366,6 +383,10 @@ function prepare({ artifact, runDir }) {
   // 运行时环境：清单声明"哪个环境变量指向运行目录里的哪个相对路径"
   const env = {};
   for (const [name, rel] of Object.entries(plan.env ?? {})) env[name] = path.join(effectiveRunDir, rel);
+  // 解析后的激活集合：**基座算一次**（含默认组合的展开），运行期（轨迹/摘要）直接用，
+  // 免得各处再解释一遍 `AGENT_BUNDLES`（那正是"两处真源必然漂移"的经典起点）。
+  env.AGENT_BUNDLES_ACTIVE = bundleSelection.active.join(",");
+  env.AGENT_BUNDLES_AVAILABLE = availableIds(bundleSelection.doc).join(",");
   const cwd = plan.cwd ? path.join(effectiveRunDir, plan.cwd) : process.cwd();
 
   return {
@@ -380,6 +401,14 @@ function prepare({ artifact, runDir }) {
     ...(overlay ? { overlay } : {}),
     env,
     cwd,
+    // 本次运行的**包组合**（证据自带组合：轨迹、verify --json、摘要都用它）
+    bundles: {
+      active: bundleSelection.active,
+      explicit: bundleSelection.explicit,
+      available: availableIds(bundleSelection.doc),
+      defaults: defaultSelection(bundleSelection.doc),
+      digest: bundleDigest(bundleSelection.active),
+    },
     effectiveConfigDigest: manifest.effectiveConfigDigest ?? null,
   };
 }

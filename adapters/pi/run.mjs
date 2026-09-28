@@ -125,7 +125,7 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
 }
 
 /** 从渲染清单算出 §6.7 的 effectiveConfigDigest（轨迹每条事件都要带它）。 */
-export function digestOfRender(renderDir) {
+export function digestOfRender(renderDir, { bundles = null } = {}) {
   const manifest = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
   const adapter = YAML.parse(fs.readFileSync(path.join(HERE, "adapter.yaml"), "utf8"));
   return computeEffectiveConfigDigest({
@@ -135,6 +135,8 @@ export function digestOfRender(renderDir) {
     // 参数名只从**清单的运行期参数契约**取 —— 早期这里读的是两个零散字段（只有端点与凭据），
     // 加上模型名之后立刻与渲染器算出的摘要不一致：同一个摘要两份实现，必漂移。
     paramNames: (manifest.runtimeParams ?? []).map((p) => p.name),
+    // 能力包（L4）：**激活集合纳入摘要** —— 否则"同一摘要、不同行为"成立，摘要就失去意义。
+    extra: bundles && bundles.length ? { bundles: [...bundles].sort() } : {},
   });
 }
 
@@ -168,7 +170,7 @@ export async function runAgent({
   continueSession = false,
   workDir = null,
 }) {
-  const { staging, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: extraEnv });
+  const { staging, placeholders, env: stagedEnv } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: extraEnv });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "agent-home-"));
   // 工作目录也是**会话身份的一部分**：该运行时的"项目会话"按 cwd 归属，
   // 续跑要接对会话就必须两次跑在同一个 cwd（实测：各跑各的新临时目录 ⇒ `--continue` 接到了别的会话）。
@@ -187,7 +189,12 @@ export async function runAgent({
     AGENT_NAME: manifest.agent ?? null,
     AGENT_RUN_MODE: runMode,
     AGENT_TRACE_CONTENT: contentMode,
-    AGENT_EFFECTIVE_CONFIG_DIGEST: digestOfRender(renderDir),
+    // 包组合（L4）：**解析后的**激活集合与可用集合要进子进程 —— 轨迹（run.meta.bundles）与
+    // 运行期都用它，免得各处再解释一遍 `AGENT_BUNDLES`（两处解释必然漂移）。
+    ...(stagedEnv?.AGENT_BUNDLES_ACTIVE !== undefined ? { AGENT_BUNDLES_ACTIVE: stagedEnv.AGENT_BUNDLES_ACTIVE } : {}),
+    ...(stagedEnv?.AGENT_BUNDLES_AVAILABLE !== undefined ? { AGENT_BUNDLES_AVAILABLE: stagedEnv.AGENT_BUNDLES_AVAILABLE } : {}),
+    // 包组合进摘要：同一份产物、不同组合 ⇒ 不同摘要（激活集合由 startup 解析后放在暂存 env 里）
+    AGENT_EFFECTIVE_CONFIG_DIGEST: digestOfRender(renderDir, { bundles: String(stagedEnv?.AGENT_BUNDLES_ACTIVE ?? "").split(",").filter(Boolean) }),
     ...(sessionId ? { AGENT_SESSION_ID: sessionId } : {}),
     ...(continueSession ? { AGENT_RESUMED: "1" } : {}),
     ...(manifest.modelProviders?.[0] ? { AGENT_MODEL_ROUTE: manifest.modelProviders[0] } : {}),

@@ -29,6 +29,7 @@ import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 import { piRenderInputsDigest } from "./render-inputs.mjs";
 // 能力的**描述契约与双通道调用**只有一份实现（core）；渲染器只用它的装载/校验，运行期用同一份调用
 import { loadCapabilities, checkImplementation, toSchemaDocument } from "../../core/capabilities/registry.mjs";
+import { availableIds, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -429,12 +430,19 @@ function main() {
   ];
   // 适配器自身的声明读一次就够（此前同一份文件被 readYaml 读了四遍）
   const adapterDoc = readYaml(path.join(HERE, "adapter.yaml"));
+  const BUNDLES = loadBundles();
   const manifest = {
     harness: HARNESS,
     harnessVersion: adapterDoc.version,
     agent: agent.name,
     // loop 预算：**从定义原样带出**（不新增真源）。基座据此在闸门 4 断言，其中挂钟那条会在运行期强制执行。
     loop: agent.loop ?? null,
+    // 能力包（L4）：**合法取值集合必须烤在制品里** —— 运行期只许从中挑子集，
+    // 写一个不存在的包名会被 startup 响亮拒绝（不许静默忽略）。
+    bundles: {
+      available: availableIds(BUNDLES),
+      defaults: defaultSelection(BUNDLES),
+    },
     declaredSkills,
     // 能力落点：**由各运行时的渲染器回答**（一个在 agent-dir 下，一个在产物根）——
     // 探针/自省按它读，不猜目录形状（猜错会静默得到"没有能力"）。

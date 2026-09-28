@@ -19,7 +19,7 @@
 | 路径 | 是什么 | 谁挂它 |
 |---|---|---|
 | **`/opt/agent-base/artifact`** | **渲染输出整体**（`render-manifest.json` + 各运行时的产物目录）。挂载点可用 `AGENT_ARTIFACT_DIR` 改 | 构建时拷进去，或运行期挂载（**推荐只读**） |
-| `/opt/agent-base/startup.mjs` | 启动期准备脚本（参数下放 + 可写暂存的落地点） | 镜像自带，只读 |
+| `/opt/agent-base/startup.mjs` | 启动期准备脚本的**入口转发**（真实实现在 `gates/core/image/startup.mjs`，那里的相对导入才解析得到） | 镜像自带，只读 |
 | `/opt/agent-base/harnesses.json` | 装了哪些运行时（包名+版本，构建时生成） | 镜像自带，只读 |
 | `/etc/agent-base-variant` | `production` 或 `debug` | 镜像自带，只读 |
 | `/run/agent-base` | **暂存出来的可写运行目录**（镜像内路径，可用 `AGENT_RUN_DIR` 改） | 启动脚本自己建（`/tmp` 兜底） |

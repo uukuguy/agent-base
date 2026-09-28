@@ -53,7 +53,7 @@ function localBinPathEnv() {
 }
 
 /** 从渲染清单算出 §6.7 的 effectiveConfigDigest。 */
-export function digestOfRender(renderDir) {
+export function digestOfRender(renderDir, { bundles = null } = {}) {
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
   const adapter = YAML.parse(fs.readFileSync(path.join(HERE, "adapter.yaml"), "utf8"));
   return computeEffectiveConfigDigest({
@@ -114,13 +114,18 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
 }
 
 /** 运行期环境：端点/凭据 + 隔离的 HOME + 显式放行策略。 */
-export function envFor({ manifest, dshHome, endpoint, home, traceDest }) {
+export function envFor({ manifest, dshHome, endpoint, home, traceDest, bundles = null }) {
   const env = {
     ...process.env,
     ...localBinPathEnv(),
     HOME: home,
     DSH_HOME: dshHome,
     AGENT_RUN_MODE: process.env.AGENT_RUN_MODE ?? "oneshot",
+    // 包组合（L4）：解析后的激活集合也要进子进程（轨迹 run.meta.bundles 用它）。
+    // ⚠️ 从**参数**进（本函数是辅助函数，看不到 runAgent 里的 stagedEnv —— 我第一版直接引用它，
+    // 结果是 dsh 侧一跑就 ReferenceError；自检当场抓到）。
+    ...(bundles && bundles.active !== undefined ? { AGENT_BUNDLES_ACTIVE: bundles.active } : {}),
+    ...(bundles && bundles.available !== undefined ? { AGENT_BUNDLES_AVAILABLE: bundles.available } : {}),
     // 非交互放行策略（见文件头 ③）：不给的话审批会 fail closed 等人，表现为"卡住"
     AGENT_PERMISSION_MODE: process.env.AGENT_PERMISSION_MODE ?? "danger-full-access",
   };
@@ -143,9 +148,11 @@ export function localInvocation({ profile, prompt }) {
  */
 export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs = 60000, zeroCredential = false, env: extraEnv = {}, harnessHome = null }) {
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
-  const { staging, workspace, dshHome, placeholders } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: extraEnv });
+  const { staging, workspace, dshHome, placeholders, env: stagedEnv } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: extraEnv });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-home-"));
-  const env = { ...envFor({ manifest, dshHome, endpoint, home }), ...extraEnv };
+  const env = { ...envFor({ manifest, dshHome, endpoint, home,
+    bundles: stagedEnv && stagedEnv.AGENT_BUNDLES_ACTIVE !== undefined
+      ? { active: stagedEnv.AGENT_BUNDLES_ACTIVE, available: stagedEnv.AGENT_BUNDLES_AVAILABLE } : null }), ...extraEnv };
 
   const { bin, args } = localInvocation({ profile: manifest.agent, prompt });
   const child = spawn(bin, args, { env, cwd: workspace });
@@ -168,7 +175,8 @@ export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs =
     agent: manifest.agent,
     harness: HARNESS,
     harnessVersion: manifest.harnessVersion,
-    effectiveConfigDigest: digestOfRender(renderDir),
+    // 包组合进摘要（激活集合由 startup 解析后放在暂存 env 里）
+    effectiveConfigDigest: digestOfRender(renderDir, { bundles: String(stagedEnv?.AGENT_BUNDLES_ACTIVE ?? "").split(",").filter(Boolean) }),
     mode: "oneshot",
     contentMode: "digest",
   });

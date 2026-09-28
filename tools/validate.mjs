@@ -40,6 +40,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import Ajv2020 from "ajv/dist/2020.js";
 import { loadCapabilities, checkImplementation, toSchemaDocument, SCHEMA_PATH as CAPABILITY_SCHEMA } from "../core/capabilities/registry.mjs";
+import { availableIds, defaultSelection, loadBundles } from "../core/bundles/index.mjs";
 import { spawnSync } from "node:child_process";
 import { buildLock } from "../core/image/gen-preinstall-lock.mjs";
 import { collectOpenNamespace } from "../core/spec/open-namespace.mjs";
@@ -530,6 +531,47 @@ function checkBase(report, agentDir = process.cwd()) {
         report.pass(GATE, "docs/gaps-not-done", `${rows.length} 行缺口都注明出处，且引用的待办都还没完成`);
       }
     }
+  }
+
+  // A9 能力包定义（L4 / B1）：包里的每一条都得指得到真实能力，且不许表达"版本/包名"
+  {
+    const loaded = loadBundles();
+    const problems = [];
+    const available = new Set(availableIds(loaded));
+    // 包只能引用**预装清单里真实存在的**具名能力（包不许发明能力）。
+    // 注意用具：`loadPreinstall()` 返回 `{ list, named, byId, byRefName }` —— 条目在 `list.entries` 里。
+    const preinstallEntries = new Set((() => {
+      try {
+        const loadedDoc = loadPreinstall();
+        const list = loadedDoc && loadedDoc.list;
+        return list && Array.isArray(list.entries) ? list.entries.map((e) => e.id) : [];
+      } catch { return []; }
+    })());
+    const harnessList = fs.readdirSync(path.join(REPO, "adapters"), { withFileTypes: true })
+      .filter((e) => e.isDirectory()).map((e) => e.name).sort();
+    const ids = new Set();
+    for (const b of loaded.bundles) {
+      if (!b.id) { problems.push("有包缺 id"); continue; }
+      if (ids.has(b.id)) problems.push(`包 id 重复：${b.id}`);
+      ids.add(b.id);
+      if (!b.label || !b.purpose) problems.push(`${b.id}: 缺 label 或 purpose（包要能被人看懂）`);
+      if (b.category && !loaded.categories.has(b.category)) problems.push(`${b.id}: 未知 category ${b.category}`);
+      for (const r of b.refs ?? []) {
+        const name = String(r);
+        if (/@/.test(name)) problems.push(`${b.id}: 引用「${name}」带了版本 —— 包的职责是"组合"，版本是能力目录的事`);
+        else if (!preinstallEntries?.has(name)) problems.push(`${b.id}: 引用「${name}」在预装清单里找不到（包不许发明能力）`);
+      }
+      // 插件是 harness 专有 ⇒ 必须**逐侧**给（空列表可以，缺一侧不行：缺了就是"假装等价"）
+      if (b.plugins && typeof b.plugins === "object") {
+        for (const h of harnessList) if (!Array.isArray(b.plugins[h])) problems.push(`${b.id}: plugins 缺 ${h} 侧（插件必然专有，必须逐侧写明，空列表也算写明）`);
+      }
+      if (b.planned === true && b.default === true) problems.push(`${b.id}: 尚未成形的包（planned）不许进默认组合`);
+    }
+    const defs = defaultSelection(loaded);
+    if (defs.length === 0) problems.push("默认组合为空 —— 至少要有一个默认开的包，否则开箱不可跑");
+    if (problems.length) report.fail(GATE, "bundles/definition", problems.join("；"));
+    else report.pass(GATE, "bundles/definition",
+      `${loaded.bundles.length} 个包定义自洽（可用：${[...available].join(", ")}；默认：${defs.join(", ")}）`);
   }
 
   // A6 预装清单
@@ -1038,6 +1080,7 @@ function checkAgent(report, ctx, agentDir) {
       }
     }
   }
+
 
   // A7 能力描述（D-0012/D-0018 的第一层）：描述过 schema + 实现就位 + 名字不重复  // A7 能力描述（D-0012/D-0018 的第一层）：描述过 schema + 实现就位 + 名字不重复
   // 判据与自检**共用** core/capabilities/registry.mjs 的实现检查（不在这里另写一份规则）。

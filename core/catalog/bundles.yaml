@@ -1,0 +1,68 @@
+apiVersion: agent-base/v1
+
+# ============================================================================
+# 能力包（bundles）—— 基座能力目录的"包"那一节（L4 / 设计稿 §6）
+#
+# 一个包 = **具名能力集合 + 默认策略 + 判据**。三条纪律（设计稿 §2）：
+#
+#   ① 包里的 `refs` 只许引用**具名能力**（`preinstall.yaml` 的条目 id），不许写包名或版本 ——
+#      版本是能力目录的事，包只表达"组合"（闸门 1 会查：引用必须解析得到，且不许出现 `@版本`）。
+#   ② **合法取值集合必须烤在制品里**：产物清单里带 `bundles.available`，运行期只许从中挑子集；
+#      写一个不存在的包名 ⇒ **响亮失败**（不许静默忽略 —— 那会让人以为"开了包"其实没开）。
+#   ③ 激活集合**必须进证据**：轨迹（run.meta.bundles）与 `verify --json`，并纳入生效配置摘要
+#      —— 否则"同一份产物、不同行为"会成立，摘要就失去意义。
+#
+# ## 两个包（对应用户的两个场景）
+#
+#   · `verify-baseline`（**默认开**）：验证要简单纯净、结论可复现。只含基座不变量与定义声明的必需项。
+#   · `coding`（**默认关**）：要真的读改代码、跑命令、查文档时开。工具描述轻、离线可用、不带 Chromium。
+#
+# 切换需要**重载/重启会话**（技能与 MCP 的加载点在启动期；实测两侧都做不到无感热插拔）——
+# 契约只承诺"可切换"，不承诺"热插拔"（设计稿 §3）。
+# ============================================================================
+
+categories:
+  - id: verify
+    label: 验证（纯净、可复现）
+  - id: coding
+    label: 编码辅助
+  - id: browser
+    label: 浏览器与网页（重，按需开 —— 未实现，登记在案）
+
+bundles:
+  - id: verify-baseline
+    label: 验证基线
+    category: verify
+    default: true
+    purpose: 让验证结论可复现、失败原因不被无关能力淹没（闸门 2 的断言集只含当前启用项）
+    refs: []            # 只含基座不变量：轨迹、自省、受控容器验证、能力桥
+    skills: []
+    plugins:            # 逐侧写明（空列表也算写明）：插件必然专有，不许"假装等价"
+      pi: []
+      dsh: []
+
+  - id: coding
+    label: 编码辅助
+    category: coding
+    default: false
+    purpose: 让它能真的读改代码、跑命令、查文档（验证时不必开）
+    # 具名引用：都指向 preinstall.yaml 里已有的条目（闸门 1 逐条核）
+    refs: [filesystem, git, repomix, shell-toolchain]
+    # 技能：编码三件套（C4 落盘后填进来；此刻留空 —— 空的比写个不存在的名字诚实）
+    skills: []
+    # 插件是 **harness 专有** ⇒ 必须显式分侧标注；两侧都没有就留空列表，不许假装等价
+    plugins:
+      pi: []
+      dsh: []
+
+  - id: browser
+    label: 浏览器与网页
+    category: browser
+    default: false
+    purpose: 网页调研 / UI 验证（playwright / chrome-devtools：重，带 Chromium）
+    refs: []
+    skills: []
+    plugins:
+      pi: []
+      dsh: []
+    planned: true       # 登记在案、尚未成形（闸门 1 要求 planned 的包不得是某些人的默认）

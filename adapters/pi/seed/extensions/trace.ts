@@ -114,6 +114,10 @@ export default function (pi) {
       // 有了它，"这次运行是在续哪一次"在轨迹里可对（E6 续跑留痕）。
       ...(process.env.AGENT_SESSION_ID ? { session: process.env.AGENT_SESSION_ID } : {}),
       ...(process.env.AGENT_RESUMED === "1" ? { resumed: true } : {}),
+      // 能力包（L4）：本次激活集合进轨迹 —— 同一份产物、不同组合 ⇒ 行为不同，证据必须自带组合
+      ...(process.env.AGENT_BUNDLES_ACTIVE
+        ? { bundles: String(process.env.AGENT_BUNDLES_ACTIVE).split(",").filter(Boolean) }
+        : {}),
     });
   }));
 

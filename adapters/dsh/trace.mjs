@@ -66,6 +66,10 @@ export function mapEventStream(records, ctx, opts = {}) {
           // 会话身份：来自基座的平台变量（与另一侧同一套判据，见 core/image/platform-env.mjs）
           ...(process.env.AGENT_SESSION_ID ? { session: process.env.AGENT_SESSION_ID } : {}),
           ...(process.env.AGENT_RESUMED === "1" ? { resumed: true } : {}),
+          // 能力包（L4）：本次激活集合进轨迹（与另一侧同一判据）
+          ...(process.env.AGENT_BUNDLES_ACTIVE
+            ? { bundles: String(process.env.AGENT_BUNDLES_ACTIVE).split(",").filter(Boolean) }
+            : {}),
         });
         return;
 

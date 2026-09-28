@@ -142,10 +142,18 @@ function prepareContext(specs) {
   fs.rmSync(ctx, { recursive: true, force: true });
   fs.mkdirSync(ctx, { recursive: true });
   // 启动期准备脚本必须进上下文：它是"参数下放"的落地点（见 core/image/startup.mjs 的文件头）
-  for (const f of ["Dockerfile", "Dockerfile.debug", "entrypoint.sh", "startup.mjs", "preinstall.lock.txt"]) {
+  for (const f of ["Dockerfile", "Dockerfile.debug", "entrypoint.sh", "preinstall.lock.txt"]) {
   // 注意：inputs-digest.mjs 只被 build.mjs 自己 import，不必进上下文（它不参与镜像内容）
     fs.copyFileSync(path.join(IMAGE_DIR, f), path.join(ctx, f));
   }
+  // startup.mjs **不再拷成一份独立副本**，而是在镜像根放一个**转发**：
+  // 真实实现随 `gates/` 一起进去（`gates/core/image/startup.mjs`），那里的相对导入才解析得到
+  // （实测踩中：根上的副本 import `../bundles/index.mjs` → 解析成 `/opt/bundles` ⇒ ERR_MODULE_NOT_FOUND）。
+  // 转发让"镜像根的入口路径"保持不变（entrypoint 与 docs/06 都引用它），而实现只有一份。
+  fs.writeFileSync(path.join(ctx, "startup.mjs"),
+    "// 生成的转发文件（见 core/image/build.mjs）：真实实现在 gates/core/image/startup.mjs ——\n"
+    + "// 那是它相对导入（../bundles、../gates 等）能解析的位置。别在这里加逻辑。\n"
+    + 'import "./gates/core/image/startup.mjs";\n');
   // 闸门源码进上下文（P2：镜像内自证）。保持相对布局 —— 各工具靠**自身位置**推 REPO，
   // 所以在 /opt/agent-base/gates/ 下同样成立。不含 node_modules；依赖在 Dockerfile 里装。
   // 拷哪几棵树、排除什么：与指纹实现**同一份清单**（各写一份迟早漂移 —— D13 就是这么来的）

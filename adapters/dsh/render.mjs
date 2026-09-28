@@ -44,6 +44,7 @@ import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 import { dshRenderInputsDigest } from "./render-inputs.mjs";
 // 能力的**描述契约与双通道调用**只有一份实现（core），两个运行时的渲染器都用它做装载/就位校验
 import { loadCapabilities, checkImplementation, toSchemaDocument } from "../../core/capabilities/registry.mjs";
+import { availableIds, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** 仓库根：`core/` 下的共享实现（事件写入器等）要从这里取，注入产物而不是让产物去猜基座目录。 */
@@ -299,6 +300,7 @@ function main() {
     writeFile(path.join(outRoot, "capabilities", "index.json"), stableJson({ apiVersion: "agent-base/v1", capabilities: capabilityList }));
   }
 
+  const CAPABILITY_BUNDLES = loadBundles();
   const declaredSkills = fs.existsSync(skillsSrc)
     ? fs.readdirSync(skillsSrc, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()
     : [];
@@ -441,6 +443,14 @@ function main() {
     bundles: BUNDLES,
     // loop 预算：**从定义原样带出**（不新增真源）。基座据此在闸门 4 断言，其中挂钟那条会在运行期强制执行。
     loop: agent.loop ?? null,
+    // 能力包（L4）：**合法取值集合必须烤在制品里** —— 运行期只许从中挑子集，
+    // 写一个不存在的包名会被 startup 响亮拒绝（不许静默忽略）。
+    // ⚠️ 变量名用 CAPABILITY_BUNDLES：本文件里的 `BUNDLES` 是**插件包列表**（同词不同物，
+    // 撞过一次 —— 表现为渲染期 `bundles.map is not a function`）。
+    bundles: {
+      available: availableIds(CAPABILITY_BUNDLES),
+      defaults: defaultSelection(CAPABILITY_BUNDLES),
+    },
     declaredSkills,
     // 能力落点：本运行时放在**产物根**（另一个运行时放在 agent-dir 下）；探针/自省按它读
     capabilitiesPath: capsLoaded.capabilities.length ? "capabilities" : null,

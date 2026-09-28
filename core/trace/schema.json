@@ -196,6 +196,11 @@
         "resumed": {
           "type": "boolean",
           "description": "本次 run 是否是**续跑**（接着既有会话跑）。与 session 一起构成「续跑留痕」的判据。"
+        },
+        "bundles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "本次运行激活的**能力包**（L4）。为什么进轨迹：同一份产物在不同包组合下行为不同，证据必须自带组合，否则「可用」这个结论说不清是在哪个组合下成立的（见 docs/design/2026-09-26-capability-bundles.md §2）。"
         }
       }
     },
