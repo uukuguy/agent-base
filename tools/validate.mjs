@@ -160,10 +160,6 @@ function checkBase(report, agentDir = process.cwd()) {
 
   // A1 schema 可编译
   const ajv = new Ajv2020({ allErrors: true, strict: false });
-  const capabilityAjv = new Ajv2020({ allErrors: true, strict: false });
-  capabilityAjv.addSchema(JSON.parse(fs.readFileSync(CAPABILITY_SCHEMA, "utf8")));
-  const capabilityValidate = capabilityAjv.getSchema("https://agent-base.local/schemas/capability-description.schema.json");
-  if (!capabilityValidate) throw new Error("能力描述 schema 编译失败（$id 与文件不一致？）");
   for (const [name, schema, file] of [
     ["agent", agentSchema, "agent.schema.json"],
     ["connectors", connectorsSchema, "connectors.schema.json"],
@@ -536,24 +532,6 @@ function checkBase(report, agentDir = process.cwd()) {
     }
   }
 
-  // A7 能力描述（D-0012/D-0018 的第一层）：描述过 schema + 实现就位 + 名字不重复
-  // 判据与自检**共用** core/capabilities/registry.mjs 的实现检查（不在这里另写一份规则）。
-  {
-    const loaded = loadCapabilities(agentDir, { yamlParse: (t) => YAML.parse(t) });
-    const problems = [...loaded.problems];
-    for (const cap of loaded.capabilities) {
-      if (!capabilityValidate(toSchemaDocument(cap))) problems.push(`${cap.__rel}: ${ajvErrors(capabilityValidate.errors)}`);
-      for (const p of checkImplementation(cap)) problems.push(`${cap.__rel}: ${p}`);
-    }
-    if (!fs.existsSync(loaded.dir)) {
-      report.pass(GATE, "capabilities/descriptions", "该定义没有 capabilities/ 目录（没有声明任何能力，无需校验）");
-    } else if (problems.length) {
-      report.fail(GATE, "capabilities/descriptions", problems.join("；"));
-    } else {
-      report.pass(GATE, "capabilities/descriptions", `${loaded.capabilities.length} 份描述都合法且实现就位`);
-    }
-  }
-
   // A6 预装清单
   checkPreinstall(report);
 
@@ -725,6 +703,11 @@ report.pass(GATE, "preinstall/ref-name", `引用名契约双向一致（${Object
 // B. 智能体定义校验
 // ---------------------------------------------------------------------------
 function checkAgent(report, ctx, agentDir) {
+  // 能力描述 schema 的编译放在这里：A7 检查是**智能体范围**的（基础检查里没有定义可查）
+  const capabilityAjv = new Ajv2020({ allErrors: true, strict: false });
+  capabilityAjv.addSchema(JSON.parse(fs.readFileSync(CAPABILITY_SCHEMA, "utf8")));
+  const capabilityValidate = capabilityAjv.getSchema("https://agent-base.local/schemas/capability-description.schema.json");
+  if (!capabilityValidate) throw new Error("能力描述 schema 编译失败（$id 与文件不一致？）");
   const { ajv, agentSchema, connectorsSchema, caps, params } = ctx;
   const agentFile = path.join(agentDir, "agent.yaml");
   if (!fs.existsSync(agentFile)) {
@@ -1021,6 +1004,59 @@ function checkAgent(report, ctx, agentDir) {
   // 定义目录摘要（§6.7）
   report.definitionDigest = digestDirectory(agentDir);
   if (agent.name) report.agent = agent.name;
+  // A8 钩子失败语义（E7）：声明了 `hooks.onFailure` ⇒ 业务钩子**必须**用基座的 guardedHook 包装。
+  // 判据的依据是实测量到的事实：运行时自己会**静默吞掉**钩子异常（退出 0、轨迹无痕），
+  // 所以"声明了语义但没包装"等于给不出任何保证 —— 那种声明比不声明更坏（看着像有保障）。
+  {
+    const policy = agent?.hooks?.onFailure ?? null;
+    const hookFiles = [];
+    const walk = (dir) => {
+      if (!fs.existsSync(dir)) return;
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (/\.(ts|js|mjs)$/.test(e.name) && !e.name.startsWith("_")) hookFiles.push(p);
+      }
+    };
+    walk(path.join(agentDir, "harness"));
+    if (!policy) {
+      // 没声明也要给出可执行的提示（不判红：默认不强制）
+      const unguarded = hookFiles.filter((f) => /\bon\(/.test(fs.readFileSync(f, "utf8")) && !/guardedHook/.test(fs.readFileSync(f, "utf8")));
+      report.pass(GATE, "hooks/failure-policy",
+        unguarded.length
+          ? `没有声明 hooks.onFailure（默认按 record 理解）；有 ${unguarded.length} 个钩子文件没用 guardedHook 包装 —— 钩子抛异常时运行时**静默吞掉**，想让它留痕就包装并声明`
+          : "没有声明 hooks.onFailure（默认按 record 理解）；业务钩子都已用 guardedHook 包装");
+    } else {
+      const unguarded = hookFiles.filter((f) => /\bon\(/.test(fs.readFileSync(f, "utf8")) && !/guardedHook/.test(fs.readFileSync(f, "utf8")));
+      if (unguarded.length) {
+        report.fail(GATE, "hooks/failure-policy",
+          `声明了 hooks.onFailure: ${policy}，但这些钩子文件没有用 guardedHook 包装：`
+          + `${unguarded.map((f) => path.relative(agentDir, f)).join(", ")} —— 声明给不出保证（运行时静默吞掉异常）`);
+      } else {
+        report.pass(GATE, "hooks/failure-policy",
+          `声明了 hooks.onFailure: ${policy}，且 ${hookFiles.length} 个钩子文件都用 guardedHook 包装（失败会留痕）`);
+      }
+    }
+  }
+
+  // A7 能力描述（D-0012/D-0018 的第一层）：描述过 schema + 实现就位 + 名字不重复  // A7 能力描述（D-0012/D-0018 的第一层）：描述过 schema + 实现就位 + 名字不重复
+  // 判据与自检**共用** core/capabilities/registry.mjs 的实现检查（不在这里另写一份规则）。
+  {
+    const loaded = loadCapabilities(agentDir, { yamlParse: (t) => YAML.parse(t) });
+    const problems = [...loaded.problems];
+    for (const cap of loaded.capabilities) {
+      if (!capabilityValidate(toSchemaDocument(cap))) problems.push(`${cap.__rel}: ${ajvErrors(capabilityValidate.errors)}`);
+      for (const p of checkImplementation(cap)) problems.push(`${cap.__rel}: ${p}`);
+    }
+    if (!fs.existsSync(loaded.dir)) {
+      report.pass(GATE, "capabilities/descriptions", "该定义没有 capabilities/ 目录（没有声明任何能力，无需校验）");
+    } else if (problems.length) {
+      report.fail(GATE, "capabilities/descriptions", problems.join("；"));
+    } else {
+      report.pass(GATE, "capabilities/descriptions", `${loaded.capabilities.length} 份描述都合法且实现就位`);
+    }
+  }
+
 }
 
 // ---------------------------------------------------------------------------

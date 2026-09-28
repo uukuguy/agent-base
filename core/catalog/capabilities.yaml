@@ -271,6 +271,24 @@ groups:
         doc: 一次运行的挂钟上限（秒）。与其他两条不同：这条**强制执行**（超时即中止并按失败处理）。
 
   # --------------------------------------------------------------------------
+  - id: hooks
+    label: 「钩子失败时怎么办」
+    businessConcept: true
+    fields:
+      - path: hooks.onFailure
+        source: agent.yaml
+        type: enum
+        required: false
+        default: record
+        values: { enum: [record, block] }
+        layer: verification
+        harnesses:
+          pi: { support: extension, verified: true, note: "基座提供 guardedHook()（产物内的 _trace-emit.mjs）；**实测运行时自己会静默吞掉钩子异常**（退出 0、轨迹无痕），所以要显式包装才谈得上语义" }
+          dsh: { support: extension, verified: true, note: "同一份 guardedHook 与同一类轨迹事件（core 单一真源）；两侧自检各跑一次正负例" }
+        doc: record（默认）= 业务钩子抛异常时记录 hook.error 后继续；block = 记录后抛出、让本次运行失败。两条路都先留痕 —— 静默失败是不允许的。
+        degradation: 声明了 hooks.onFailure 却没用 guardedHook 包装的业务钩子 ⇒ 闸门 1 判红（否则这条声明给不出任何保证）。
+
+  # --------------------------------------------------------------------------
   - id: connectors
     label: 「它能连哪些系统」
     businessConcept: true

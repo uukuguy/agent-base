@@ -29,7 +29,7 @@ make verify-all               # 全部示例 × 两个运行时，四道闸门
 | **渲染** | 确定性产物：同一定义渲两次结果相同，产可复算摘要 | `make compare AGENT_DIR=…` |
 | **本地跑** | 零凭据假网关 / 真实端点 / 本地模型，三种跑法 | `make run-local …`、`LIVE=1` |
 | **闸门** | 四道闸门回答"可用/不可用"，且带证据（端点侧取证） | `make verify AGENT_DIR=…` |
-| **轨迹** | 统一轨迹：10 类事件、可回放、业务可扩展 | `make trace-view TRACE=…` |
+| **轨迹** | 统一轨迹：11 类事件、可回放、业务可扩展 | `make trace-view TRACE=…` |
 | **容器** | 基座镜像：产物挂载或**烤进镜像**都能跑；缺配置 fail-fast | `docker run … config-check` |
 | **自证** | **镜像内**跑闸门（离线、零凭据） | `docker run <镜像> verify` |
 | **接入缝** | 上层镜像在**运行期**加业务代码与钩子（不动产物） | `make image-derived … OVERLAY_DIR=…` |
@@ -128,7 +128,7 @@ docker run --rm --network none \
 | 另一个运行时的钩子 | `make verify … HARNESS=dsh` | 如实报「事后映射 ⇒ 该断言在此运行时不适用」（**不算通过**） |
 | 钩子订阅的**事件名真的存在** | `make validate AGENT_DIR=…` | `enhance/events`：声明的每个事件名都在 `adapters/<h>/adapter.yaml` 的 `hookEvents` 里（pi 39 个，逐个对名字）⚠️ dsh 侧事件集合**未穷举** ⇒ 如实标「未验证」，不做假校验 |
 | 被禁的工具真的调不到 | `make smoke AGENT_DIR=…` | `smoke/no-denied-tools` |
-| 轨迹合法可回放 | `make trace-selftest` + `make trace-view TRACE=…` | 10 类事件全过 schema；视图能按 run 回放 |
+| 轨迹合法可回放 | `make trace-selftest` + `make trace-view TRACE=…` | 11 类事件全过 schema；视图能按 run 回放 |
 | 镜像与源码同源 | `make conformance HARNESS=pi`（C9） | 四个镜像 + 归档的 LABEL 等于源码指纹 |
 | 容器安全下限 | 同上 | C9 十六项（非 root、只读根、能力全丢、断网可用…） |
 | **镜像内**能自证 | `docker run <镜像> verify` | 闸门 2/3/4（有定义连闸门 1）—— 离线、零凭据 |

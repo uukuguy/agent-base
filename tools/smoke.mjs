@@ -128,6 +128,13 @@ const renderDir = path.resolve(renderDirArg);
           } else if (run.stdout.includes(RESPONSE_MARKER)) rep.pass(GATE, "smoke/output-marker", `输出包含预期标记 ${RESPONSE_MARKER}`);
           else rep.fail(GATE, "smoke/output-marker", `输出里没有 ${RESPONSE_MARKER} —— 任务没有真正跑完`);
 
+          // 取证源（供钩子失败与 loop 预算共用）：运行器轨迹优先，缺 model.request 时退端点侧。
+          // 单一来源的理由见下面 loop 段：合并两个 run 命名空间会把同一 run 拆两半。
+          const endpointEventsForHooks = (gateway?.traceLines ?? [])
+            .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+            .filter((e) => e && e.run);
+          const allEventsForHooks = (run.events ?? []).length ? (run.events ?? []) : endpointEventsForHooks;
+
           // 3) 轨迹符合 schema
           const ajv = new Ajv2020({ allErrors: true, strict: false });
           const validate = ajv.compile(JSON.parse(fs.readFileSync(path.join(REPO, "core/trace/schema.json"), "utf8")));
@@ -135,6 +142,25 @@ const renderDir = path.resolve(renderDirArg);
           if (!run.events.length) rep.fail(GATE, "smoke/trace-schema", "没有产生任何轨迹事件（看不到它做了什么）");
           else if (bad.length) rep.fail(GATE, "smoke/trace-schema", `${bad.length}/${run.events.length} 条事件不合 schema`);
           else rep.pass(GATE, "smoke/trace-schema", `${run.events.length} 条轨迹全部符合 schema`);
+
+          // 3b) 钩子失败语义（E7）：`hook.error` 必须被看见 —— 尤其 policy=block 的那些
+          // 实测：运行时自己**吞掉**钩子异常（不会中止运行），所以"block"由**基座**执行：
+          // 轨迹里出现 policy=block 的钩子失败 ⇒ 这次运行**判为失败**（闸门是基座的权威，不是运行时的）。
+          {
+            const hookErrors = allEventsForHooks.filter((e) => e.type === "hook.error");
+            const blocking = hookErrors.filter((e) => e.policy === "block");
+            if (blocking.length) {
+              rep.fail(GATE, "smoke/hook-failures",
+                `${blocking.length} 条钩子失败被声明为 block ⇒ 本次运行判为失败：`
+                + blocking.map((e) => `${e.enhancement}（${String(e.message).slice(0, 80)}）`).join("；"));
+            } else if (hookErrors.length) {
+              rep.pass(GATE, "smoke/hook-failures",
+                `${hookErrors.length} 条钩子失败被**如实记录**（policy=record，运行继续）：`
+                + [...new Set(hookErrors.map((e) => e.enhancement))].join(", "));
+            } else {
+              rep.pass(GATE, "smoke/hook-failures", "这次运行没有钩子失败（要么没声明钩子，要么都正常）");
+            }
+          }
 
           // 4) loop 预算：**从轨迹数**，越界判红并给出数字（声明不是装饰）
           let c_loopSource = "";

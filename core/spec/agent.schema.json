@@ -135,6 +135,22 @@
           "description": "一个 run 的挂钟上限（秒）。**这一条会被强制执行**：跑超了把进程掐掉并按失败处理。"
         }
       }
+    },
+    "hooks": {
+      "type": "object",
+      "description": "钩子失败语义（可选）：钩子抛异常时基座怎么办。实测运行时**静默吞掉**这类异常（运行照常退出 0、轨迹无痕）—— 声明这个字段是要求业务钩子用基座的 `guardedHook()` 包装，把失败**显式留痕**。",
+      "additionalProperties": false,
+      "properties": {
+        "onFailure": {
+          "type": "string",
+          "enum": [
+            "record",
+            "block"
+          ],
+          "default": "record",
+          "description": "record（默认）= 记录 hook.error 后继续（一个业务钩子出错不该让整场会话崩掉）；block = 记录后抛出，让本次运行响亮失败。两条路都先留痕。"
+        }
+      }
     }
   },
   "$defs": {

@@ -67,6 +67,14 @@
 
 <sub>来源：agent.yaml</sub>
 
+## hooks
+
+| 字段 | 类型 | 所属层 | 必填 | 取值 | dsh | pi | 说明 |
+|---|---|---|---|---|---|---|---|
+| `hooks.onFailure` | enum | verification | 否 | `record` / `block` | 🧩 靠扩展 | 🧩 靠扩展 | record（默认）= 业务钩子抛异常时记录 hook.error 后继续；block = 记录后抛出、让本次运行失败。两条路都先留痕 —— 静默失败是不允许的。 |
+
+<sub>来源：agent.yaml</sub>
+
 ## connectors
 
 | 字段 | 类型 | 所属层 | 必填 | 取值 | dsh | pi | 说明 |

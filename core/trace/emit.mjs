@@ -81,6 +81,58 @@ export function approvalEvent({ decision, subject, answerer, detail } = {}) {
   return { event: { type: "approval.decision", decision, subject, answerer, ...(detail ? { detail } : {}) }, problems: [] };
 }
 
+/**
+ * 受保护的钩子（E7）：把业务钩子的回调包起来，失败**显式留痕**并按声明处置。
+ *
+ * ## 为什么需要它（实测，不是设计洁癖）
+ *
+ * 业务钩子抛异常时，运行时**静默吞掉**：本次运行照常退出 0，轨迹里一个字都没有。
+ * 于是"钩子写错了"与"钩子没触发"在证据上无法区分 —— 与 D1/D2 是同一类缺陷（配了没生效无人知道）。
+ *
+ * ## 用法（业务侧只多一层包装，不用学新协议）
+ *
+ *     import { guardedHook } from "./_trace-emit.mjs";
+ *     on("tool_call", guardedHook({ id: "contract-check", event: "tool_call", policy }, () => { ... }));
+ *
+ * `policy` 来自定义里的 `hooks.onFailure`（渲染器生成 `_hook-policy.mjs`，业务钩子 import 它，不手抄）：
+ *   · `record`（默认）—— 记录 `hook.error` 后**继续**：一个业务钩子出错不该让整场会话崩掉
+ *   · `block`          —— 记录后**抛出**：要求"钩子失败即运行失败"的场景（审计严格的业务）
+ *
+ * 两条路都**先留痕**再决定 —— 这是本函数存在的全部意义。
+ */
+export function guardedHook({ id, event = null, policy = "record", writer = null } = {}, fn) {
+  // 默认写入器：业务侧的自然写法是 `guardedHook({id, policy}, fn)`，**不该**要求它自己造写入器。
+  // 复用 TraceWriter 与运行期环境（与基座轨迹扩展同一套）—— 于是"留痕"不靠业务记着传参数。
+  const sink = writer ?? (() => {
+    const w = new TraceWriter({
+      run: process.env.AGENT_RUN_ID || "hook-guard",
+      effectiveConfigDigest: process.env.AGENT_EFFECTIVE_CONFIG_DIGEST || `sha256:${"0".repeat(64)}`,
+      agent: process.env.AGENT_NAME ?? null,
+      enhancement: id,
+      harness: process.env.AGENT_HARNESS ?? null,
+      harnessVersion: process.env.AGENT_HARNESS_VERSION ?? null,
+      dest: process.env.AGENT_TRACE_DEST || null,
+    });
+    return (rec) => w.write(rec);
+  })();
+  if (typeof fn !== "function") throw new TypeError("guardedHook 需要一个函数");
+  if (typeof id !== "string" || !id.trim()) throw new TypeError("guardedHook 需要 declaration id（哪个钩子）");
+  if (!["record", "block"].includes(policy)) throw new TypeError(`policy 必须是 record | block，收到 ${policy}`);
+  return async (...args) => {
+    try {
+      return await fn(...args);
+    } catch (e) {
+      const message = String(e?.message ?? e);
+      const stack = typeof e?.stack === "string" ? e.stack.split("\n").slice(0, 6).join("\n").slice(0, 1200) : undefined;
+      const rec = { type: "hook.error", enhancement: id, message, policy, ...(event ? { event } : {}), ...(stack ? { stack } : {}) };
+      // 留痕优先：写入器坏了也**不许**吞掉原始错误（那时至少让 block 语义生效）
+      try { sink(rec); } catch { /* 写入器不可用：下面按 policy 处置，绝不吞掉原始错误 */ }
+      if (policy === "block") throw e;
+      return undefined;
+    }
+  };
+}
+
 /** 无依赖的形状自检（不引 ajv：业务代码要在任何环境里都能跑）。权威校验仍是 schema.json。 */
 export function validateShape(rec) {
   const problems = [];
@@ -91,6 +143,11 @@ export function validateShape(rec) {
   if (rec.effectiveConfigDigest && !/^sha256:[0-9a-f]{64}$/.test(rec.effectiveConfigDigest)) problems.push("effectiveConfigDigest 格式非法");
   if (rec.type === "biz.event") {
     problems.push(...logEvent(rec.namespace, rec.level, rec.message, rec.data ?? {}).problems);
+  }
+  if (rec.type === "hook.error") {
+    if (typeof rec.enhancement !== "string" || !rec.enhancement.trim()) problems.push("hook.error 缺 enhancement（哪个钩子失败了）");
+    if (typeof rec.message !== "string" || !rec.message.trim()) problems.push("hook.error 缺 message");
+    if (!["record", "block"].includes(rec.policy)) problems.push(`hook.error 的 policy 必须是 record | block，收到 ${rec.policy}`);
   }
   return problems;
 }

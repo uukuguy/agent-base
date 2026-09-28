@@ -292,6 +292,10 @@ function main() {
   }
   writeFile(path.join(agentOut, "extensions", "_capabilities.mjs"),
     fs.readFileSync(path.join(REPO, "core/capabilities/registry.mjs"), "utf8"));
+  // 钩子失败语义：**从定义原样带出**成产物里的常量，业务钩子 import 它 —— 单一真源，不靠人手抄
+  writeFile(path.join(agentOut, "extensions", "_hook-policy.mjs"),
+    "// 由渲染器生成：值来自 agent.yaml 的 hooks.onFailure（单一真源，别手改）\n"
+    + `export const onFailure = ${JSON.stringify(agent.hooks?.onFailure ?? "record")};\n`);
 
   const declaredEnhancements = [...new Set([...baseEnh, ...agentEnh].map((e) => e.id))].sort();
   // 哪些声明是**钩子**：闸门 3 的 probe/hooks-evidenced 靠它判断"要不要断言钩子真的触发了"

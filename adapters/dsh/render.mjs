@@ -363,8 +363,16 @@ function main() {
       ["_container-only.mjs", path.join(REPO, "core/introspect/_container-only.mjs")],
       ["_project-layout.mjs", path.join(HERE, "project-layout.mjs")],
       ["_capabilities.mjs", path.join(REPO, "core/capabilities/registry.mjs")],
+      // 钩子失败语义：从定义带出的常量（业务插件 import 它，不手抄）
+      ["_hook-policy.mjs", null],   // null = 内容现算，见下
+
     ];
-    for (const [dest, from] of shared) writeFile(path.join(profileDir, "plugins", id, dest), fs.readFileSync(from, "utf8"));
+    for (const [dest, from] of shared) {
+      const body = from === null
+        ? `// 由渲染器生成：值来自 agent.yaml 的 hooks.onFailure（单一真源，别手改）\nexport const onFailure = ${JSON.stringify(agent.hooks?.onFailure ?? "record")};\n`
+        : fs.readFileSync(from, "utf8");
+      writeFile(path.join(profileDir, "plugins", id, dest), body);
+    }
   }
 
   // ---- profile 四件套 ----

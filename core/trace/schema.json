@@ -144,6 +144,9 @@
         },
         {
           "$ref": "#/$defs/approvalDecision"
+        },
+        {
+          "$ref": "#/$defs/hookError"
         }
       ]
     },
@@ -501,6 +504,46 @@
         },
         "detail": {
           "type": "string"
+        }
+      }
+    },
+    "hookError": {
+      "type": "object",
+      "description": "钩子执行失败。【为什么单独一类事件】实测：钩子抛异常时运行时**静默**吞掉 —— 运行照常退出 0、轨迹里一个字都没有，配了没生效也无人知道。基座提供 `guardedHook()`（注入产物里的 `_trace-emit.mjs`）把失败**显式记录**成这条事件，再按定义里 `hooks.onFailure` 的声明决定继续（record）还是让本次运行响亮失败（block）。",
+      "required": [
+        "type",
+        "enhancement",
+        "message"
+      ],
+      "properties": {
+        "type": {
+          "const": "hook.error"
+        },
+        "enhancement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "哪个声明的钩子失败了（= enhancements[].id；与 hookEvents 的自证用同一个标识）"
+        },
+        "event": {
+          "type": "string",
+          "description": "失败发生在哪个运行时事件上（若有）"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "description": "错误信息（原样带出，不解析）"
+        },
+        "policy": {
+          "type": "string",
+          "enum": [
+            "record",
+            "block"
+          ],
+          "description": "当时的失败语义声明：record=记录后继续；block=记录后抛出，让运行失败"
+        },
+        "stack": {
+          "type": "string",
+          "description": "可选：栈摘要（截断）"
         }
       }
     }
