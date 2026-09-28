@@ -430,6 +430,9 @@ function main() {
     harnessVersion: adapterDoc.version,
     agent: agent.name,
     declaredSkills,
+    // 能力落点：**由各运行时的渲染器回答**（一个在 agent-dir 下，一个在产物根）——
+    // 探针/自省按它读，不猜目录形状（猜错会静默得到"没有能力"）。
+    capabilitiesPath: capsLoaded.capabilities.length ? "agent-dir/capabilities" : null,
     // 能力（D-0012）：名字 + 通道 + 确定性 —— 供闸门、自省、`/project` 与"桥是通用的"静态检查用
     capabilities: capabilityList.map((c) => ({
       name: c.name, kind: c.execution.kind, runtime: c.execution.runtime ?? null, deterministic: c.declaration.deterministic,

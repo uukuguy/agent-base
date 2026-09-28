@@ -432,6 +432,8 @@ function main() {
     output: "dsh-home + workspace",
     bundles: BUNDLES,
     declaredSkills,
+    // 能力落点：本运行时放在**产物根**（另一个运行时放在 agent-dir 下）；探针/自省按它读
+    capabilitiesPath: capsLoaded.capabilities.length ? "capabilities" : null,
     // 能力（D-0012）：与另一个运行时的清单**同名字段**，跨侧比对才不用翻译
     capabilities: capabilityList.map((c) => ({
       name: c.name, kind: c.execution.kind, runtime: c.execution.runtime ?? null, deterministic: c.declaration.deterministic,

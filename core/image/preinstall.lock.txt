@@ -2,7 +2,7 @@
 # 改了 preinstall.yaml 就重跑 `make image-lock`；`make validate` 会检查二者同步。
 # 三种前缀：npm <pkg>@<ver> / apt <pkg...> / skill <id>
 # 架构中立：双架构（linux/arm64 + linux/amd64）都必须可构建。
-# 统计：npm 12 · apt 6 · 技能 0（另有 3 个 planned 未落盘：skill-code-navigation, skill-debugging, skill-verification）
+# 统计：npm 12 · apt 7 · 技能 0（另有 3 个 planned 未落盘：skill-code-navigation, skill-debugging, skill-verification）
 
 npm @browserbasehq/mcp@3.0.0
 npm @cyanheads/git-mcp-server@2.15.3
@@ -16,4 +16,4 @@ npm @upstash/context7-mcp@4.1.1
 npm chrome-devtools-mcp@1.10.1
 npm pi-mcp-adapter@2.37.0
 npm repomix-mcp@1.0.3
-apt bash ca-certificates curl git jq ripgrep
+apt bash ca-certificates curl git jq python3 ripgrep

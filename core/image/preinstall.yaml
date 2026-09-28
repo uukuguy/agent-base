@@ -83,6 +83,8 @@ categories:
     label: 记忆与推理
   - id: skills
     label: 基座不变量技能
+  - id: capability-runtime
+    label: 业务能力运行时（业务代码用哪门语言写）
 
 # ---------------------------------------------------------------------------
 # 不预装：只有「装了也没用」或「装了会误导」才排除，不做生产式裁剪
@@ -106,10 +108,15 @@ excluded:
     reason: 已 deprecated。且 Slack 类需要每用户 OAuth，与当前参数层的单一服务凭据模型不匹配（见 missing-capabilities）。
   - id: mcp-server-git-uvx
     install: { registry: python, command: uvx, package: mcp-server-git }
-    reason: 官方 Git 服务器只有 Python 形态。为避免验证基座多引一条 Python 工具链，改用 npm 实现（entries.git）。
+    reason: >
+      官方 Git 服务器只有 Python 形态。当时为避免验证基座多引一条 Python 工具链而改用 npm 实现（entries.git）——
+      **该理由自 2026-09-28 起不再成立**（D-0018/B1 决定镜像预装 Python，见 `python-runtime` 条目）。
+      这里仍沿用 npm 实现：换过去没有收益，且要重测一遍连接器。
   - id: mcp-server-fetch-uvx
     install: { registry: python, command: uvx, package: mcp-server-fetch }
-    reason: 官方 Fetch 只有 Python 形态（npm 上 mcp-server-fetch 是 0.0.1-security 占位）。同上，暂不引 Python 工具链。
+    reason: >
+      官方 Fetch 只有 Python 形态（npm 上 mcp-server-fetch 是 0.0.1-security 占位）。同上，暂不引它；
+      镜像现在**已经有** Python（`python-runtime`），要换成官方实现只需在这里改一行并重测连接器。
 
 # ---------------------------------------------------------------------------
 # 每条：pin 到实测版本；devUse 写「开发智能体时你会拿它做什么」
@@ -232,6 +239,30 @@ entries:
     notes: >
       不是连接器条目（refName 为 null，不能被 connectors.yaml 的 ref 引用）；
       它是**基座种子依赖**：装了它，pi 侧的连接器才能渲染并生效。
+
+  - id: python-runtime
+    refName: null
+    kind: system
+    category: capability-runtime
+    transport: null
+    install: { registry: system, packages: ["python3"] }
+    localCommands: { python3: python3 }
+    credentials: none
+    enabledByDefault: true
+    verifiedAlive: "2026-09-28"
+    runsOffline: true
+    devUse: >
+      业务能力可以用 **Python** 写：描述里 `execution: { kind: process, runtime: python }`，
+      实现就是一个 `.py` 文件（stdin 一行 JSON → stdout 一行 JSON）。装进镜像才能在容器里也跑得起来。
+    rationale: >
+      D-0012/D-0018 决定（B1）：业务代码的语言不该被基座锁死。多数"评分/清洗/规则"类的业务代码
+      本来就是 Python 写的；镜像预装一门语言运行时，业务侧就**不必写任何适配**。
+      这也是"本地过 ⇒ 容器过"的前提：本地有 python3 而镜像没有，就成了**未声明的差异**
+      （实测：迁移后 `verify-container` 当场判 `spawn python3 ENOENT`，归因工具拒绝猜）。
+    notes: >
+      与 `shell-toolchain` 分开列：升级节奏不同（语言版本 vs shell 工具），
+      而且**不是每个业务都需要它** —— 不需要的业务不该被它拖累（同一份清单服务所有智能体，
+      但只有声明了 `runtime: python` 的能力才会用到它）。
 
   - id: shell-toolchain
     refName: null

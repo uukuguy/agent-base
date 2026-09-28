@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 import { loadCapabilities, checkImplementation, toSchemaDocument, invokeCapability, normalizeResult, sameSemantics, RUNTIMES } from "./registry.mjs";
+import { sampleArguments, probeCapabilities } from "./probe.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let failures = 0;
@@ -205,6 +206,57 @@ console.log("── I. 归一化：字符串/空返回不会炸 ──");
 check("实现返回字符串 ⇒ 当成 text", normalizeResult("hello").text === "hello" && normalizeResult("hello").refused === false);
 check("实现返回 null ⇒ 标为 declined（调用方据此响亮失败）", normalizeResult(null).declined === true);
 check("没有 text 的返回不会伪造文案", normalizeResult({ details: { a: 1 } }).text.length > 0 && normalizeResult({ details: { a: 1 } }).details.a === 1);
+
+
+console.log("── J. 探针：按描述真调用 + 形状判据（含两个负例）──");
+{
+  console.log("   · 造入参：必填 + 可选都造（只造必填会让'缺字段就拒答'的能力永远只走拒答分支）");
+  const args = sampleArguments({ type: "object", required: ["a"], properties: { a: { type: "string" }, b: { type: "string", enum: ["x", "y"] } } });
+  check("可选字段也被造出来了", args.a === "sample" && args.b === "x", JSON.stringify(args));
+  check("required 里没有形状的 ⇒ 如实标 missing（不静默造一个）",
+    JSON.stringify(sampleArguments({ type: "object", required: ["ghost"], properties: {} })) === JSON.stringify({ __missing: "ghost" }));
+
+  console.log("   · 探针真调用 + 形状判据");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "probe-caps-"));
+  const capDir = path.join(dir, "capabilities");
+  fs.mkdirSync(capDir, { recursive: true });
+  const mk = (name, impl, resultSchema, eol) => {
+    fs.writeFileSync(path.join(capDir, `${name}.yaml`), `apiVersion: agent-base/v1
+name: ${name}
+description: 探针用能力（确定性）。
+parameters: { type: object, properties: { surfaces: { type: array, items: { type: string } } }, required: [surfaces] }
+result: ${JSON.stringify(resultSchema)}
+execution: { kind: module, entry: "${name}.mjs", timeoutMs: 5000 }
+declaration: { deterministic: true, sideEffects: none, version: "1" }
+`);
+    fs.writeFileSync(path.join(capDir, `${name}.mjs`), impl);
+    void eol;
+  };
+  mk("good", `export function run(p = {}) { return { text: "ok", details: { score: 30 } }; }\n`, { type: "object", required: ["score"] });
+  mk("badshape", `export function run(p = {}) { return { text: "ok", details: { nothing: true } }; }\n`, { type: "object", required: ["score"] });
+  // 谎报确定性的能力：**用文件计数**，因为每次调用都会重新 import 模块（模块内计数会被重置，
+  // 那样这个负例根本撒不了谎、也就验不了这条判据 —— 本轮实测踩到）。
+  mk("liar", `import fs from "node:fs";\nimport path from "node:path";\n`
+    + `export function run(p = {}) { const f = path.join(new URL(".", import.meta.url).pathname, "liar.count");`
+    + ` const n = (fs.existsSync(f) ? Number(fs.readFileSync(f, "utf8")) : 0) + 1;`
+    + ` fs.writeFileSync(f, String(n)); return { text: "ok", details: { score: n } }; }\n`,
+    { type: "object", required: ["score"] });
+  fs.writeFileSync(path.join(dir, "render-manifest.json"), JSON.stringify({ capabilitiesPath: "capabilities" }));
+  fs.writeFileSync(path.join(capDir, "index.json"), JSON.stringify({ apiVersion: "agent-base/v1", capabilities: [
+    { name: "good", description: "好", parameters: { type: "object", properties: { surfaces: { type: "array", items: { type: "string" } } }, required: ["surfaces"] }, result: { type: "object", required: ["score"] }, execution: { kind: "module", entry: "good.mjs" }, declaration: { deterministic: true, version: "1" } },
+    { name: "badshape", description: "形状错", parameters: { type: "object", properties: {}, required: [] }, result: { type: "object", required: ["score"] }, execution: { kind: "module", entry: "badshape.mjs" }, declaration: { deterministic: true, version: "1" } },
+    { name: "liar", description: "谎报确定性", parameters: { type: "object", properties: {}, required: [] }, result: { type: "object", required: ["score"] }, execution: { kind: "module", entry: "liar.mjs" }, declaration: { deterministic: true, version: "1" } },
+  ] }));
+  const { default: Ajv2020 } = await import("ajv/dist/2020.js");
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const probe = await probeCapabilities(dir, { validate: (schema, value) => { try { return ajv.validate(schema, value); } catch { return false; } } });
+  const by = Object.fromEntries(probe.results.map((r) => [r.name, r]));
+  check("**真调用**：好能力的 details 过了 result 形状", by.good?.ok === true && /result/.test(probe.results.find((r) => r.name === "good") ? "result" : ""), JSON.stringify(by.good));
+  check("形状不符 ⇒ **判红**并说清是 result", by.badshape?.ok === false && /result schema/.test(by.badshape.why ?? ""), JSON.stringify(by.badshape));
+  check("声明确定性却两次不一致 ⇒ **判红**（复算这条不是空话）", by.liar?.ok === false && /不一致/.test(by.liar.why ?? ""), JSON.stringify(by.liar));
+  check("产物里没有 index.json ⇒ 报 0 个能力（调用方据此说'未声明'而不是'通过'）",
+    (await probeCapabilities(fs.mkdtempSync(path.join(os.tmpdir(), "empty-")), {})).total === 0);
+}
 
 console.log("");
 if (failures) {

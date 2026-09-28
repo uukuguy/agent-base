@@ -1,0 +1,58 @@
+apiVersion: agent-base/v1
+
+# ============================================================================
+# 业务能力：企业风险评分（**说明**，语言无关）
+#
+# 这份文件是接入方的**唯一输入**：两个运行时都按它注册工具、按它调用实现。
+# 业务实现是 `risk_score.py`（Python）—— 用哪门语言写是业务的事，基座不管。
+#
+# 与迁移前的对照（D-0012/D-0013 落地）：
+#   迁移前：harness/shared/risk-score.mjs（规则 + 描述混在 JS 里）
+#           + harness/pi/extensions/risk-score.ts（pi 接入件）
+#           + harness/dsh/risk-score.js（dsh 接入件）—— 每个能力两份胶水
+#   迁移后：本文件 + risk_score.py。**接入件为零**：两侧的桥按描述通用注册。
+# ============================================================================
+name: corp_risk_score
+label: 企业风险评分
+description: >
+  用企业风险规则给一次变更打分（确定性、可复算）。
+  关键事实不全时会拒答并列出缺什么 —— 不要用你自己的判断补上再调用。
+promptSnippet: corp_risk_score：按企业规则给变更打分（确定性、可审计）
+
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    touchedSurfaces:
+      type: array
+      items: { type: string }
+      description: 这次变更影响的面（模块 / 服务 / 表），一条一句
+    environments:
+      type: array
+      items: { type: string }
+      description: 执行环境（dev / staging / prod …）
+    dataMigration: { type: boolean, description: 是否包含数据迁移 }
+    rollback: { type: string, enum: [none, scripted, feature-flag], description: 回滚方案 }
+    window: { type: string, enum: [off-peak, peak], description: 执行时间窗 }
+    owner: { type: string, description: 变更负责人 }
+  required: [touchedSurfaces, environments]
+
+result:
+  type: object
+  required: [score, level, factors, ruleVersion]
+  properties:
+    score: { type: integer }
+    level: { type: string, enum: [low, medium, high] }
+    factors: { type: array }
+    ruleVersion: { type: string }
+
+execution:
+  kind: process        # 任意语言：进程边界调用（本实现是 Python）
+  runtime: python
+  entry: risk_score.py
+  timeoutMs: 5000
+
+declaration:
+  deterministic: true  # 同入参永远同结果：不随机、不读时钟、不访问网络（审计要能复算）
+  sideEffects: none
+  version: "2026-09-1" # 改权重/阈值就要改它 —— 旧分数必须仍能被解释

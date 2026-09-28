@@ -144,6 +144,37 @@ async function main() {
             rep.pass(GATE, "probe/model.reachable", `端点共收到 ${reqs.length} 次模型请求（证据来源：${c.evidenceSource}）`);
           }
 
+          // ---- 声明的能力：**逐条真调用**，并按描述的 `result` 断言返回形状 ----
+          // 只到"工具被提供给了模型"是不够的：描述里的 `result` 是"返回形状没变"的判据，
+          // 没有真调用它就只是纸面承诺（造不出合法入参的能力如实标 skipped，不算通过）。
+          {
+            const { probeCapabilities } = await import(`file://${path.join(REPO, "core/capabilities/probe.mjs")}`);
+            const Ajv2020 = (await import("ajv/dist/2020.js")).default;
+            const ajv = new Ajv2020({ allErrors: true, strict: false });
+            const validate = (schema, value) => {
+              try { return ajv.validate(schema, value); } catch { return false; }
+            };
+            const probe = await probeCapabilities(renderDir, { validate });
+            if (probe.total === 0) {
+              rep.pass(GATE, "probe/capabilities.callable", "该产物没有声明任何能力（无需探测）");
+            } else if (probe.skipped > 0) {
+              rep.fail(GATE, "probe/capabilities.callable",
+                `${probe.skipped}/${probe.total} 个能力**没验到**（不算通过）：`
+                + probe.results.filter((r) => r.skipped).map((r) => `${r.name}（${r.why}）`).join("；"));
+            } else if (probe.reachable === probe.total) {
+              // **如实分类**：被业务拒答的能力这一轮没验到 result 形状 —— 不许说成"都验过了"
+              const refused = probe.results.filter((r) => r.refused === true);
+              rep.pass(GATE, "probe/capabilities.callable",
+                `${probe.total} 个能力都真调通了（${probe.results.map((r) => `${r.name}·${r.channel}`).join(" · ")}）；`
+                + `其中 ${probe.shapeChecked} 个的 details 被按描述里的 result 校验过`
+                + (refused.length ? `；${refused.length} 个以合成入参被业务拒答（合法行为，但那一轮没验到 result 形状）：${refused.map((r) => r.name).join(", ")}` : "")
+                + "；确定性声明为真的都复算一致");
+            } else {
+              rep.fail(GATE, "probe/capabilities.callable",
+                probe.results.filter((r) => !r.ok).map((r) => `${r.name}：${r.why}`).join("；"));
+            }
+          }
+
           // §6.4 最关键的一条：必须断言 tools=N>0
           const withTools = reqs.filter((e) => Number(e.tools) > 0);
           if (withTools.length) {
