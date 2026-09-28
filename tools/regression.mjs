@@ -30,7 +30,7 @@ const fast = flags.has("--fast");
 
 /** 自检清单：与 CLAUDE.md / docs/14 里那份一致（这里也就成了它的单一真源）。 */
 const SELFTESTS = [
-  "validate", "validate-selftest", "capabilities-selftest", "bundles-selftest", "base-skills-selftest", "gates-selftest", "trace-selftest", "emit-selftest", "trace-view-selftest",
+  "validate", "validate-selftest", "capabilities-selftest", "bundles-selftest", "local-packages-check", "base-skills-selftest", "gates-selftest", "trace-selftest", "emit-selftest", "trace-view-selftest",
   "gateway-selftest", "providers-selftest", "startup-selftest", "pi-selftest", "pi-trace-selftest",
   "pi-trace-ext-selftest", "pi-project-info-selftest", "pi-capabilities-selftest", "pi-session-selftest", "pi-verify-container-selftest",
   "dsh-verify-container-selftest", "dsh-project-info-selftest", "dsh-capabilities-selftest", "probe-selftest", "project-info-selftest", "env-check-selftest",

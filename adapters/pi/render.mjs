@@ -442,11 +442,14 @@ function main() {
       settings.packages = Array.isArray(settings.packages) ? settings.packages : [];
       for (const id of pluginUnits) {
         const entry = PREINSTALL_DOC.byId.get(id);
-        const source = entry?.install?.package ?? null;
+        let source = entry?.install?.package ?? null;
         if (!source) {
           throw new Error(`能力包引用了插件「${id}」，但预装清单里找不到它的包坐标（渲染期就拦住）`);
         }
         if (settings.packages.some((x) => (typeof x === "string" ? x : x.source) === source)) continue;
+        // 用**镜像内绝对路径**（与 MCP 客户端同一条实测结论：运行期解析不到裸包名）。
+        // 本地运行由 startup 改写成 .local-packages 里的那份（见 core/image/startup.mjs）。
+        source = entry.inImagePath ?? source;
         // 对象形式：只从这个包加载扩展，不带它的 skills / prompts（第三方包不许往我们的技能集合里塞东西）
         settings.packages.push({ source, skills: [], prompts: [] });
       }
@@ -454,8 +457,10 @@ function main() {
       log(`  插件：${pluginUnits.length} 个进 settings.packages（按激活集合加载）`);
       // id → 包坐标：startup 要按激活集合摘除 settings 里的**包坐标**，而包定义里记的是**条目 id**
       // （不翻译一次就永远对不上 ⇒ 实测表现为"两种组合都留着"）。
-      globalThis.__bundlePluginPackages = Object.fromEntries(
-        pluginUnits.map((id) => [id, PREINSTALL_DOC.byId.get(id)?.install?.package ?? null]));
+      globalThis.__bundlePluginPackages = Object.fromEntries(pluginUnits.map((id) => {
+        const e = PREINSTALL_DOC.byId.get(id);
+        return [id, { source: e?.inImagePath ?? e?.install?.package ?? null, localPackage: e?.install?.package ?? null }];
+      }));
     }
   }
 

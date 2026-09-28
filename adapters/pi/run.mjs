@@ -104,15 +104,18 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
   const settingsFile = path.join(staging, "settings.json");
   if (inImage && fs.existsSync(settingsFile)) {
     const text = fs.readFileSync(settingsFile, "utf8");
-    if (text.includes(inImage)) {
-      // 默认值：开发机上 `make dev-env` 会把预装清单里的包装进 <repo>/.local-packages，
-      // 于是本地跑带连接器的智能体**不需要手设任何环境变量**（"快"= 心智负担低）。
+    // ⚠️ **先问镜像路径是否真实存在**：在容器里它就是有效路径，**不该改写也不该报错**。
+    // 早期版本无条件走「本地没装就响亮失败」，于是容器内 doctor 崩在 resolution（退出码 50）
+    // 而本地全绿 ⇒ 一台**未声明的本地/容器差异**（正是本轮整体验收抓到的那个）。
+    if (!fs.existsSync(inImage) && text.includes(inImage)) {
+      // 默认值：本地预装镜像 `.local-packages` 里有对应物，
+      // 于是本地跑带连接器的智能体**不需要手设任何环境变量**（「快」= 心智负担低）。
       const localDefault = path.join(HERE, "../../.local-packages/node_modules/pi-mcp-adapter");
       const local = process.env.AGENT_MCP_ADAPTER_PATH ?? (fs.existsSync(localDefault) ? localDefault : null);
       if (!local) {
         throw new Error(
-          `产物声明了 MCP 客户端扩展（${inImage}），但本地运行未提供 AGENT_MCP_ADAPTER_PATH —— ` +
-          "不给的话会跑出一个**没有 MCP 客户端**的智能体而无人察觉。请指向本地安装路径。");
+          `产物声明了 MCP 客户端扩展（${inImage}），但本机既没有它、也未提供 AGENT_MCP_ADAPTER_PATH —— ` +
+          "不给的话会跑出一个**没有 MCP 客户端**的智能体而无人察觉。请跑 `make local-packages` 或指向本地安装路径。");
       }
       fs.writeFileSync(settingsFile, text.split(inImage).join(local));
     }

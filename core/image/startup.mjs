@@ -33,12 +33,14 @@ import os from "node:os";
 // 启动期要读 overlay.yaml（接入缝）。**镜像里必须能解析到它** —— 见 Dockerfile 的 npm install --prefix
 import YAML from "yaml";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 
 // 能力包（L4/B1）：运行期的**选择**在这一层校验与解析（选择型参数，与环境型分开记账）
 import { BUNDLES_ENV, availableIds, bundleDigest, defaultSelection, loadBundles, parseSelection } from "../bundles/index.mjs";
 import { enforceConnectorSurface, enforcePluginSurface, enforceSkillSurface } from "../bundles/filter.mjs";
 
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXIT_USAGE = 2;
 const die = (msg) => { process.stderr.write(`❌ ${msg}\n`); process.exit(EXIT_USAGE); };
 
@@ -398,17 +400,54 @@ function prepare({ artifact, runDir }) {
     // ⚠️ 包定义里记的是**条目 id**，settings 里写的是**包坐标** —— 必须翻译一次（清单给映射）。
     // 不翻译就永远对不上，表现为"两种组合都留着"（本轮实测踩到）。
     const pkgById = manifest.bundles?.pluginPackages ?? {};
-    const toSources = (ids) => ids.map((id) => pkgById[id] ?? id).filter(Boolean);
+    const toSources = (ids) => ids.map((id) => (typeof pkgById[id] === "string" ? pkgById[id] : pkgById[id]?.source) ?? id).filter(Boolean);
+    // **本地运行**：镜像内绝对路径在本机不存在 ⇒ 改写成 .local-packages 里那份（与 MCP 客户端同一套做法）。
+    // 找不到就**响亮失败**（不静默产出一个"插件没加载"的运行）。
+    const pluginLocalRoot = process.env.AGENT_PLUGIN_LOCAL_ROOT
+      ?? path.join(path.dirname(HERE), "..", ".local-packages/node_modules");
+    const rewritePluginPath = (p) => {
+      if (typeof p !== "string" || !p.startsWith("/")) return p;
+      if (fs.existsSync(p)) return p;                          // 容器里：镜像路径真实存在 ⇒ 不动
+      const meta = Object.values(pkgById).find((v) => (typeof v === "object" ? v.source : v) === p);
+      const localPkg = meta && typeof meta === "object" ? meta.localPackage : null;
+      if (!localPkg) return p;
+      const localPath = path.join(pluginLocalRoot, ...localPkg.split("/"));
+      if (!fs.existsSync(localPath)) {
+        process.stderr.write(`❌ 插件 ${localPkg} 在本机找不到（${localPath}）—— 跑一次 \`make dev-env\` 装齐本地预装包后再试。\n`);
+        process.exit(EXIT_USAGE);
+      }
+      return localPath;
+    };
     const activeSources = new Set(toSources(bundleSelection.active.flatMap((id) => byId.get(id)?.plugins?.[manifest.harness] ?? []).map(String)));
     const ownedSources = new Set(toSources(bundleSelection.doc.bundles.flatMap((b) => b.plugins?.[manifest.harness] ?? []).map(String)));
     const pluginRes = enforcePluginSurface({
       runDir: effectiveRunDir, surface: manifest.pluginSurface ?? null,
       ownedSources: [...ownedSources], keepSources: [...activeSources],
     });
+    // ⚠️ **先摘除、后改写路径**：摘除按清单里的包坐标比对，改写会把坐标换成本机路径 ⇒
+    // 顺序反了就永远比不中（实测：两种组合都留着）。
+    const pluginRewrite = (() => {
+      const sp = manifest.pluginSurface;
+      if (!sp || !sp.path) return { rewrote: [] };
+      const f = path.join(effectiveRunDir, sp.path);
+      if (!fs.existsSync(f)) return { rewrote: [] };
+      const field = sp.field ?? "packages";
+      const doc = JSON.parse(fs.readFileSync(f, "utf8"));
+      if (!Array.isArray(doc[field])) return { rewrote: [] };
+      const rewrote = [];
+      doc[field] = doc[field].map((item) => {
+        const cur = typeof item === "string" ? item : item?.source;
+        const next = rewritePluginPath(cur);
+        if (next !== cur) { rewrote.push(`${cur} → ${next}`); return typeof item === "string" ? next : { ...item, source: next }; }
+        return item;
+      });
+      if (rewrote.length) fs.writeFileSync(f, JSON.stringify(doc, null, 2) + "\n");
+      return { rewrote };
+    })();
     return {
       active: [...bundleSelection.active].sort(), keep: [...keep].sort(),
       skills: { keep: keepSkills.sort(), ...skillRes },
-      plugins: { keep: [...activeSources].sort(), ...pluginRes },
+      plugins: { keep: [...activeSources].sort(), ...pluginRes, localRewrite: pluginRewrite.rewrote },
       ...res,
     };
   })();

@@ -273,6 +273,8 @@ entries:
     harness: pi
     transport: null
     install: { registry: npm, package: auspia-web-access, version: "1.0.0" }
+    # 镜像内绝对路径：运行期**解析不到裸包名**（与 MCP 客户端同一条实测结论）
+    inImagePath: /usr/local/lib/node_modules/auspia-web-access
     credentials: none
     enabledByDefault: false
     verifiedAlive: "2026-09-28"
@@ -291,6 +293,7 @@ entries:
     harness: dsh
     transport: null
     install: { registry: npm, package: "@deepseek-ai/dsh-client-ui-plan", version: "0.1.7-rc.1" }
+    inImagePath: /usr/local/lib/node_modules/@deepseek-ai/dsh-client-ui-plan
     credentials: none
     enabledByDefault: false
     verifiedAlive: "2026-09-28"

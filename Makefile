@@ -19,7 +19,7 @@ JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest capabilities-selftest bundles-selftest base-skills-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest local-packages-check capabilities-selftest bundles-selftest base-skills-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -204,6 +204,12 @@ debug: ## 进诊断 shell（先构建调试变体；需 RENDER_DIR 指向渲染�
 
 conformance: ## 对适配器跑合规套 C1–C10（阻断性门槛；C9 待 S3 容器内安全实测）
 	@node conformance/run.mjs $(if $(JSON),--json,) $(if $(HARNESS_ONLY),--harness $(HARNESS_ONLY),)
+
+local-packages: ## 把本地预装镜像 .local-packages 按**锁**装齐（Q4 的一半：与镜像同源，可复算）
+	@node tools/local-packages.mjs
+
+local-packages-check: ## 校验本地镜像覆盖了锁里的 npm 项（缺项如实列出）
+	@node tools/local-packages.mjs --check
 
 dev-env: ## 按 pin 校验/安装 harness 到一致版本（CHECK=1 只校验不改动本机）
 	@node tools/dev-env.mjs $(if $(CHECK),--check,)
