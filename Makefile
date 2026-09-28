@@ -58,6 +58,9 @@ trace-selftest: ## 统一轨迹 schema 自检：七类事件通过、未映射�
 emit-selftest: ## 业务事件发射器自检：业务控制点在轨迹里必须显形
 	@node core/trace/emit-selftest.mjs
 
+cost-report: ## 用量归因（TRACE=<轨迹 JSONL>）：每 run 的模型/工具调用与挂钟；没有 token 就如实说没有
+	@node tools/cost-report.mjs $(TRACE)
+
 trace-view: ## 看一条轨迹（业务可读时间轴）：AGENT_DIR=… TRACE=<轨迹 JSONL>（缺 TRACE 时只列标签覆盖）
 	@node tools/trace-view/labels.mjs $(AGENT_DIR) $(if $(TRACE),--timeline $(TRACE),)
 

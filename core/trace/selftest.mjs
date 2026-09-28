@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
+import { renderUsage, usageReport } from "./usage.mjs";
 import { EXIT_CODES } from "../gates/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -85,6 +86,38 @@ const invalidCases = {
 for (const [name, ev] of Object.entries(invalidCases)) {
   const rejected = !validate(ev);
   check(`${name} → 拒绝`, rejected, rejected ? "" : "竟然通过了");
+}
+
+// ---------------------------------------------------------------------------
+// 用量归因（E8）：有 token 就汇总，没有就**如实说没有**（不编造成本数字）
+// ---------------------------------------------------------------------------
+console.log("\n── 用量归因 ──");
+{
+  const base = { effectiveConfigDigest: `sha256:${"a".repeat(64)}`, agent: "demo", harness: "x", ts: "2026-09-28T00:00:00Z" };
+  const withUsage = [
+    { ...base, run: "r1", seq: 0, type: "run.meta" },
+    { ...base, run: "r1", seq: 1, type: "model.request", usage: { input: 100, output: 20 } },
+    { ...base, run: "r1", seq: 2, type: "tool.call", tool: "read" },
+    { ...base, run: "r1", seq: 3, type: "hook.error", enhancement: "h", message: "m", policy: "record" },
+    { ...base, run: "r2", seq: 0, type: "model.request", usage: { input: 10, output: 5, total: 15 } },
+  ];
+  const rep = usageReport(withUsage);
+  check("按 run 分组", rep.runs.length === 2 && rep.totals.runs === 2, JSON.stringify(rep.totals));
+  // r1 只给 input/output ⇒ total 按 100+20=120 补；r2 显式给 total=15 ⇒ 合计 120+15=135
+  check("有 usage 就汇总 token（缺 total 时按 input+output 补，显式给了就用它）",
+    rep.totals.tokens?.input === 110 && rep.totals.tokens?.output === 25 && rep.totals.tokens?.total === 135,
+    JSON.stringify(rep.totals.tokens));
+  check("次数与事件也归因", rep.totals.toolCalls === 1 && rep.totals.hookErrors === 1);
+  check("有用量时说明写的是可归因 token", /可归因 token/.test(rep.note), rep.note);
+
+  const noUsage = usageReport([
+    { ...base, run: "r3", seq: 0, type: "model.request" },
+    { ...base, run: "r3", seq: 1, type: "model.request" },
+  ]);
+  check("**没有 usage ⇒ tokens 为 null**（不编造）", noUsage.totals.tokens === null && noUsage.hasUsage === false, JSON.stringify(noUsage.totals));
+  check("没有用量时如实说明（点出「只能按次数与时长」）", /只能\*\*按次数与时长\*\*归因|只能按\*\*次数与时长\*\*归因/.test(noUsage.note), noUsage.note);
+  check("给人看的报告里写明「归因到人做不到」", /归因到「人」/.test(renderUsage(noUsage)) && /做不到/.test(renderUsage(noUsage)));
+  check("空轨迹不炸", usageReport([]).runs.length === 0 && /没有任何 run/.test(renderUsage(usageReport([]))));
 }
 
 console.log(`\n${failures === 0 ? "统一轨迹 schema 自检：全绿" : `统一轨迹 schema 自检：失败 ${failures} 项`}`);

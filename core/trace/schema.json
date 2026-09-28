@@ -264,6 +264,25 @@
             "type": "string"
           },
           "description": "本次请求**实际携带的工具名**（可选，加法字段）。只有计数时，\"声明的能力真的被提供给了模型\"只能靠总数变多间接推；有名字才能逐条断言（能力的通用桥自检与探针用它）。"
+        },
+        "usage": {
+          "type": "object",
+          "description": "本次调用的 token 用量（可选）。**实测：主运行时的响应钩子只给 status/headers，不透出用量** ⇒ 该字段通常缺席。缺席时归因工具**不得编造**（只按次数与时长归因）；将来某个运行时愿意透出时，归因代码不必改。",
+          "additionalProperties": false,
+          "properties": {
+            "input": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "output": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       }
     },
