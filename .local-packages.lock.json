@@ -1,0 +1,101 @@
+{
+  "apiVersion": "agent-base/v1",
+  "source": "core/image/preinstall.lock.txt",
+  "lockDigest": "sha256:697be165aa4b70d1fae08eb49c9e3d8dc1009776995b393fa4313b9afc3ff549",
+  "npm": [
+    {
+      "spec": "@browserbasehq/mcp@3.0.0",
+      "version": "3.0.0"
+    },
+    {
+      "spec": "@cyanheads/git-mcp-server@2.15.3",
+      "version": "2.15.3"
+    },
+    {
+      "spec": "@deepseek-ai/dsh-client-ui-plan@0.1.7-rc.1",
+      "version": "0.1.7-rc.1"
+    },
+    {
+      "spec": "@modelcontextprotocol/inspector@2.8.0",
+      "version": "2.8.0"
+    },
+    {
+      "spec": "@modelcontextprotocol/server-everything@2026.8.31",
+      "version": "2026.8.31"
+    },
+    {
+      "spec": "@modelcontextprotocol/server-filesystem@2026.8.31",
+      "version": "2026.8.31"
+    },
+    {
+      "spec": "@modelcontextprotocol/server-memory@2026.8.31",
+      "version": "2026.8.31"
+    },
+    {
+      "spec": "@modelcontextprotocol/server-sequential-thinking@2026.8.31",
+      "version": "2026.8.31"
+    },
+    {
+      "spec": "@playwright/mcp@0.0.82",
+      "version": "0.0.82"
+    },
+    {
+      "spec": "@upstash/context7-mcp@4.1.1",
+      "version": "4.1.1"
+    },
+    {
+      "spec": "auspia-web-access@1.0.0",
+      "version": "1.0.0"
+    },
+    {
+      "spec": "chrome-devtools-mcp@1.10.1",
+      "version": "1.10.1"
+    },
+    {
+      "spec": "pi-mcp-adapter@2.37.0",
+      "version": "2.37.0"
+    },
+    {
+      "spec": "repomix-mcp@1.0.3",
+      "version": "1.0.3"
+    }
+  ],
+  "apt": [
+    {
+      "spec": "bash",
+      "hostProvided": true,
+      "note": "本机由宿主提供（版本不保证与镜像一致）；只有镜像里才是按锁装的"
+    },
+    {
+      "spec": "ca-certificates",
+      "hostProvided": true,
+      "note": "本机由宿主提供（版本不保证与镜像一致）；只有镜像里才是按锁装的"
+    },
+    {
+      "spec": "curl",
+      "hostProvided": true,
+      "note": "本机由宿主提供（版本不保证与镜像一致）；只有镜像里才是按锁装的"
+    },
+    {
+      "spec": "git",
+      "hostProvided": true,
+      "note": "本机由宿主提供（版本不保证与镜像一致）；只有镜像里才是按锁装的"
+    },
+    {
+      "spec": "jq",
+      "hostProvided": true,
+      "note": "本机由宿主提供（版本不保证与镜像一致）；只有镜像里才是按锁装的"
+    },
+    {
+      "spec": "python3",
+      "hostProvided": true,
+      "note": "本机由宿主提供（版本不保证与镜像一致）；只有镜像里才是按锁装的"
+    },
+    {
+      "spec": "ripgrep",
+      "hostProvided": true,
+      "note": "本机由宿主提供（版本不保证与镜像一致）；只有镜像里才是按锁装的"
+    }
+  ],
+  "digest": "sha256:f1a50419a1f53bd26e4ffab3bc4abcef94e1bb5f13de60dce06b231e136a05bd"
+}

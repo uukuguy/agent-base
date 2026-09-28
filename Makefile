@@ -208,6 +208,9 @@ conformance: ## 对适配器跑合规套 C1–C10（阻断性门槛；C9 待 S3 
 local-packages: ## 把本地预装镜像 .local-packages 按**锁**装齐（Q4 的一半：与镜像同源，可复算）
 	@node tools/local-packages.mjs
 
+local-packages-lock: ## 生成本地预装镜像的**可复算指纹**（本地 ↔ 锁 的对应物）
+	@node tools/local-packages.mjs --lock
+
 local-packages-check: ## 校验本地镜像覆盖了锁里的 npm 项（缺项如实列出）
 	@node tools/local-packages.mjs --check
 
