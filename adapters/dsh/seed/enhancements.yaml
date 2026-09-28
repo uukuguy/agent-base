@@ -35,3 +35,15 @@ enhancements:
       基座不变量：注册 `/project` 命令，把产物里的事实（技能/连接器/增强/钩子事件/模型/轨迹/
       可移植性/验证计划）摊开给人看。逻辑与另一个运行时共用 `core/introspect/project-info.mjs`，
       读法由本运行时的 `project-layout.mjs` 提供。
+
+  # ---------------------------------------------------------------------------
+  # 通用桥：按**描述**把业务能力注册成本运行时的工具（D-0013）
+  # 与另一个运行时的同名桥是同一件事、两种注册形状；能力清单在 `<产物>/capabilities/index.json`
+  # （构建期由描述生成），"桥是通用的"由 `make dsh-capabilities-selftest` 逐条比对守着。
+  # ---------------------------------------------------------------------------
+  - kind: tool
+    id: capabilities
+    package: ./plugins/capabilities/index.js
+    description: >
+      基座不变量：读产物里的能力清单，按本运行时的工具注册接口逐个注册；调用交给
+      `core/capabilities/registry.mjs`（进程内 / 进程边界两条通道在那里，桥不区分）。

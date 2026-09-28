@@ -19,7 +19,7 @@ JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest capabilities-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest dsh-project-info-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest capabilities-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -110,6 +110,9 @@ selfcheck: ## 能力 → 判据清单（§24 O4）：每条能力都要落到真
 
 probe-selftest: ## 闸门 3 钩子逐条自证自检（纯函数分支 + 真跑正/负两个夹具）
 	@node tools/probe-selftest.mjs
+
+dsh-capabilities-selftest: ## 能力通用桥自检（本侧）：清单读得到 · 假 ctx 注册名集合一致 · 真跑端点带着这两把工具
+	@node adapters/dsh/capabilities-selftest.mjs
 
 dsh-project-info-selftest: ## 本运行时侧 /project 自检（同源逻辑 · hint 代补全 · 真产物渲染 · 真跑无导入失败）
 	@node adapters/dsh/project-info-selftest.mjs

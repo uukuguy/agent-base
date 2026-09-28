@@ -1,0 +1,8 @@
+{
+  "name": "agent-base-capabilities",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "description": "基座不变量：能力的通用桥 —— 按产物里的能力清单逐个注册工具（调用交给 core 的单一实现）"
+}

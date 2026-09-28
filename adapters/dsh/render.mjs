@@ -42,6 +42,8 @@ import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/i
 // 路由目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/routes.mjs
 import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 import { dshRenderInputsDigest } from "./render-inputs.mjs";
+// 能力的**描述契约与双通道调用**只有一份实现（core），两个运行时的渲染器都用它做装载/就位校验
+import { loadCapabilities, checkImplementation, toSchemaDocument } from "../../core/capabilities/registry.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** 仓库根：`core/` 下的共享实现（事件写入器等）要从这里取，注入产物而不是让产物去猜基座目录。 */
@@ -274,6 +276,29 @@ function main() {
 
   // ---- 技能 ----
   const skillsSrc = path.join(agentDir, agent.skillsDir ?? "skills");
+  // ---- 能力（D-0012/D-0018）：与另一个运行时的渲染器**同一套规则**（描述 schema、就位校验、
+  // 构建期 YAML→JSON），只是产物落点不同：能力目录放产物根，插件在 profile 里 ----
+  const capsLoaded = loadCapabilities(agentDir, { yamlParse: (t) => YAML.parse(t) });
+  const capabilityProblems = [...capsLoaded.problems];
+  for (const cap of capsLoaded.capabilities) for (const p of checkImplementation(cap)) capabilityProblems.push(`${cap.__rel}: ${p}`);
+  if (capabilityProblems.length) {
+    throw new Error(`能力描述有问题（渲染期就拦住，别等到运行期）：\n  · ${capabilityProblems.join("\n  · ")}`);
+  }
+  const capsSrc = path.join(agentDir, "capabilities");
+  const capabilityList = capsLoaded.capabilities.map((cap) => {
+    const doc = toSchemaDocument(cap);
+    return {
+      name: doc.name, label: doc.label ?? doc.name, description: doc.description,
+      promptSnippet: doc.promptSnippet ?? null, parameters: doc.parameters, result: doc.result,
+      execution: doc.execution, declaration: doc.declaration,
+      entry: path.relative(capsSrc, path.resolve(path.dirname(cap.__file), doc.execution.entry)),
+    };
+  });
+  if (capsLoaded.capabilities.length) {
+    copyTree(capsSrc, path.join(outRoot, "capabilities"));
+    writeFile(path.join(outRoot, "capabilities", "index.json"), stableJson({ apiVersion: "agent-base/v1", capabilities: capabilityList }));
+  }
+
   const declaredSkills = fs.existsSync(skillsSrc)
     ? fs.readdirSync(skillsSrc, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()
     : [];
@@ -337,6 +362,7 @@ function main() {
       ["_project-info.mjs", path.join(REPO, "core/introspect/project-info.mjs")],
       ["_container-only.mjs", path.join(REPO, "core/introspect/_container-only.mjs")],
       ["_project-layout.mjs", path.join(HERE, "project-layout.mjs")],
+      ["_capabilities.mjs", path.join(REPO, "core/capabilities/registry.mjs")],
     ];
     for (const [dest, from] of shared) writeFile(path.join(profileDir, "plugins", id, dest), fs.readFileSync(from, "utf8"));
   }
@@ -406,6 +432,10 @@ function main() {
     output: "dsh-home + workspace",
     bundles: BUNDLES,
     declaredSkills,
+    // 能力（D-0012）：与另一个运行时的清单**同名字段**，跨侧比对才不用翻译
+    capabilities: capabilityList.map((c) => ({
+      name: c.name, kind: c.execution.kind, runtime: c.execution.runtime ?? null, deterministic: c.declaration.deterministic,
+    })),
     declaredEnhancements: enhancements.map((e) => e.id).sort(),
     // **只含智能体自己的**增强（基座不变量不算：它不是这个智能体引入的不可移植性）。
     // 与另一个运行时的清单字段同名同义 ⇒ `/project portability` 与闸门 1 的判据同源可比。
@@ -445,7 +475,11 @@ function main() {
       // 缺了它插件会在运行期 "failed to import"（实测踩过）。
       // 但产物里没有这个目录时**不能**写进计划 —— 声明一个不存在的拷入源会让启动期直接失败
       // （实测：所有不带增强的示例在 dsh 上全红）。
-      copy: ["dsh-home", "workspace", "skills", ...(fs.existsSync(path.join(outRoot, "harness")) ? ["harness"] : [])],
+      // ⚠️ 暂存只拷**这里声明过的**目录：新增一个顶层目录（如 `capabilities`）而忘了加进来，
+      // 症状是"插件在、清单读不到 ⇒ 能力静默消失"（本轮实测踩到：本侧工具数没变）。
+      copy: ["dsh-home", "workspace", "skills",
+        ...(fs.existsSync(path.join(outRoot, "harness")) ? ["harness"] : []),
+        ...(fs.existsSync(path.join(outRoot, "capabilities")) ? ["capabilities"] : [])],
       env: { DSH_HOME: "dsh-home" },
       cwd: "workspace",
       pathRewrites: [
