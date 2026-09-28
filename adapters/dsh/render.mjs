@@ -431,6 +431,8 @@ function main() {
     agent: agent.name,
     output: "dsh-home + workspace",
     bundles: BUNDLES,
+    // loop 预算：**从定义原样带出**（不新增真源）。基座据此在闸门 4 断言，其中挂钟那条会在运行期强制执行。
+    loop: agent.loop ?? null,
     declaredSkills,
     // 能力落点：本运行时放在**产物根**（另一个运行时放在 agent-dir 下）；探针/自省按它读
     capabilitiesPath: capsLoaded.capabilities.length ? "capabilities" : null,

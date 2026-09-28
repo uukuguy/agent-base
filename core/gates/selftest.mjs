@@ -27,6 +27,7 @@ import {
   runGates,
 } from "./index.mjs";
 import { buildInventory, resolveRefs } from "../spec/capability-judgements.mjs";
+import { assertLoopBudget, loopUsage } from "./loop.mjs";
 
 let failures = 0;
 function check(name, cond, extra = "") {
@@ -218,6 +219,45 @@ console.log("\n── 摘要确定性（N19）──");
     inv.rows.find((r) => r.what === "已降级的承诺")?.ok === true
     && inv.rows.find((r) => r.what === "已降级的承诺")?.downgraded === true);
   fs.rmSync(fakeRepo, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
+// loop 预算（E6）：**可断言的声明** —— 数法、越界、数不出来时不许假装通过
+// ---------------------------------------------------------------------------
+console.log("\n── loop 预算 ──");
+{
+  const ev = (run, type, seq, ts) => ({ run, type, seq, ts, effectiveConfigDigest: `sha256:${"a".repeat(64)}` });
+  const at = (sec) => new Date(Date.UTC(2026, 8, 28, 0, 0, sec)).toISOString();
+  const events = [
+    ev("r1", "run.meta", 0, at(0)),
+    ev("r1", "model.request", 1, at(1)),
+    ev("r1", "tool_call", 2, at(2)),
+    ev("r1", "model.request", 3, at(3)),
+    ev("r2", "run.meta", 0, at(0)),
+    ev("r2", "model.request", 1, at(1)),
+  ];
+  const usage = loopUsage(events);
+  const r1 = usage.find((u) => u.run === "r1");
+  const r2 = usage.find((u) => u.run === "r2");
+  check("按 run 分组计数（模型调用）", r1.modelCalls === 2 && r2.modelCalls === 1, JSON.stringify(usage));
+  check("工具调用单独计数", r1.toolCalls === 1 && r2.toolCalls === 0);
+  check("挂钟 = 首末事件时间差", r1.wallClockMs === 3000, String(r1.wallClockMs));
+
+  check("没声明预算 ⇒ 不产生断言（checked 为空、不越界）",
+    assertLoopBudget(null, events).ok === true && assertLoopBudget(null, events).checked.length === 0);
+  check("声明了但都在上限内 ⇒ 通过", assertLoopBudget({ maxModelCalls: 2, maxToolCalls: 1, maxWallClockSeconds: 3 }, events).ok === true);
+  const over = assertLoopBudget({ maxModelCalls: 1 }, events);
+  check("**越界 ⇒ 判红**，并点名 run + 实际值 + 上限",
+    over.ok === false && /r1/.test(over.violations[0].message) && over.violations[0].actual === 2 && over.violations[0].budget === 1,
+    JSON.stringify(over.violations));
+  check("每个 run 单独判（r2 只有 1 步，不因 r1 越界而一起被点名）",
+    over.violations.length === 1 && over.violations[0].run === "r1", JSON.stringify(over.violations.map((v) => v.run)));
+  check("挂钟越界也能断言", assertLoopBudget({ maxWallClockSeconds: 2 }, events).ok === false);
+  check("只断言声明过的那几项（没声明的不算 checked）",
+    JSON.stringify(assertLoopBudget({ maxToolCalls: 5 }, events).checked) === JSON.stringify(["maxToolCalls"]));
+  const noTs = assertLoopBudget({ maxWallClockSeconds: 1 }, [{ run: "r3", type: "model.request", seq: 0 }]);
+  check("时间戳数不出来 ⇒ 该项不参与判定（不假装通过、也不误报越界）",
+    noTs.ok === true && noTs.usage[0].wallClockMs === null, JSON.stringify(noTs.usage));
 }
 
 // ---------------------------------------------------------------------------

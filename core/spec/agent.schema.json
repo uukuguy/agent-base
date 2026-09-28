@@ -113,6 +113,28 @@
     "customizations": {
       "type": "object",
       "description": "自定义容器（开放命名空间）：基座不解释，原样透传"
+    },
+    "loop": {
+      "type": "object",
+      "description": "loop 预算（可选）：**可断言的声明**，不是运行时开关。基座在闸门 4 从轨迹数出本次运行实际用了几步；超了判红并给出数字。实测主运行时的 CLI/设置里没有这类旋钮 —— 所以基座不假称能强制限流：只有 maxWallClockSeconds 会被真正执行（跑超就掐掉），次数类是事后断言。",
+      "additionalProperties": false,
+      "properties": {
+        "maxModelCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "一个 run 内最多几次模型调用（一次调用 = 一轮；这是 agent loop 的步）。超过即判红。"
+        },
+        "maxToolCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "一个 run 内最多几次工具调用。超过即判红 —— 防工具风暴这类跑飞。"
+        },
+        "maxWallClockSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "一个 run 的挂钟上限（秒）。**这一条会被强制执行**：跑超了把进程掐掉并按失败处理。"
+        }
+      }
     }
   },
   "$defs": {

@@ -429,6 +429,8 @@ function main() {
     harness: HARNESS,
     harnessVersion: adapterDoc.version,
     agent: agent.name,
+    // loop 预算：**从定义原样带出**（不新增真源）。基座据此在闸门 4 断言，其中挂钟那条会在运行期强制执行。
+    loop: agent.loop ?? null,
     declaredSkills,
     // 能力落点：**由各运行时的渲染器回答**（一个在 agent-dir 下，一个在产物根）——
     // 探针/自省按它读，不猜目录形状（猜错会静默得到"没有能力"）。

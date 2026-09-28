@@ -57,6 +57,16 @@
 
 <sub>来源：skills/<name>/SKILL.md（frontmatter）</sub>
 
+## loop
+
+| 字段 | 类型 | 所属层 | 必填 | 取值 | dsh | pi | 说明 |
+|---|---|---|---|---|---|---|---|
+| `loop.maxModelCalls` | integer | verification | 否 | — | 🧩 靠扩展（未实测） | 🧩 靠扩展 | 一次运行最多几次模型调用（一次调用 = 一轮）。这是**可断言的声明**，不是运行时开关：基座跑完数轨迹，超了判红并给出数字。 |
+| `loop.maxToolCalls` | integer | verification | 否 | — | 🧩 靠扩展（未实测） | 🧩 靠扩展 | 一次运行最多几次工具调用。防「工具风暴」把一次运行跑成几百步。 |
+| `loop.maxWallClockSeconds` | integer | verification | 否 | — | 🧩 靠扩展（未实测） | 🧩 靠扩展 | 一次运行的挂钟上限（秒）。与其他两条不同：这条**强制执行**（超时即中止并按失败处理）。 |
+
+<sub>来源：agent.yaml</sub>
+
 ## connectors
 
 | 字段 | 类型 | 所属层 | 必填 | 取值 | dsh | pi | 说明 |

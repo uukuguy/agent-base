@@ -98,13 +98,17 @@ const renderDir = path.resolve(renderDirArg);
         id: GATE,
         handler: async (_c, rep) => {
           const runner = await loadRunner(harness);
+          // loop 预算里**只有挂钟这一条能真正强制执行**（试点：次数类只能事后数轨迹）：
+          // 声明了 `loop.maxWallClockSeconds` 就把它当运行超时用（留一点收尾余量），跑超即中止并判失败。
+          const loop = manifest.loop ?? null;
+          const wallBudgetMs = loop?.maxWallClockSeconds ? loop.maxWallClockSeconds * 1000 : null;
           const run = await runner.runAgent({
             // 闸门 4 同样是零凭据检查
             zeroCredential: true,
             renderDir,
             endpoint: endpoint ?? gateway.url,
             prompt: "Reply with the marker so the smoke check can verify output.",  // 确定性任务
-            timeoutMs: 30000,
+            timeoutMs: wallBudgetMs ? Math.max(1000, wallBudgetMs) : 30000,
           });
 
           // 1) 退出码 0
@@ -132,7 +136,36 @@ const renderDir = path.resolve(renderDirArg);
           else if (bad.length) rep.fail(GATE, "smoke/trace-schema", `${bad.length}/${run.events.length} 条事件不合 schema`);
           else rep.pass(GATE, "smoke/trace-schema", `${run.events.length} 条轨迹全部符合 schema`);
 
-          // 4) 未出现被禁的工具
+          // 4) loop 预算：**从轨迹数**，越界判红并给出数字（声明不是装饰）
+          let c_loopSource = "";
+          {
+            const { assertLoopBudget } = await import(`file://${path.join(REPO, "core/gates/loop.mjs")}`);
+            // 事件源：**只用一处**。先看运行器自己的轨迹里有没有 `model.request`；
+            // 没有（某个运行时的轨迹是事后映射、数不出模型调用）才退回端点侧（假网关记录）。
+            // ⚠️ **不能把两处合并**：两个来源的 `run` id 命名空间不同，合并会把同一个 run 拆成两半，
+            // 于是"实际 4 步"被数成"两半各 2 步"，**越界反而漏判**（本轮先写了合并版，报告里出现两个 run 才发现）。
+            const endpointEvents = (gateway?.traceLines ?? [])
+              .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+              .filter((e) => e && e.run);
+            const fromRunner = (run.events ?? []).filter((e) => e.type === "model.request");
+            const allEvents = fromRunner.length ? (run.events ?? []) : endpointEvents;
+            c_loopSource = fromRunner.length ? "运行器轨迹" : "端点侧（假网关记录）";
+            const budget = assertLoopBudget(loop, allEvents);
+            if (!loop || !budget.checked.length) {
+              rep.pass(GATE, "smoke/loop-budget", "没有声明 loop 预算（无需断言）—— 要约束轮次/时长就在定义里写 `loop:`");
+            } else if (budget.violations.length) {
+              rep.fail(GATE, "smoke/loop-budget",
+                `超出声明的预算：${budget.violations.map((v) => v.message).join("；")}`
+                + `（数法：核心事件计数；阈值在 agent.yaml 的 loop 块里）`);
+            } else {
+              const used = budget.usage.map((u) => `${u.modelCalls} 次模型调用/${u.toolCalls} 次工具调用`).join("，");
+              rep.pass(GATE, "smoke/loop-budget",
+                `声明了 ${budget.checked.join(" / ")} 上限，实际未越界（${used}；数自${c_loopSource}）`
+                + (wallBudgetMs ? "；挂钟上限已作为运行超时强制执行" : ""));
+            }
+          }
+
+          // 5) 未出现被禁的工具
           // 判据用**中性定义的 deny 名字**做名字级检查（大小写不敏感的子串匹配）。这是一个有意保守的
           // 检查：它抓得住"禁了 bash 却调了 bash"这类明显越界，但不假装等价于 row 级边界
           // （两个 harness 的工具粒度不同，权威断言在闸门 2 的 row/settings 级）。

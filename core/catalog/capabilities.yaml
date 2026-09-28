@@ -232,6 +232,45 @@ groups:
         doc: 何时使用该技能（触发条件描述）。
 
   # --------------------------------------------------------------------------
+  - id: loop
+    label: 「它能跑多久、跑多少步」
+    businessConcept: true
+    fields:
+      - path: loop.maxModelCalls
+        source: agent.yaml
+        type: integer
+        required: false
+        default: null
+        layer: verification
+        harnesses:
+          pi: { support: extension, verified: true, note: "运行时 CLI/设置里**没有**轮次预算旋钮（实测）；基座从轨迹数 model.request 条数并断言（core/gates/loop.mjs），闸门 4 越界即红" }
+          dsh: { support: extension, verified: false, note: "同一断言逻辑（运行时中立）；本侧可用的事件源与另一个运行时不同（端点侧轨迹），**待实测**" }
+        doc: 一次运行最多几次模型调用（一次调用 = 一轮）。这是**可断言的声明**，不是运行时开关：基座跑完数轨迹，超了判红并给出数字。
+        degradation: 声明的上限与实际不符 ⇒ 闸门 4 红并点名哪个 run、实际几步、上限几步。
+
+      - path: loop.maxToolCalls
+        source: agent.yaml
+        type: integer
+        required: false
+        default: null
+        layer: verification
+        harnesses:
+          pi: { support: extension, verified: true, note: 同上（数 tool_call 条数） }
+          dsh: { support: extension, verified: false, note: 同上 }
+        doc: 一次运行最多几次工具调用。防「工具风暴」把一次运行跑成几百步。
+
+      - path: loop.maxWallClockSeconds
+        source: agent.yaml
+        type: integer
+        required: false
+        default: null
+        layer: verification
+        harnesses:
+          pi: { support: extension, verified: true, note: "**这一条会被真正执行**：基座把它作为运行超时传给运行器，跑超就掐掉（次数类只能事后断言）" }
+          dsh: { support: extension, verified: false, note: 同上；待实测 }
+        doc: 一次运行的挂钟上限（秒）。与其他两条不同：这条**强制执行**（超时即中止并按失败处理）。
+
+  # --------------------------------------------------------------------------
   - id: connectors
     label: 「它能连哪些系统」
     businessConcept: true
