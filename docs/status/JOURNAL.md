@@ -489,3 +489,6 @@
 - 17:43 **L4 开工（用户指示"做 L4"），B1 主体落地**：包定义（3 个包：验证基线默认开 / 编码辅助默认关 / 浏览器仅登记）· 选择解析与物化（core 单一实现）· 闸门 1 的 `bundles/definition`（引用必须解析得到、不许带版本、plugins 逐侧写明）· 清单烤入可用集合 · **startup 校验 AGENT_BUNDLES：未知包名响亮失败并列出允许集合** · 激活集合进轨迹与**生效配置摘要** · 自检 `make bundles-selftest`。实测：默认→`["verify-baseline"]`、`coding`→`["coding"]`、`typo-bundle`→退出码 2
 - 17:43 本轮抓出两个真 bug（都不是设计问题）：① 该运行时的渲染器里 `BUNDLES` 名字**早被"插件包列表"占用**，能力包代码撞上它 ⇒ 渲染直接挂；已改名避让并写明。② 镜像把 `startup.mjs` 单独拷到根，而它在根上的相对导入 `../bundles` 解析成 `/opt/bundles` ⇒ 容器内 `ERR_MODULE_NOT_FOUND`（C9 抓到）；改为**镜像根放三行转发**、真实实现随 `gates/` 进去 —— 入口路径不变、实现只有一份
 - 17:43 回归：`make regression` **35 项全绿**（新增 `bundles-selftest`）；闸门 1 34 项；两侧 conformance 10/10
+- 18:39 **B1 落地完成**（补上最后三件）：① 激活**真的生效** —— startup 按激活集合从暂存产物里摘掉未激活包的连接器（core 按清单声明的落点与**格式**处理，不认运行时；没声明落点就不摘并如实记 `enforced=false`）② **期望集合 = 声明 ∩ 当前启用**（`expectedConnectorNames()` 一份实现，startup 与闸门 2 共用，避免两处漂移）③ `verify --json` 带 `bundles` 字段。实测：同一产物默认组合 ⇒ 暂存里只剩 `memory`；开 `coding` ⇒ `filesystem` 也进来
+- 18:39 另一侧**如实声明差异**而不悄悄弱化：它的连接器是构建期烤进 patch 的 insert row，且该文件含 `!!js` 表达式 —— 解析后重写会把插值变成普通字符串（会悄悄改语义）。所以该侧**不摘**，写进 `exemptions.yaml`（`bundle-connector-removal-not-enforced`，含解除条件），闸门 2 的期望集合在那侧按"声明全量"写实；激活集合在两侧都进轨迹与摘要。这条差异是被 examples-check 抓出来的（"组合树里多了一个连接器"）
+- 18:39 回归：`make regression` **35 项全绿**；闸门 1 34 项；两侧 conformance 10/10；examples-check 全绿（含跨侧等价性）

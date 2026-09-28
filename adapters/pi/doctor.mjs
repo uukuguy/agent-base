@@ -41,6 +41,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 // 暂存/渲染**共用运行期那一份实现**（run.mjs → core/image/startup.mjs），不在这里另写一遍
 import { stageRenderDir } from "./run.mjs";
+import { BUNDLES_ENV, expectedConnectorNames, loadBundles } from "../../core/bundles/index.mjs";
 import {
   DEFAULT_EXCLUDES, EXIT_CODES, GateReport, computeEffectiveConfigDigest,
   digestDirectory, runGates,
@@ -482,7 +483,9 @@ async function main() {
   ctx.declaredSkills = [...(manifest.declaredSkills ?? [])].sort();
   // 清单里的字段是 serverName（渲染器与两个 harness 统一用这个名）；早期这里写 c.name，
   // 于是"声明集合"变成了 [undefined] —— 集合断言必错，而且错得看不懂。
-  ctx.enabledConnectors = (manifest.connectors ?? []).map((c) => c.serverName ?? c.name).filter(Boolean).sort();
+  // 期望集合 = **声明 ∩ 当前启用**（L4 能力包）：与 startup 的摘除共用同一份实现，避免两处漂移
+  ctx.bundles = expectedConnectorNames({ manifest, bundles: loadBundles().bundles, rawSelection: process.env[BUNDLES_ENV] ?? null });
+  ctx.enabledConnectors = ctx.bundles.expected;
   ctx.expectedRoutes = [...(manifest.modelProviders ?? [])].sort();
 
   // 基座不变量技能（清单里声明为 shipped 且默认启用）也要进期望集合

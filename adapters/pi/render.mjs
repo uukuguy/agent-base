@@ -453,7 +453,10 @@ function main() {
     })),
     declaredEnhancements,
     hookEnhancements,
-    connectors: enabledConnectors.map((c) => ({ serverName: c.name, transport: c.transport })),
+    // `ref` 也要记：能力包按**具名引用**（refName/id）过滤连接器，只靠服务器名会漏
+    // 连接器落点（能力包按激活集合摘除时读它）：core 只认**格式**，不认运行时
+    connectorSurface: { path: "agent-dir/mcp.json", kind: "json-mcp-servers" },
+    connectors: enabledConnectors.map((c) => ({ serverName: c.name, ref: c.ref ?? c.refName ?? c.id ?? null, transport: c.transport })),
     // 连接器的包坐标：闸门 3 据此断言"运行期能离线启动它"（不是"我们写了配置"）
     connectorPackages: enabledConnectors.filter((c) => c.pin).map((c) => `${c.pin.package}@${c.pin.version}`),
     connectorsNote: "pi 原生无 MCP 客户端；连接器经基座种子扩展（pi-mcp-adapter，构建期装好）渲染成 agent-dir/mcp.json",

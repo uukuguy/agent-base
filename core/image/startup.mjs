@@ -37,6 +37,7 @@ import { spawn } from "node:child_process";
 
 // 能力包（L4/B1）：运行期的**选择**在这一层校验与解析（选择型参数，与环境型分开记账）
 import { BUNDLES_ENV, availableIds, bundleDigest, defaultSelection, loadBundles, parseSelection } from "../bundles/index.mjs";
+import { enforceConnectorSurface } from "../bundles/filter.mjs";
 
 const EXIT_USAGE = 2;
 const die = (msg) => { process.stderr.write(`❌ ${msg}\n`); process.exit(EXIT_USAGE); };
@@ -365,6 +366,25 @@ function prepare({ artifact, runDir }) {
   }
 
   const copied = stage(artifact, plan, effectiveRunDir);
+
+  // ---- 能力包（L4）：把**未激活包**带来的连接器从暂存产物里真的摘掉 ----
+  // 不摘的话"开了 coding 包"只是一句声明（产物里照样全量加载），闸门 2 的集合相等也变成空话。
+  // 期望集合 = **声明 ∩ 当前启用**（设计稿 §5）：这里算"该留哪些服务器"，摘法按**清单声明的落点与格式**
+  // 交给 core/bundles/filter.mjs（core 不认运行时；没声明落点就**不摘**并如实记 enforced=false）。
+  const bundleApplied = (() => {
+    const byId = new Map(bundleSelection.doc.bundles.map((b) => [b.id, b]));
+    const activeRefs = new Set(bundleSelection.active.flatMap((id) => byId.get(id)?.refs ?? []).map(String));
+    const ownedBySomeBundle = new Set(bundleSelection.doc.bundles.flatMap((b) => b.refs ?? []).map(String));
+    const keep = [];
+    for (const c of manifest.connectors ?? []) {
+      const ref = String(c.ref ?? c.serverName ?? "");
+      // 属于某个包 ⇒ 只有激活了才留；不属于任何包 ⇒ 那是智能体自己声明的，照留
+      if (!ownedBySomeBundle.has(ref) || activeRefs.has(ref)) keep.push(c.serverName ?? ref);
+    }
+    const res = enforceConnectorSurface({ runDir: effectiveRunDir, surface: manifest.connectorSurface ?? null, keep });
+    return { active: [...bundleSelection.active].sort(), keep: [...keep].sort(), ...res };
+  })();
+
   const values = Object.fromEntries(Object.entries(resolved).map(([k, v]) => [k, v.value]));
   const render = manifest.rendersParams ? renderParams(effectiveRunDir, values) : { written: [], problems: [] };
   if (render.problems.length) {
@@ -408,6 +428,8 @@ function prepare({ artifact, runDir }) {
       available: availableIds(bundleSelection.doc),
       defaults: defaultSelection(bundleSelection.doc),
       digest: bundleDigest(bundleSelection.active),
+      // 摘除结果：**真的摘了谁**（没声明落点时 enforced=false —— 不假装已生效）
+      filter: { enforced: bundleApplied.enforced, kind: bundleApplied.kind, kept: bundleApplied.kept, removed: bundleApplied.removed, note: bundleApplied.note },
     },
     effectiveConfigDigest: manifest.effectiveConfigDigest ?? null,
   };

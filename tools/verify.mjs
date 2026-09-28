@@ -103,6 +103,23 @@ for (const [gateId, tool, label] of [
 
 report.gates = collected;
 
+// 能力包组合（L4）：结论**必须绑定组合** —— 同一份产物在不同组合下行为不同，
+// 不记组合的话"可用"这个结论说不清是在哪个组合下成立的（设计稿 §2）。
+try {
+  const { BUNDLES_ENV, defaultSelection, loadBundles, parseSelection } = await import(`file://${path.join(REPO, "core/bundles/index.mjs")}`);
+  const doc = loadBundles();
+  const sel = parseSelection((globalThis.process?.env ?? {})[BUNDLES_ENV] ?? null, doc);
+  report.bundles = {
+    active: sel.active,
+    explicit: sel.explicit,
+    available: doc.bundles.map((b) => b.id).sort(),
+    defaults: defaultSelection(doc),
+    note: sel.problems.length ? sel.problems : null,
+  };
+} catch (e) {
+  report.bundles = { active: null, note: `读取包定义失败：${String(e?.message ?? e)}` };
+}
+
 // 环境结论一并给出（路线图 §28 Q1/Q3）：本地跑出来的"可用"**不含**容器才能验的那几类，
 // 且差异必须可见 —— 否则"本地过、容器挂"没人知道为什么。这里只**附带**，不改退出码：
 // 环境差异是事实，不是这次验证的失败（未声明的差异由 `make env-check` 自己红）。

@@ -117,3 +117,30 @@ export function materialize({ manifest, bundles, active }) {
 export function describeSelection({ active, explicit }) {
   return `包：${active.length ? active.join(" + ") : "（空）"}${explicit ? "" : "（默认组合）"}`;
 }
+
+/**
+ * **期望的连接器集合**（声明 ∩ 当前启用）—— startup（摘除）与两侧闸门 2（断言）**共用这一份**。
+ *
+ * 规则：属于某个包的连接器 ⇒ 只有该包激活才在期望集合里；不属于任何包的 ⇒ 那是智能体自己声明的，始终在。
+ * 两处各写一遍必然漂移（一处改了另一处没改，表现是"闸门说少了/多了"），所以抽在这里。
+ *
+ * @param {{manifest: object, bundles: Array, rawSelection: string|null}} args
+ * @returns {{expected: string[], removed: string[], active: string[], explicit: boolean, problems: string[]}}
+ */
+export function expectedConnectorNames({ manifest = {}, bundles = [], rawSelection = null }) {
+  const sel = parseSelection(rawSelection, { bundles });
+  if (sel.problems.length) return { expected: [], removed: [], active: [], explicit: sel.explicit, problems: sel.problems };
+  const byId = new Map(bundles.map((b) => [b.id, b]));
+  const activeRefs = new Set(sel.active.flatMap((id) => byId.get(id)?.refs ?? []).map(String));
+  const ownedBySomeBundle = new Set(bundles.flatMap((b) => b.refs ?? []).map(String));
+  const expected = [];
+  const removed = [];
+  for (const c of manifest.connectors ?? []) {
+    const ref = String(c.ref ?? c.serverName ?? c.name ?? "");
+    const name = c.serverName ?? c.name ?? ref;
+    if (!ownedBySomeBundle.has(ref) || activeRefs.has(ref)) expected.push(name);
+    else removed.push(name);
+  }
+  return { expected: expected.sort(), removed: removed.sort(), active: [...sel.active].sort(), explicit: sel.explicit, problems: [] };
+}
+

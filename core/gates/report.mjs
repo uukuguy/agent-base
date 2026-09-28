@@ -165,6 +165,9 @@ export class GateReport {
       // 环境结论（§28 Q1/Q3）：本地跑出来的结论**不含**容器才能验的那几类，差异必须可见。
       // 只有 `verify` 会填它；其它工具保持 null（字段只增不改，见 §6.7 的输出契约）。
       environment: this.environment ?? null,
+      // 能力包组合（L4）：结论必须绑定组合（同一产物、不同组合 ⇒ 行为不同）。
+      // 只有 `verify` 会填它；其它工具保持 null（同样是只增不改）。
+      bundles: this.bundles ?? null,
     };
   }
 

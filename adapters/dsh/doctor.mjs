@@ -29,6 +29,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 // 暂存走运行期那一份实现（run.mjs → core/image/startup.mjs）：自证要验的是"运行时会加载什么"
 import { stageRenderDir } from "./run.mjs";
+import { BUNDLES_ENV, expectedConnectorNames, loadBundles } from "../../core/bundles/index.mjs";
 import { EXIT_CODES, GateReport, computeEffectiveConfigDigest, parseArgs } from "../../core/gates/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -206,6 +207,12 @@ function main() {
 
   // ---- 硬断言 2：连接器集合 ----
   const composed = composedConnectors(entries);
+  // 期望集合 = **声明 ∩ 当前启用**（L4 能力包；该侧暂未实际摘除 ⇒ 这里同样只按期望集合断言，
+  // 摘除未实现的差异由 startup 的 enforced=false 如实记录，不在闸门里假装）
+  // ⚠️ 本侧的期望集合 = **声明的全量**，不是「声明 ∩ 激活」。理由与解除条件写在 `exemptions.yaml` 的
+  // `bundle-connector-removal-not-enforced`：本侧连接器是构建期烤进 patch 的 insert row（文件里有 `!!js` 表达式，
+  // 解析后重写会破坏运行期插值），所以**激活集合不会真的摘除内容**。
+  // 激活集合仍然进轨迹与生效配置摘要（两侧一致）；只有另一侧真的摘。
   const declaredConn = (manifest.connectors ?? []).map((c) => c.serverName).sort();
   if (JSON.stringify(composed) === JSON.stringify(declaredConn)) {
     report.pass(GATE, "resolution/connectors-set", `硬断言 2：实际启用的连接器集合等于声明集合（${composed.length} 项）`);
