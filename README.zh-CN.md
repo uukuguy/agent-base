@@ -1,107 +1,107 @@
 # agent-base
 
-**定义、验证和打包可移植 AI 智能体。**
-
-agent-base 把智能体定义和执行它的运行时分开。你只需描述一次智能体，再通过固定版本的运行时适配器渲染、通过四道验证闸门、把同一份有证据支撑的产物打包成加固 OCI 镜像。
+**把 AI agent 做成一个项目：本地、CI 和 Docker 里用同一套定义和检查。**
 
 [English README](README.md)
 
-## 为什么需要 agent-base
+## agent-base 是什么？
 
-很多智能体项目不是失败在模型调用，而是失败在边界：本地与容器配置漂移、凭据进入产物、运行时专有能力变成隐藏依赖，以及“进程启动了”被误当成“智能体可用”。
+`agent-base` 是一套用来开发 AI agent 的工具和基础 Docker 镜像。
 
-agent-base 把这些边界变成明确契约：
+你把一个 agent 写在一个小目录里：包括它的工作说明、模型设置、工具、连接器和技能。`agent-base` 负责提供周边的命令和运行时适配：
 
-- **可移植定义**：业务意图不绑定某个运行时。
-- **运行时适配器**：把定义翻译成固定版本的 harness，并暴露真实能力。
-- **可执行验证闸门**：把“技能已加载”“镜像可断网运行”等声明变成证据。
-- **版本化构建**：构建期固定行为和声明的包版本，运行期注入部署参数。
-- **结构化轨迹和报告**：失败可以归因，不会静默消失。
+1. 检查定义是否完整、引用是否正确；
+2. 把定义转换成运行时真正要读取的文件；
+3. 先用假网关测试，也可以连接真实端点运行；
+4. 检查声明的工具和权限是否真的生效；
+5. 把同一份定义打包成 Docker/OCI 镜像，交给 CI 或部署环境。
 
-## 架构
+目标很直接：你在电脑上测试的 agent，放进容器后仍然是同一个 agent。
 
-```mermaid
-flowchart LR
-    A["agent.yaml<br/>connectors.yaml<br/>skills / capabilities"] --> B["中性 schema<br/>validate"]
-    B --> C["运行时适配器<br/>render · doctor · trace"]
-    C --> D["验证闸门<br/>probe · smoke · verify"]
-    D --> E["OCI 镜像<br/>arm64 · amd64 · debug"]
-    D --> F["证据<br/>报告 · 轨迹 · conformance"]
-    G["运行期参数<br/>端点 · 凭据 · 模型"] --> D
+`agent-base` **不是**模型、在线聊天产品、API 网关，也不是多租户业务系统。它是这些应用下面的构建、运行和验证层。
+
+## 适合谁？
+
+它适合需要下面这些能力的团队：
+
+- 用统一目录和命令维护多个 agent；
+- 把 agent 的内容和具体运行程序分开；
+- 在本地和受限容器里运行同一个 agent；
+- 在发布前发现工具缺失、权限错误、连接器故障和凭据泄漏；
+- 对比两个运行时的实际行为，不把差异藏在文档里。
+
+如果你只是想在一个短脚本里调用一次模型，这个仓库可能太重了。
+
+## 一次运行会经过什么？
+
+```text
+agent.yaml + 连接器 + 技能
+              │
+              ▼
+       make validate        定义是否完整、一致？
+              │
+              ▼
+       make verify          渲染后的 agent 是否真的能启动和工作？
+              │
+              ▼
+       make run-local       用假网关或真实端点实际跑一次
+              │
+              ▼
+       Docker 镜像 + CI     发布前重新构建并验证同一份产物
 ```
 
-`core/` 保持运行时中立，运行时专有实现位于 `adapters/<runtime>/`。当前适配器如下：
-
-| 运行时 | 固定版本 | 定位 |
-|---|---|---|
-| **Pi** | `@earendil-works/pi-coding-agent@0.87.1` | 主路径，支持无头发现与验证 |
-| **DSH** | `@deepseek-ai/dsh@0.1.7-rc.1` | 对比路径，提供原生权限与 MCP 行为 |
-
-两侧共同通过 C1–C10 阻断性 conformance 套件。
-
-## 适用场景
-
-- 从小而可审查的中性定义构建企业内部智能体。
-- 在本地和受控容器中运行同一份定义。
-- 把技能、连接器、能力实现和固定依赖打成 OCI 产物。
-- 使用内置假网关在零凭据下验证运行路径。
-- 对比不同运行时，明确记录不等价处。
-- 为自动化评审提供机器可读计划、报告、轨迹和失败原因。
-
-业务应用在仓库之外派生，并通过这里定义的命令面使用基座。鉴权、多租户、服务编排和供应商账户管理由应用或部署平台负责。
+这些检查是分开的。“进程启动了”不等于 agent 可用。检查还会确认实际加载了什么、能使用哪些工具、运行时能否访问预期网关，以及一次真实请求能否产生报告和轨迹。
 
 ## 快速开始
 
-要求：Node.js 24+、GNU Make 和 Docker。macOS 可使用 OrbStack；生产验收在具备 Docker、QEMU 和回环网络的 Linux CI runner 上执行。
+要求：Node.js 24+、GNU Make 和 Docker。macOS 可以使用 OrbStack。完整生产验收在带 Docker、QEMU 和回环网络的 Linux CI runner 上执行。
+
+在本仓库中执行：
 
 ```bash
-# 安装工具链依赖
 npm ci
-
-# 全局安装固定版本运行时，并在仓库内安装连接器
 make dev-env
 make local-packages
 make local-packages-check
 
-# 校验仓库契约
+# 检查基座仓库本身
 make validate
 make validate-selftest
 
-# 快速本地回归（会明确报告跳过的容器项）
+# 快速本地回归；部分容器重检查会明确标记为跳过
 npm test
 ```
 
-创建并验证一个智能体：
+在基座仓库之外创建一个 agent 项目：
 
 ```bash
-make new-agent NAME=my-agent DESCRIPTION="审查发布风险的智能体"
-cd ../my-agent
+make new-agent NAME=release-review DESCRIPTION="审查发布风险"
+cd ../release-review
 
 make validate
-make render HARNESS=pi
 make verify HARNESS=pi
+make run-local PROMPT="审查这次发布的运行风险"
 ```
 
-真实端点的部署参数在调用时传入。不要把凭据写进 `agent.yaml`、生成物或 Git 历史：
+连接真实模型端点时，在命令调用时传入部署参数。不要把密钥写进 `agent.yaml`、生成文件或 Git：
 
 ```bash
-# 对已检出的 agent 上下文执行。
 make run-local \
   ENDPOINT=https://your-gateway.example/v1 \
   API_KEY='<secret>' \
   PROMPT='审查这次发布的运行风险'
 ```
 
-## 验证模型
+## 检查什么？
 
-“进程启动了”不是验收标准。四道闸门是：
+`make verify` 会依次执行四类检查：
 
-1. **Validate**：schema、引用、能力声明、参数分层和命名。
-2. **Doctor**：渲染产物报告实际包含的内容。
-3. **Probe**：运行时启动、加载声明面并连接零凭据假网关。
-4. **Smoke**：端到端请求产生可用报告和轨迹。
+1. **Validate**：定义、引用、能力和参数层是否合法；
+2. **Doctor**：运行时报告渲染结果里实际包含了什么；
+3. **Probe**：运行时能否启动并访问零凭据假网关；
+4. **Smoke**：一次端到端请求能否产生报告和轨迹。
 
-构建镜像后执行完整本地验收：
+发布验收还要构建两种镜像架构并执行完整回归：
 
 ```bash
 node core/image/build.mjs --all --debug
@@ -109,61 +109,59 @@ node core/image/build.mjs --manifest
 node tools/regression.mjs --json
 ```
 
-完整验收必须返回退出码 `0`、`failed: []` 和 `skipped: []`。Pi 与 DSH 分别执行 C1–C10 准入检查。`npm test` 使用 `--fast`，会跳过部分容器项，但仍执行 conformance，因此需要 Docker，不能替代完整验收。
+完整验收必须以退出码 `0` 结束，并报告 `failed: []`、`skipped: []`。`npm test` 是更快的开发检查，不能替代完整命令。
 
-## 镜像与运行期边界
+## 支持的运行时
 
-- 构建期可以联网；运行期验证在断网条件下执行。
-- 端点、模型和凭据等运行期参数显式注入，不进入不可变产物。
-- 子进程只接收 allowlist 环境变量，不继承宿主全部环境。
-- 镜像使用非特权用户。受控容器验证施加能力丢弃、只读根文件系统和显式临时文件系统；部署时也应应用这些约束。
-- 调试镜像是独立产物，生产模式拒绝调试运行。
+运行时就是读取渲染结果并调用模型的程序。目前仓库固定了两个版本：
 
-多架构产物写入 `dist/image/agent-base-0.1.0.oci.tar`，生产 CI 同时上传结构化回归证据。
+| 运行时 | 包 | 用途 |
+|---|---|---|
+| **Pi** | `@earendil-works/pi-coding-agent@0.87.1` | 主运行时，也是第一条验证路径 |
+| **DSH** | `@deepseek-ai/dsh@0.1.7-rc.1` | 第二条运行时，用来验证兼容性和差异 |
 
-## 仓库结构
+两个运行时都必须通过 C1–C10 一致性检查。运行时专有代码放在 `adapters/`，共享的校验、轨迹、闸门和镜像代码放在 `core/`。
 
-```text
-core/                 运行时中立 schema、闸门、轨迹和镜像逻辑
-adapters/pi/          Pi 渲染、doctor、运行器、轨迹映射、自检
-adapters/dsh/         DSH 渲染、doctor、运行器、轨迹映射、自检
-conformance/          C1–C10 阻断性运行时准入套件
-template/             起步智能体定义和 Makefile
-examples/             端到端业务示例
-tools/                命令面、假网关、验证和生成器
-docs/                 设计、契约、运维、故障排查和状态
-.github/workflows/    生产 Docker/QEMU 验收
+## 各部分如何连接
+
+```mermaid
+flowchart LR
+  A[Agent 项目\nagent.yaml、连接器、技能] --> B[Validate]
+  B --> C[适配器\nPi 或 DSH]
+  C --> D[渲染并运行]
+  D --> E[Verify\nProbe + Smoke]
+  E --> F[Docker/OCI 镜像]
+  G[端点、模型、凭据] --> D
 ```
 
-## 安全与凭据卫生
+Agent 项目描述“要做什么”。适配器把它转换成某个运行时需要的格式。验证闸门检查转换后的结果。镜像打包结果，但不会把宿主机凭据一起复制进去。
 
-不要提交 `.env`、API key、token、登录态或连接器凭据。`make hygiene-selftest` 检查凭据卫生，包括可达 Git 历史中的明显凭据值；这是有限检查，不能替代完整的 secret scanner。清理仓库不能撤销供应商侧凭据；如果真实 key 曾经暴露，必须先在供应商平台撤销并轮换。
+## 仓库目录
 
+- `core/`：与运行时无关的 schema、闸门、轨迹、镜像启动和安全检查；
+- `adapters/`：Pi 和 DSH 的集成；
+- `template/`：新 agent 项目的起始目录；
+- `examples/`：可以直接阅读和运行的完整示例；
+- `tools/`：`validate`、`verify`、`run-local`、`regression` 等命令入口；
+- `docs/`：设计决定、验证细节和生产 CI 契约。
 
-## CI 与生产验收
+修改仓库前先读 [`AGENTS.md`](AGENTS.md)。需要完整验证规则时，从 [`docs/14-how-to-verify.md`](docs/14-how-to-verify.md) 开始。
 
-`.github/workflows/production-acceptance.yml` 在 Linux runner 上执行：
+## 安全和部署
 
-1. 安装固定版本的本地预装包；
-2. 检查 Docker 和回环网络；
-3. 构建双架构生产/调试镜像；
-4. 生成 OCI manifest；
-5. 执行 `node tools/regression.mjs --json`；
-6. 上传 `regression.json`。
+- 构建阶段可以下载固定版本依赖；运行期验证支持断网执行；
+- 端点、模型和凭据在运行时传入，不写进镜像；
+- 子进程只接收明确允许的环境变量；
+- 镜像使用非 root 用户运行。容器验证使用只读根文件系统、丢弃 Linux capabilities 和明确的临时文件系统；
+- 假网关让 CI 可以在没有供应商密钥的情况下跑完整流程；
+- 如果凭据曾经提交过，必须同时清理 Git 历史，并在供应商平台撤销或轮换旧密钥。
 
-配置 Git remote 后，可通过 `workflow_dispatch`、push 或 pull request 触发。配置方式和证据要求见[生产验收指南](docs/15-ci-production-acceptance.md)。
+## 生产验收
 
-## 文档
+`.github/workflows/production-acceptance.yml` 会在真实 Linux runner 上执行本地无法完整模拟的检查：Docker、回环网络、QEMU、两种镜像架构、OCI manifest 和完整回归，并把结构化回归报告上传为 workflow artifact。
 
-- [验证指南](docs/14-how-to-verify.md)
-- [生产验收](docs/15-ci-production-acceptance.md)
-- [设计与代码评审](docs/reviews/2026-09-30-agent-base-design-code-review.md)
-- [开发者契约](docs/13-developer-contract.md)
-- [运行时适配契约](docs/09-harness-contract.md)
-- [运行时选型事实](docs/design/2026-09-27-runtime-selection-facts.md)
-- [当前状态与交接](docs/status/RESUME-NEXT-SESSION.md)
-- [仓库 Agent 协作说明](AGENTS.md)
+本地 OrbStack 检查适合开发时使用。发布闸门使用 GitHub workflow，因为它运行在生产契约要求的环境中。
 
-## 许可证
+## License
 
-本仓库尚未声明开源许可证。
+见 [`LICENSE`](LICENSE)。

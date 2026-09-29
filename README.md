@@ -1,107 +1,107 @@
 # agent-base
 
-**Define, verify, and package portable AI agents.**
-
-agent-base separates an agent's portable definition from the runtime that executes it. You describe the agent once, render it through a version-pinned runtime adapter, verify the result through four gates, and package the same evidence-backed artifact as a hardened OCI image.
+**Build an AI agent once, run it the same way locally, in CI, and in Docker.**
 
 [中文说明](README.zh-CN.md)
 
-## Why agent-base exists
+## What is agent-base?
 
-AI agent projects often fail at the boundaries: configuration drifts between local and container runs, credentials leak into artifacts, runtime-specific features become hidden dependencies, and a process that starts is mistaken for an agent that is usable.
+`agent-base` is a toolkit and base Docker image for teams that build AI agents.
 
-agent-base makes those boundaries explicit:
+You describe an agent in a small folder: its instructions, model settings, tools, connectors, and skills. `agent-base` supplies the commands and runtime adapters around that folder:
 
-- **Portable definitions** keep business intent independent from a runtime.
-- **Adapters** translate the definition into a pinned harness and expose its real capabilities.
-- **Verification gates** turn claims such as “this skill is loaded” or “this image works offline” into executable evidence.
-- **Versioned builds** fix behavior and declared package versions at build time while injecting deployment parameters at runtime.
-- **Structured traces and reports** make failures attributable instead of silent.
+1. check that the definition is valid;
+2. turn it into the files a runtime needs;
+3. run it against a fake gateway or a real endpoint;
+4. test that the declared tools and permissions actually work;
+5. package the same definition as a Docker/OCI image for CI or deployment.
 
-## Architecture
+The goal is simple: the agent you tested on a laptop should be the agent you test and ship in a container.
 
-```mermaid
-flowchart LR
-    A["agent.yaml<br/>connectors.yaml<br/>skills / capabilities"] --> B["Neutral schema<br/>validate"]
-    B --> C["Runtime adapter<br/>render · doctor · trace"]
-    C --> D["Verification gates<br/>probe · smoke · verify"]
-    D --> E["OCI image<br/>arm64 · amd64 · debug"]
-    D --> F["Evidence<br/>reports · traces · conformance"]
-    G["Runtime parameters<br/>endpoint · credentials · model"] --> D
+`agent-base` is **not** a model, a hosted chatbot, an API gateway, or a multi-tenant application. It is the build, run, and verification layer for those applications.
+
+## Who should use it?
+
+Use it when you need to:
+
+- build several agents from a consistent project layout;
+- keep an agent definition separate from the runtime that executes it;
+- run the same agent locally and in a restricted container;
+- catch missing tools, wrong permissions, broken connectors, and leaked credentials before release;
+- compare two supported runtimes without pretending they behave identically.
+
+If you only need to call a model from a short script, this repository is probably more than you need.
+
+## The workflow
+
+```text
+agent.yaml + connectors + skills
+              │
+              ▼
+       make validate        Is the definition complete and consistent?
+              │
+              ▼
+       make verify          Does the rendered agent really start and work?
+              │
+              ▼
+       make run-local       Try it with a fake gateway or your endpoint
+              │
+              ▼
+       Docker image + CI    Rebuild and verify the same artifact before release
 ```
 
-The core remains runtime-neutral. Runtime-specific behavior belongs under `adapters/<runtime>/`; the current adapters are:
-
-| Runtime | Pinned package | Role |
-|---|---|---|
-| **Pi** | `@earendil-works/pi-coding-agent@0.87.1` | Primary path with headless discovery and verification support |
-| **DSH** | `@deepseek-ai/dsh@0.1.7-rc.1` | Comparison path with native permissions and MCP behavior |
-
-The two adapters pass the same blocking conformance suite, C1–C10.
-
-## What you can use it for
-
-- Build internal agents from a small, reviewable neutral specification.
-- Run the same definition locally and inside a constrained container.
-- Package skills, connectors, capability implementations, and pinned dependencies into an OCI artifact.
-- Verify zero-credential behavior with the built-in fake gateway.
-- Compare runtime behavior without hiding incompatibilities behind documentation.
-- Give an automated reviewer machine-readable plans, reports, traces, and failure reasons.
-
-Business applications are generated or maintained outside this repository and use its documented command surface. Authentication, multi-tenancy, service orchestration, and provider account management belong to the application or deployment platform.
+The checks are deliberately separate. A process starting is not enough: the checks also inspect what was loaded, which tools are available, whether the runtime can reach the expected gateway, and whether the final request produces a usable report and trace.
 
 ## Quick start
 
-Requirements: Node.js 24+, GNU Make, and Docker. OrbStack works on macOS; production acceptance runs on a Linux CI runner with Docker, QEMU, and loopback networking.
+Requirements: Node.js 24+, GNU Make, and Docker. OrbStack works on macOS. Full production acceptance runs on a Linux CI runner with Docker, QEMU, and loopback networking.
+
+From this repository:
 
 ```bash
-# Install the toolchain dependencies
 npm ci
-
-# Install the pinned runtimes globally and connectors locally
 make dev-env
 make local-packages
 make local-packages-check
 
-# Validate the repository contracts
+# Check the base repository itself
 make validate
 make validate-selftest
 
-# Fast local regression (container-heavy checks are reported as skipped)
+# Fast local regression. It marks selected container checks as skipped.
 npm test
 ```
 
-Create and verify an agent:
+Create an agent project outside the base repository:
 
 ```bash
-make new-agent NAME=my-agent DESCRIPTION="An agent that reviews release risk"
-cd ../my-agent
+make new-agent NAME=release-review DESCRIPTION="Review release risk"
+cd ../release-review
 
 make validate
-make render HARNESS=pi
 make verify HARNESS=pi
+make run-local PROMPT="Review this release for operational risk"
 ```
 
-For a real endpoint, pass deployment parameters at invocation time. Keep credentials out of `agent.yaml`, generated artifacts, and Git history:
+For a real model endpoint, pass deployment values at invocation time. Do not put secrets in `agent.yaml`, generated files, or Git:
 
 ```bash
-# Run against a checked-out agent context.
 make run-local \
   ENDPOINT=https://your-gateway.example/v1 \
   API_KEY='<secret>' \
   PROMPT='Review this release for operational risk'
 ```
 
-## Verification model
+## What gets checked?
 
-“The process started” is not the acceptance criterion. The four gates are:
+`make verify` runs four checks:
 
-1. **Validate** — schemas, references, capability declarations, parameter layers, and naming.
-2. **Doctor** — the rendered artifact reports what it actually contains.
-3. **Probe** — the runtime starts, loads the declared surface, and reaches the zero-credential gateway.
-4. **Smoke** — an end-to-end request produces a usable report and trace.
+1. **Validate** — the definition, references, capabilities, and parameter layers are valid.
+2. **Doctor** — the runtime reports what the rendered agent actually contains.
+3. **Probe** — the runtime starts and reaches the zero-credential fake gateway.
+4. **Smoke** — one end-to-end request produces a report and trace.
 
-Run the complete local acceptance after building images:
+For release acceptance, build both image architectures and run the complete regression:
 
 ```bash
 node core/image/build.mjs --all --debug
@@ -109,61 +109,59 @@ node core/image/build.mjs --manifest
 node tools/regression.mjs --json
 ```
 
-A complete acceptance run must return exit code `0`, `failed: []`, and `skipped: []`. Pi and DSH each run the C1–C10 admission suite. `npm test` uses `--fast`, which skips selected container checks but still runs conformance; it requires Docker and does not replace full acceptance.
+A complete acceptance run must exit with `0`, `failed: []`, and `skipped: []`. `npm test` is intentionally faster and does not replace this command.
 
-## Image and runtime boundaries
+## Supported runtimes
 
-- Build-time dependencies may use the network; runtime verification runs with the network disabled.
-- Runtime parameters such as endpoint, model, and credentials are injected explicitly and are excluded from the immutable artifact.
-- Child processes receive an allowlisted environment instead of the host environment wholesale.
-- Images use an unprivileged user. Controlled container verification applies dropped capabilities, a read-only root, and an explicit temporary filesystem; deployment must apply the same restrictions.
-- Debug images are separate artifacts and production mode rejects debug execution.
+A runtime is the program that reads the rendered agent and talks to the model. This repository currently pins two:
 
-The multi-architecture output is written to `dist/image/agent-base-0.1.0.oci.tar`. The production CI workflow also uploads structured regression evidence.
+| Runtime | Package | Why it is here |
+|---|---|---|
+| **Pi** | `@earendil-works/pi-coding-agent@0.87.1` | Main runtime and first verification path |
+| **DSH** | `@deepseek-ai/dsh@0.1.7-rc.1` | Second runtime used to test compatibility and differences |
+
+Both runtimes go through the same C1–C10 conformance checks. Runtime-specific code stays under `adapters/`; the shared validation, trace, gate, and image code stays under `core/`.
+
+## How the pieces fit
+
+```mermaid
+flowchart LR
+  A[Agent project\nagent.yaml, connectors, skills] --> B[Validate]
+  B --> C[Adapter\nPi or DSH]
+  C --> D[Render and run]
+  D --> E[Verify\nprobe + smoke]
+  E --> F[Docker/OCI image]
+  G[Endpoint, model, credentials] --> D
+```
+
+The agent project contains intent. The adapter translates that intent for one runtime. The verification gates test the result. The image packages the result without copying host credentials into it.
 
 ## Repository map
 
-```text
-core/                 runtime-neutral schemas, gates, traces, image logic
-adapters/pi/          Pi renderer, doctor, runner, trace mapping, selftests
-adapters/dsh/         DSH renderer, doctor, runner, trace mapping, selftests
-conformance/          blocking C1–C10 runtime admission suite
-template/             starter agent definition and Makefile
-examples/             end-to-end business examples
-tools/                command surface, fake gateway, verification, generators
-docs/                 design, contracts, operations, troubleshooting, status
-.github/workflows/    production Docker/QEMU acceptance
-```
+- `core/` — runtime-neutral schemas, gates, traces, image startup, and security checks.
+- `adapters/` — the Pi and DSH integrations.
+- `template/` — the starting layout for a new agent project.
+- `examples/` — complete agent definitions you can inspect and run.
+- `tools/` — command-line entry points such as `validate`, `verify`, `run-local`, and `regression`.
+- `docs/` — design decisions, verification details, and the production CI contract.
 
-## Security and credential hygiene
+Read [`AGENTS.md`](AGENTS.md) before changing the repository. Start with [`docs/14-how-to-verify.md`](docs/14-how-to-verify.md) when you need the full verification contract.
 
-Never commit `.env`, API keys, tokens, login state, or connector credentials. `make hygiene-selftest` checks credential hygiene, including obvious credential values in reachable Git history; this is a limited check, not a comprehensive secret scanner. A repository rewrite does not revoke a provider credential: if a real key was ever exposed, revoke and rotate it at the provider before reuse.
+## Security and deployment notes
 
+- Build steps may download pinned dependencies; runtime checks support offline execution.
+- Runtime values such as endpoint, model, and credentials are passed at run time and are not baked into the image.
+- Child processes receive an explicit environment allowlist.
+- Images run as an unprivileged user. Container verification uses a read-only root, dropped capabilities, and an explicit temporary filesystem.
+- The fake gateway lets CI exercise the full flow without a provider key.
+- If a credential has ever been committed, remove it from Git history **and** revoke or rotate it in the provider account.
 
-## CI and release acceptance
+## Production acceptance
 
-`.github/workflows/production-acceptance.yml` runs on a Linux runner and:
+`.github/workflows/production-acceptance.yml` runs the checks that require a real Linux runner: Docker, loopback networking, QEMU, both image architectures, the OCI manifest, and the complete regression. It uploads the structured regression report as a workflow artifact.
 
-1. installs pinned local packages;
-2. checks Docker and loopback prerequisites;
-3. builds production and debug variants for both architectures;
-4. produces the OCI manifest;
-5. runs `node tools/regression.mjs --json`; and
-6. uploads `regression.json` as an artifact.
-
-Trigger it with `workflow_dispatch` or through a push/pull request when a Git remote is configured. See the [production acceptance guide](docs/15-ci-production-acceptance.md) for setup and required evidence.
-
-## Documentation
-
-- [Verification guide](docs/14-how-to-verify.md)
-- [Production acceptance](docs/15-ci-production-acceptance.md)
-- [Design and code review](docs/reviews/2026-09-30-agent-base-design-code-review.md)
-- [Developer contract](docs/13-developer-contract.md)
-- [Harness contract](docs/09-harness-contract.md)
-- [Runtime selection facts](docs/design/2026-09-27-runtime-selection-facts.md)
-- [Current status and handoff](docs/status/RESUME-NEXT-SESSION.md)
-- [Repository agent instructions](AGENTS.md)
+The local OrbStack checks are useful development evidence. The GitHub workflow is the release gate because it runs in the environment that the production contract requires.
 
 ## License
 
-No open-source license is currently declared in this repository.
+See [`LICENSE`](LICENSE).
