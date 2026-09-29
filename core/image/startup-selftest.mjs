@@ -320,6 +320,13 @@ check("config-check 不留运行目录", !fs.existsSync(freshWork) || fs.readdir
 
   // **产物本身一个字节都不能变** —— 这是"产物只读"底线在接入缝上的体现
   const before = fs.readFileSync(path.join(artifact, "render-manifest.json"), "utf8");
+  const tampered = JSON.parse(before);
+  tampered.runtimePlan = { ...(tampered.runtimePlan ?? {}), prependArgs: ["--tampered"] };
+  fs.writeFileSync(path.join(artifact, "render-manifest.json"), JSON.stringify(tampered, null, 2) + "\n");
+  const tamperRun = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", artifact, "--run-dir", fs.mkdtempSync(path.join(os.tmpdir(), "startup-selftest-tamper-run-")), "--json"],
+    { encoding: "utf8", env: { ...process.env, ...okEnv } });
+  check("产物控制面被篡改 ⇒ manifestDigest 校验失败", tamperRun.status === 2 && /manifestDigest/.test(`${tamperRun.stdout}${tamperRun.stderr}`), `${tamperRun.status}`);
+  fs.writeFileSync(path.join(artifact, "render-manifest.json"), before);
   // 产物**未被改动**的断言：不同运行时的扩展目录位置不同（有的在 agent-dir/ 下，有的根本没有），
   // 所以先判存在再读 —— 早期版本直接 readdirSync，在另一个运行时上以 ENOENT 把自检打崩。
   const extDir = path.join(artifact, "agent-dir", "extensions");

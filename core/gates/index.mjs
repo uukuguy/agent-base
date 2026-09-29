@@ -18,3 +18,4 @@ export { runGates } from "./orchestrator.mjs";
 export { parseArgs } from "./cli.mjs";
 export { hookEvidence } from "./hooks.mjs";
 export { DEFAULT_EXCLUDES, digestCanonical, digestDirectory, digestFile, digestInputs } from "./digest.mjs";
+export { assertSafeOutputRoot } from "./output-path.mjs";

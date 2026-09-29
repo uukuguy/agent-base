@@ -33,17 +33,20 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { EXIT_CODES, digestDirectory, parseArgs } from "../core/gates/index.mjs";
 import { localPlatformEnv } from "../core/image/platform-env.mjs";
+import { buildChildEnv } from "../core/image/child-env.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 
 const main = async () => {
   const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), {
-    valueFlags: ["--harness", "--prompt", "--endpoint", "--render-dir", "--zero-credential", "--api-key", "--model", "--secrets-dir", "--param"],
+    valueFlags: ["--harness", "--prompt", "--endpoint", "--render-dir", "--zero-credential", "--api-key", "--model", "--secrets-dir", "--param", "--harness-home"],
+    boolFlags: ["--json", "--help", "-h", "--keep-home"],
+    strict: true,
   });
   const agentDir = positionals[0];
   if (flags.has("--help") || flags.has("-h") || !agentDir) {
-    process.stderr.write("用法: node tools/run-local.mjs <AGENT_DIR> [--harness pi] [--prompt \"...\"] [--endpoint URL] [--render-dir DIR]\n");
+    process.stderr.write("用法: node tools/run-local.mjs <AGENT_DIR> [--harness pi] [--prompt \"...\"] [--endpoint URL] [--render-dir DIR] [--harness-home DIR]\n");
     process.exit(flags.has("--help") || flags.has("-h") ? EXIT_CODES.ok : EXIT_CODES.usage);
   }
   if (errors.length) { process.stderr.write(errors.join("；") + "\n"); process.exit(EXIT_CODES.usage); }
@@ -176,9 +179,10 @@ const main = async () => {
   const traceDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-local-trace-"));
   const traceFile = path.join(traceDir, "trace.jsonl");
 
-  const env = {
-    ...process.env,
-    // ── 运行期**布局契约**：来自 startup 的 `runtimePlan.env`（哪个变量指向运行目录里的哪个相对路径）。
+  const env = buildChildEnv({
+    values: {
+      ...extraEnv,
+      // ── 运行期**布局契约**：来自 startup 的 `runtimePlan.env`（哪个变量指向运行目录里的哪个相对路径）。
     //    这里**不再手搓**（曾经手搓 ⇒ 与容器入口漂移 ⇒ "容器里能用、本地不能用"）。
     ...layoutEnv,
     // ── 平台级变量：与容器入口同一套（单一定义在 core/image/platform-env.mjs）。
@@ -189,11 +193,12 @@ const main = async () => {
     HOME: home,
     AGENT_NAME: manifest.agent ?? null,
     AGENT_RUN_MODE: "local",
-    AGENT_TRACE_CONTENT: process.env.AGENT_TRACE_CONTENT ?? "full",   // 本地看细节，默认留全文
+    AGENT_TRACE_CONTENT: process.env.AGENT_TRACE_CONTENT ?? "digest",
     AGENT_EFFECTIVE_CONFIG_DIGEST: digestOfRender(renderDir),
     AGENT_TRACE_DEST: traceFile,
-    ...(manifest.modelProviders?.[0] ? { AGENT_MODEL_ROUTE: manifest.modelProviders[0] } : {}),
-  };
+      ...(manifest.modelProviders?.[0] ? { AGENT_MODEL_ROUTE: manifest.modelProviders[0] } : {}),
+    },
+  });
 
   const { bin, args } = localInvocation({
     staging,

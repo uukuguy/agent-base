@@ -16,7 +16,7 @@
 ```bash
 cd <repo>
 make image-all DEBUG=1        # 四个镜像变体（arm64/amd64 × 普通/调试）
-make verify-all               # 全部示例 × 两个运行时，四道闸门
+node tools/regression.mjs     # 完整生产验收（需要 Docker + 回环网络）
 ```
 
 ---
@@ -149,7 +149,7 @@ docker run --rm --network none \
 | **容器挂的时候是不是缺陷** | `make verify-container AGENT_DIR=…`（失败时自动归因） | 五类：本地可复现（真缺陷）/ 已声明差异（不是缺陷）/ 容器专有断言失败（真缺陷，改镜像）/ 本地没跑到（先修前面那条）/ **未声明的差异（响亮上报，不许猜）** |
 | 声明了但没写对 ⇒ 响亮失败 | `make validate-selftest` + `make startup-selftest`（负例见 §4） | 全部非 0 退出，且报错点明原因 |
 
-**一条命令跑全部**：`make verify-all`（每个示例 × 两个运行时）· `make conformance`（C1–C10）。
+**一条命令跑基座全部验收**：`make regression`（完整回归，需 Docker + 回环网络）；`make conformance`（只跑 C1–C10）。CI 的生产验收流程见 [`15-ci-production-acceptance.md`](15-ci-production-acceptance.md)。
 
 ---
 

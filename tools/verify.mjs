@@ -26,7 +26,11 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
 const log = (m) => process.stderr.write(m + "\n");
 
-const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), { valueFlags: ["--harness", "--out", "--endpoint"] });
+const { values, flags, positionals, errors } = parseArgs(process.argv.slice(2), {
+  valueFlags: ["--harness", "--out", "--endpoint"],
+  boolFlags: ["--json", "--live", "--help", "-h"],
+  strict: true,
+});
 const json = flags.has("--json");
 const harness = values["--harness"] ?? "pi";
 // LIVE=1 / --live：闸门 3/4 打**真实端点**（要"真的能用"的证据时用；默认仍走零凭据假网关）
@@ -43,13 +47,15 @@ if (flags.has("--help") || flags.has("-h") || !agentDirArg) {
 
 const agentDir = path.resolve(agentDirArg);
 const renderDir = path.resolve(values["--out"] ?? path.join("dist", harness, path.basename(agentDir)));
+const TOOL_TIMEOUT_MS = Number(process.env.AGENT_VERIFY_TOOL_TIMEOUT_MS ?? 120000);
 
 /** 跑一个子工具，拿到它的 §6.7 报告（或 null）。 */
-function runTool(args) {
-  const r = spawnSync(process.execPath, args, { encoding: "utf8", cwd: REPO });
+function runTool(args, timeout = TOOL_TIMEOUT_MS) {
+  const r = spawnSync(process.execPath, args, { encoding: "utf8", cwd: REPO, timeout });
+  const timedOut = r.error?.code === "ETIMEDOUT" || (r.status === null && r.signal);
   let parsed = null;
   try { parsed = JSON.parse(r.stdout); } catch { /* 有的工具在失败时也只写 stderr */ }
-  return { status: r.status, stderr: r.stderr ?? "", parsed };
+  return { status: timedOut ? 50 : r.status, stderr: r.stderr ?? "", parsed, timedOut };
 }
 
 /** 从各工具的 JSON 形态里取出 gate 列表。 */
@@ -63,15 +69,19 @@ function gatesOf(parsed) {
 const report = new GateReport({ harness });
 const collected = [];
 
-function addGate(gates, fallbackId) {
+function addGate(gates, fallbackId, detail = "工具没有输出可解析的报告") {
   if (gates?.length) collected.push(...gates.map((g) => ({ id: g.id, checks: g.checks ?? [] })));
-  else collected.push({ id: fallbackId, checks: [{ id: `${fallbackId}/no-report`, status: "fail", detail: "工具没有输出可解析的报告" }] });
+  else collected.push({ id: fallbackId, checks: [{ id: `${fallbackId}/no-report`, status: "fail", detail }] });
 }
 
 // ---- 闸门 1：静态校验 ----
 log("── 闸门 1：静态校验 ──");
 const v = runTool([path.join(REPO, "tools/validate.mjs"), agentDir, "--json"]);
-addGate(gatesOf(v.parsed), "static");
+if (v.timedOut) report.crashed = true;
+addGate(gatesOf(v.parsed), "static", v.timedOut ? `工具超时（${TOOL_TIMEOUT_MS}ms）` : undefined);
+if (v.status !== 0 && gatesOf(v.parsed)?.length) {
+  collected.find((g) => g.id === "static")?.checks.push({ id: "static/process-exit", status: "fail", detail: `校验工具退出码 ${v.status}` });
+}
 if (v.status !== 0) {
   report.gates = collected;
   finish();
@@ -79,9 +89,10 @@ if (v.status !== 0) {
 
 // ---- 制品：渲染 ----
 log("── 制品：渲染 ──");
-const r = spawnSync(process.execPath, [path.join(REPO, `adapters/${harness}/render.mjs`), agentDir, "--out", renderDir, "--json"], { encoding: "utf8", cwd: REPO });
+const r = spawnSync(process.execPath, [path.join(REPO, `adapters/${harness}/render.mjs`), agentDir, "--out", renderDir, "--json"], { encoding: "utf8", cwd: REPO, timeout: TOOL_TIMEOUT_MS });
+if (r.error?.code === "ETIMEDOUT" || (r.status === null && r.signal)) report.crashed = true;
 if (r.status !== 0) {
-  collected.push({ id: "static", checks: [{ id: "render/product", status: "fail", detail: `渲染失败：${(r.stderr ?? "").slice(-300)}` }] });
+  collected.push({ id: "static", checks: [{ id: "render/product", status: "fail", detail: r.error?.code === "ETIMEDOUT" ? `渲染超时（${TOOL_TIMEOUT_MS}ms）` : `渲染失败：${(r.stderr ?? "").slice(-300)}` }] });
   report.gates = collected;
   finish();
 }
@@ -96,8 +107,12 @@ for (const [gateId, tool, label] of [
   log(`── ${label} ──`);
   // harness 必须一路传下去：否则 probe/smoke 会用自己的默认运行时去跑另一个运行时的产物
   const res = runTool([path.join(REPO, tool), renderDir, "--json", "--harness", harness, ...(tool.includes("probe") || tool.includes("smoke") ? [...endpointArg, ...(live ? ["--live"] : [])] : [])]);
+  if (res.timedOut || res.status === 50) report.crashed = true;
   addGate(gatesOf(res.parsed), gateId);
-  const okNow = collected.every((g) => (g.checks ?? []).every((c) => c.status === "pass"));
+  if (res.status !== 0 && gatesOf(res.parsed)?.length) {
+    collected.find((g) => g.id === gateId)?.checks.push({ id: `${gateId}/process-exit`, status: "fail", detail: `工具退出码 ${res.status}` });
+  }
+  const okNow = collected.every((g) => (g.checks ?? []).length > 0 && g.checks.every((c) => c.status === "pass"));
   if (!okNow) break; // 首个失败即停：闸门 1 都不过时，闸门 3 的结论毫无意义
 }
 

@@ -273,3 +273,5 @@ if (failures) {
   process.exit(1);
 }
 console.log("✅ 项目自省命令自检：全绿");
+// Keep CI deterministic when the native runtime leaves libuv handles alive.
+process.exit(0);

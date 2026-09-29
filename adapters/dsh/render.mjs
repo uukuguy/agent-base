@@ -37,7 +37,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
+import { DEFAULT_EXCLUDES, EXIT_CODES, assertSafeOutputRoot, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
+import { digestManifest } from "../../core/image/manifest-integrity.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 // 路由目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/routes.mjs
 import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
@@ -271,7 +272,7 @@ function main() {
   if (!fs.existsSync(agentFile)) { log(`❌ 找不到 ${agentFile}`); process.exit(EXIT_CODES.static); }
   const agent = readYaml(agentFile);
 
-  const outRoot = path.resolve(values["--out"] ?? path.join("dist", HARNESS, agent.name));
+  const outRoot = assertSafeOutputRoot(path.resolve(values["--out"] ?? path.join("dist", HARNESS, agent.name)), { repoRoot: REPO });
   fs.rmSync(outRoot, { recursive: true, force: true });
   const profileDir = path.join(outRoot, "dsh-home", "profiles", agent.name);
 
@@ -533,6 +534,7 @@ function main() {
      * 会话与配置写在 DSH_HOME 下，而产物是只读挂载的。
      */
     runtimePlan: {
+      configDir: `dsh-home/profiles/${agent.name}`,
       // 本 harness 的调用形态是 `dsh <profile> [选项…]` —— profile 名是**运行时的专有知识**，
       // 由产物声明，调用方（入口脚本/编排层）不必知道。`@agent` 会被替换成智能体名。
       argvPrefix: ["@agent"],
@@ -609,6 +611,7 @@ function main() {
     artifactsDigest,
     paramNames: (manifest.runtimeParams ?? []).map((p) => p.name),
   });
+  manifest.manifestDigest = digestManifest(manifest);
   writeFile(path.join(outRoot, "render-manifest.json"), stableJson(manifest));
 
   const result = {

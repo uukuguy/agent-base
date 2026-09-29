@@ -26,6 +26,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { computeEffectiveConfigDigest } from "../../core/gates/index.mjs";
+import { buildChildEnv, declaredRuntimeValues } from "../../core/image/child-env.mjs";
 import { mapEventStream } from "./trace.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -82,20 +83,20 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-run-"));
 
-  const env = { ...process.env, ...extraEnv };
+  const envValues = { ...declaredRuntimeValues(manifest), ...extraEnv };
   const endpointParam = (manifest.runtimeParams ?? []).find((x) => x.backs === "model.provider" && !x.secret);
-  if (endpoint && endpointParam) env[endpointParam.name] = endpoint;
+  if (endpoint && endpointParam) envValues[endpointParam.name] = endpoint;
   // 零凭据模式（**显式开启**）：自证/探针/冒烟用假值补齐必填项；真实运行不允许
   if (zeroCredential) {
     for (const p of manifest.runtimeParams ?? []) {
-      if (env[p.name]) continue;
-      if (p.secret) env[p.name] = "placeholder-not-a-credential";
-      else if (p.required && p.backs === "model.provider") env[p.name] = "http://127.0.0.1:9/v1";
+      if (envValues[p.name]) continue;
+      if (p.secret) envValues[p.name] = "placeholder-not-a-credential";
+      else if (p.required && p.backs === "model.provider") envValues[p.name] = "http://127.0.0.1:9/v1";
     }
   }
 
   const r = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", renderDir, "--run-dir", runDir, "--json"],
-    { encoding: "utf8", env });
+    { encoding: "utf8", env: buildChildEnv({ values: envValues }) });
   if (r.status !== 0) throw new Error(`启动期准备失败（退出码 ${r.status}）：\n${(r.stderr ?? "").trim()}`);
   const prep = JSON.parse(r.stdout);
   const placeholders = Object.entries(prep.params ?? [])
@@ -104,6 +105,7 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
 
   return {
     staging: prep.runDir,
+    configDir: prep.configDir,
     dshHome: prep.env?.DSH_HOME ?? path.join(prep.runDir, "dsh-home"),
     workspace: prep.cwd ?? prep.runDir,
     placeholders,
@@ -114,10 +116,8 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
 }
 
 /** 运行期环境：端点/凭据 + 隔离的 HOME + 显式放行策略。 */
-export function envFor({ manifest, dshHome, endpoint, home, traceDest, bundles = null }) {
-  const env = {
-    ...process.env,
-    ...localBinPathEnv(),
+export function envFor({ manifest, dshHome, endpoint, home, traceDest, bundles = null, extra = {}, allowedExtra = [] }) {
+  const values = {
     HOME: home,
     DSH_HOME: dshHome,
     AGENT_RUN_MODE: process.env.AGENT_RUN_MODE ?? "oneshot",
@@ -134,15 +134,19 @@ export function envFor({ manifest, dshHome, endpoint, home, traceDest, bundles =
     // 结果是 dsh 侧一跑就 ReferenceError；自检当场抓到）。
     ...(bundles && bundles.active !== undefined ? { AGENT_BUNDLES_ACTIVE: bundles.active } : {}),
     ...(bundles && bundles.available !== undefined ? { AGENT_BUNDLES_AVAILABLE: bundles.available } : {}),
-    // 非交互放行策略（见文件头 ③）：不给的话审批会 fail closed 等人，表现为"卡住"
-    AGENT_PERMISSION_MODE: process.env.AGENT_PERMISSION_MODE ?? "danger-full-access",
   };
-  if (endpoint && manifest.modelRouteBaseUrlParam) env[manifest.modelRouteBaseUrlParam] = endpoint;
-  if (manifest.modelRouteCredentialParam && !env[manifest.modelRouteCredentialParam]) {
-    env[manifest.modelRouteCredentialParam] = "placeholder-not-a-credential";   // 零凭据
+  if (endpoint && manifest.modelRouteBaseUrlParam) values[manifest.modelRouteBaseUrlParam] = endpoint;
+  if (manifest.modelRouteCredentialParam && !extra[manifest.modelRouteCredentialParam]) {
+    values[manifest.modelRouteCredentialParam] = "placeholder-not-a-credential";   // 零凭据
   }
-  if (traceDest) env.AGENT_TRACE_DEST = traceDest;
-  return env;
+  if (traceDest) values.AGENT_TRACE_DEST = traceDest;
+  return buildChildEnv({
+    baseEnv: process.env,
+    values,
+    platform: { ...localBinPathEnv(), NARB_DISABLE_NATIVE_CACHE: "1" },
+    extra,
+    allowedExtra,
+  });
 }
 
 /** 本地交互/一次性调用的启动方式（harness 专有参数形态归这里）。 */
@@ -156,11 +160,18 @@ export function localInvocation({ profile, prompt }) {
  */
 export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs = 60000, zeroCredential = false, env: extraEnv = {}, harnessHome = null }) {
   const manifest = readJson(path.join(renderDir, "render-manifest.json"));
-  const { staging, workspace, dshHome, placeholders, env: stagedEnv } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: extraEnv });
+  const unattendedEnv = zeroCredential && extraEnv.AGENT_PERMISSION_MODE === undefined
+    ? { AGENT_PERMISSION_MODE: "danger-full-access" }
+    : {};
+  const runEnv = { ...unattendedEnv, ...extraEnv };
+  const { staging, workspace, dshHome, placeholders, env: stagedEnv } = stageRenderDir(renderDir, endpoint, { zeroCredential, env: runEnv });
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "dsh-home-"));
-  const env = { ...envFor({ manifest, dshHome, endpoint, home,
+  const env = envFor({ manifest, dshHome, endpoint, home,
     bundles: stagedEnv && stagedEnv.AGENT_BUNDLES_ACTIVE !== undefined
-      ? { active: stagedEnv.AGENT_BUNDLES_ACTIVE, available: stagedEnv.AGENT_BUNDLES_AVAILABLE } : null }), ...extraEnv };
+      ? { active: stagedEnv.AGENT_BUNDLES_ACTIVE, available: stagedEnv.AGENT_BUNDLES_AVAILABLE } : null,
+    extra: runEnv,
+    allowedExtra: Object.keys(runEnv),
+  });
 
   const { bin, args } = localInvocation({ profile: manifest.agent, prompt });
   const child = spawn(bin, args, { env, cwd: workspace });
@@ -176,6 +187,13 @@ export async function runAgent({ renderDir, endpoint, prompt = "hi", timeoutMs =
     new Promise((res) => setTimeout(() => res("timeout"), timeoutMs)),
   ]);
   if (exited === "timeout") { child.kill("SIGTERM"); await new Promise((r) => setTimeout(r, 400)); }
+  // dsh may leave descendant processes holding inherited stdout/stderr pipes.
+  // Close our ends after the result is known so selftests and CI can terminate
+  // deterministically instead of keeping the Node event loop alive.
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+  child.stdin?.destroy();
+  child.unref?.();
 
   const native = stdout.split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   const { events } = mapEventStream(native, {

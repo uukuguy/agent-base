@@ -21,12 +21,12 @@ import { loadEnvFiles } from "../config/dotenv.mjs";
 
 /**
  * @param {string[]} argv
- * @param {{valueFlags?: string[], boolFlags?: string[]}} [spec]
+ * @param {{valueFlags?: string[], boolFlags?: string[], booleanFlags?: string[], strict?: boolean}} [spec]
  *         `valueFlags` = 后面跟一个值的旗标（如 `--out`）；`boolFlags` = 不跟值的开关（如 `--json`）。
  *         未声明的 `--x` 一律按开关处理，不会吞掉下一个参数。
  * @returns {{values: Record<string,string>, flags: Set<string>, positionals: string[], errors: string[]}}
  */
-export function parseArgs(argv, { valueFlags = [], boolFlags = [] } = {}) {
+export function parseArgs(argv, { valueFlags = [], boolFlags = [], booleanFlags = [], strict = false } = {}) {
   // 幂等：**真环境变量优先**，文件只作兜底
   loadEnvFiles();
   const values = {};
@@ -47,12 +47,16 @@ export function parseArgs(argv, { valueFlags = [], boolFlags = [] } = {}) {
       continue;
     }
     if (a.startsWith("--")) {
+      if (strict && !boolFlags.includes(a) && !booleanFlags.includes(a)) {
+        errors.push(`未知旗标 ${a}`);
+        continue;
+      }
       flags.add(a);
       continue;
     }
     positionals.push(a);
   }
   // 显式声明的开关若未出现，也能从 flags 里查
-  for (const b of boolFlags) if (argv.includes(b)) flags.add(b);
+  for (const b of [...boolFlags, ...booleanFlags]) if (argv.includes(b)) flags.add(b);
   return { values, flags, positionals, errors };
 }

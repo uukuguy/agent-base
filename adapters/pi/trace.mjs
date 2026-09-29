@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { EXIT_CODES, sha256 } from "../../core/gates/index.mjs";
+import { sanitizeNativeRecord } from "../../core/trace/sanitize.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -186,7 +187,7 @@ export function mapEventStream(records, ctx, opts = {}) {
       type: "native.raw",
       nativeType: String(rec.type ?? "unknown"),
       reason: NATIVE_RAW_REASONS[rec.type] ?? "统一 schema 尚无对应形状（上游可能新增了事件类型）",
-      raw: rec,
+      raw: sanitizeNativeRecord(rec, { mode: ctx.contentMode === "full" ? "full" : "digest" }),
     });
     stats.nativeRaw++;
   });

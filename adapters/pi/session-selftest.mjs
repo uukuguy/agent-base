@@ -94,3 +94,7 @@ if (failures) {
   process.exit(1);
 }
 console.log("✅ 会话续跑自检：全绿");
+// Pi's native runtime can leave parent-side stdio handles after the child has
+// exited.  The checks above are complete; terminate deterministically so CI
+// does not wait on runtime-owned handles.
+process.exit(0);

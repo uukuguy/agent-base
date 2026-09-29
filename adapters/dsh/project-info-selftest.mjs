@@ -151,3 +151,6 @@ if (failures) {
   process.exit(1);
 }
 console.log("✅ 本运行时 /project 自检：全绿");
+// dsh's native runtime can retain libuv watchers after its child session exits.
+// End the selftest explicitly so CI does not wait on runtime-owned handles.
+process.exit(0);

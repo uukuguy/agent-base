@@ -22,7 +22,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { DEFAULT_EXCLUDES, EXIT_CODES, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
+import { DEFAULT_EXCLUDES, EXIT_CODES, assertSafeOutputRoot, computeEffectiveConfigDigest, digestDirectory, parseArgs, sha256 } from "../../core/gates/index.mjs";
+import { digestManifest } from "../../core/image/manifest-integrity.mjs";
 import { PREINSTALL_PATH, loadPreinstall, resolveConnectors } from "../../core/image/resolve-preinstall.mjs";
 // Provider 目录的解析（可被部署层覆盖）—— 唯一实现，见 core/catalog/providers.mjs
 import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
@@ -141,7 +142,7 @@ function main() {
     process.exit(EXIT_CODES.static);
   }
 
-  const outRoot = path.resolve(outArg ?? path.join("dist", HARNESS, agent.name));
+  const outRoot = assertSafeOutputRoot(path.resolve(outArg ?? path.join("dist", HARNESS, agent.name)), { repoRoot: REPO });
   const agentOut = path.join(outRoot, "agent-dir");
   fs.rmSync(outRoot, { recursive: true, force: true });
   fs.mkdirSync(agentOut, { recursive: true });
@@ -561,6 +562,7 @@ function main() {
      * "运行时长什么样"是运行时专有知识，归适配器；启动脚本只做执行 ⇒ 加第三个运行时不必改它。
      */
     runtimePlan: {
+      configDir: "agent-dir",
       argvPrefix: [],   // 本 harness 的调用形态不含位置参数（只有选项）
       // 工具边界必须由**产物声明**、由启动期拼装：否则本地运行器传了、交付入口没传，
       // 就成了"文档说边界生效、容器里其实没生效"（实测踩过 —— 见路线图 D6）。
@@ -610,6 +612,7 @@ function main() {
     artifactsDigest,
     paramNames: runtimeParams.map((p) => p.name),
   });
+  manifest.manifestDigest = digestManifest(manifest);
   writeFile(path.join(outRoot, "render-manifest.json"), stableJson(manifest));
 
   const result = {

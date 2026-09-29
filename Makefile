@@ -19,7 +19,7 @@ JSON ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest local-packages-check capabilities-selftest bundles-selftest base-skills-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest local-packages-check capabilities-selftest bundles-selftest base-skills-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-staging-selftest dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -32,6 +32,18 @@ help: ## 列出可用命令
 # --- 闸门 1：静态校验（S0 已交付）------------------------------------------
 validate: ## 闸门 1：schema + 引用 + 凭据引用 + 命名 + 层纪律
 	@node tools/validate.mjs $(AGENT_DIR)
+
+hygiene-selftest: ## 凭据文件和标准测试入口自检
+	@node tools/hygiene-selftest.mjs
+
+child-env-selftest: ## 子进程环境 allowlist 和权限默认值自检
+	@node core/image/child-env-selftest.mjs
+
+sanitize-selftest: ## 轨迹原始事件脱敏自检
+	@node core/trace/sanitize-selftest.mjs
+
+manifest-integrity-selftest: ## 产物运行清单完整性自检
+	@node core/image/manifest-integrity-selftest.mjs
 
 base-skills-selftest: ## 基座技能自检（C4）：frontmatter · 实质内容 · 无占位字样 · 与预装条目一一对应 · 归属能力包
 	@node core/skills/selftest.mjs
@@ -126,6 +138,9 @@ probe-selftest: ## 闸门 3 钩子逐条自证自检（纯函数分支 + 真跑�
 dsh-capabilities-selftest: ## 能力通用桥自检（本侧）：清单读得到 · 假 ctx 注册名集合一致 · 真跑端点带着这两把工具
 	@node adapters/dsh/capabilities-selftest.mjs
 
+dsh-staging-selftest: ## 暂存根目录与 profile 配置目录的布局契约自检
+	@node adapters/dsh/staging-selftest.mjs
+
 dsh-project-info-selftest: ## 本运行时侧 /project 自检（同源逻辑 · hint 代补全 · 真产物渲染 · 真跑无导入失败）
 	@node adapters/dsh/project-info-selftest.mjs
 
@@ -154,7 +169,7 @@ smoke: ## 闸门 4：端到端冒烟（需 RENDER_DIR）
 	@node tools/smoke.mjs $(RENDER_DIR) $(if $(JSON),--json,) $(if $(ENDPOINT),--endpoint $(ENDPOINT),)
 
 regression: ## 收尾回归一条命令：镜像过期就先重建 → 全部自检 → 两侧 conformance → examples-check → selfcheck
-	@node tools/regression.mjs
+	@node tools/regression.mjs $(if $(FAST),--fast,) $(if $(JSON),--json,)
 
 verify: ## 四道闸门编排 → §6.7 报告 + usable（需 AGENT_DIR）
 	@node tools/verify.mjs $(AGENT_DIR) --harness $(HARNESS) $(if $(OUT),--out $(OUT),) $(if $(ENDPOINT),--endpoint $(ENDPOINT),) $(if $(JSON),--json,) $(if $(LIVE),--live,)

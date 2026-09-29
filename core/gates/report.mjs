@@ -113,7 +113,7 @@ export class GateReport {
   /** 跑过的闸门是否全部通过。空报告（没跑任何闸门）不算通过。 */
   get ok() {
     if (!this.gates.length) return false;
-    return this.gates.every((g) => g.checks.every((c) => c.status === STATUS.pass));
+    return this.gates.every((g) => Array.isArray(g.checks) && g.checks.length > 0 && g.checks.every((c) => c.status === STATUS.pass));
   }
 
   /** §6.8：可用 = 四道闸门全过。缺任何一道都只能说 ok，不能说 usable。 */

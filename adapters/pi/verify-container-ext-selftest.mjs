@@ -187,3 +187,4 @@ if (failures) {
   process.exit(1);
 }
 console.log("✅ /verify-container 命令自检：全绿");
+process.exit(0);

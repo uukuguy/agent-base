@@ -1,0 +1,112 @@
+name: production-acceptance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-acceptance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: static and policy checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run static and policy checks
+        run: |
+          make validate validate-selftest hygiene-selftest child-env-selftest sanitize-selftest manifest-integrity-selftest
+          node core/gates/output-path-selftest.mjs
+          node core/gates/report-selftest.mjs
+
+  production:
+    name: Docker production acceptance
+    runs-on: ubuntu-latest
+    needs: static
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install the pinned host runtimes and connectors
+        run: |
+          make dev-env
+          make local-packages
+          make local-packages-lock
+          make local-packages-check
+
+      # make regression builds and runs both linux/amd64 and linux/arm64.
+      # QEMU is needed for the non-native architecture on the hosted x86 runner.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Confirm Docker and loopback prerequisites
+        run: |
+          docker version
+          docker info
+          node --input-type=module - <<'NODE'
+          import net from "node:net";
+          const server = net.createServer();
+          server.listen(0, "127.0.0.1", () => {
+            console.log(`loopback=${server.address().address}:${server.address().port}`);
+            server.close();
+          });
+          server.on("error", (error) => {
+            console.error(`loopback unavailable: ${error.message}`);
+            process.exitCode = 1;
+          });
+          NODE
+
+      - name: Build both production and debug image variants
+        run: node core/image/build.mjs --all --debug
+
+      - name: Build the multi-architecture OCI manifest
+        run: node core/image/build.mjs --manifest
+
+      - name: Run complete production regression
+        run: |
+          mkdir -p ci-artifacts
+          node tools/regression.mjs --json > ci-artifacts/regression.json
+
+      - name: Upload structured acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-acceptance-${{ github.sha }}
+          path: ci-artifacts/
+          if-no-files-found: warn
+          retention-days: 14

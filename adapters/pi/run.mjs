@@ -19,6 +19,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { computeEffectiveConfigDigest } from "../../core/gates/index.mjs";
+import { buildChildEnv, declaredRuntimeValues } from "../../core/image/child-env.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** 启动期准备脚本：宿主侧与容器内**共用同一份**暂存/渲染实现。 */
@@ -54,20 +55,21 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-run-"));
 
   // 端点由调用方给（探针/冒烟指向零凭据假网关）；其余参数走环境变量或清单里的默认值
-  const env = { ...process.env, ...extraEnv };
+  const envValues = { ...declaredRuntimeValues(manifest), ...extraEnv };
   const endpointParam = (manifest.runtimeParams ?? []).find((p) => p.backs === "model.provider" && !p.secret);
-  if (endpoint && endpointParam) env[endpointParam.name] = endpoint;
+  if (endpoint && endpointParam) envValues[endpointParam.name] = endpoint;
 
   // **零凭据模式**（自证 / 探针 / 冒烟）：用假值把必填项补齐，使这些检查不需要任何真密钥。
   // 必须是**显式**的：真实运行（run-local）不许静默用占位凭据 —— 那会跑出一个"看起来正常、
   // 其实连不上"的结果，正是本项目一直在治的那种静默失败。
   if (zeroCredential) {
     for (const p of manifest.runtimeParams ?? []) {
-      if (env[p.name]) continue;
-      if (p.secret) env[p.name] = "placeholder-not-a-credential";
-      else if (p.required && p.backs === "model.provider" && !env[p.name]) env[p.name] = "http://127.0.0.1:9/v1";
-    }
+      if (envValues[p.name]) continue;
+      if (p.secret) envValues[p.name] = "placeholder-not-a-credential";
+      else if (p.required && p.backs === "model.provider" && !envValues[p.name]) envValues[p.name] = "http://127.0.0.1:9/v1";
   }
+  }
+  const env = buildChildEnv({ values: envValues });
 
   const r = spawnSync(process.execPath, [STARTUP, "prepare", "--artifact", renderDir, "--run-dir", runDir, "--json"],
     { encoding: "utf8", env });
@@ -75,15 +77,14 @@ export function stageRenderDir(renderDir, endpoint, { zeroCredential = false, en
   const prep = JSON.parse(r.stdout);
 
   // staging = 本运行时实际读取配置的那个目录（由产物的运行期布局契约决定，不在这里猜）
-  const stagingRel = Object.values(prep.env ?? {})[0];
-  const staging = stagingRel ?? runDir;
+  const staging = prep.configDir ?? runDir;
 
   // 把登录态文件带进暂存副本（**只在这个显式前提下**：产物是只读的，凭据永远不写进产物）
   if (home) {
     const credentialFile = ADAPTER_CREDENTIAL_FILE;   // 由适配器声明；没有就是不支持带登录态
     const src = credentialFile ? path.join(home, credentialFile) : null;
     if (!src) {
-      throw new Error(`${HARNESS_NAME} 未声明 credentialFile，无法从 AGENT_HARNESS_HOME 带登录态`);
+      throw new Error(`${HARNESS} 未声明 credentialFile，无法从 AGENT_HARNESS_HOME 带登录态`);
     }
     if (!fs.existsSync(src)) {
       throw new Error(`AGENT_HARNESS_HOME=${home} 里没有 ${credentialFile} —— 请先在该目录登录一次`);
@@ -182,16 +183,15 @@ export async function runAgent({
   const traceFile = trace ? path.join(fs.mkdtempSync(path.join(os.tmpdir(), "agent-trace-")), "trace.jsonl") : null;
 
   const manifest = JSON.parse(fs.readFileSync(path.join(renderDir, "render-manifest.json"), "utf8"));
-  const env = {
-    ...process.env,
-    ...extraEnv,          // 调用方注入的运行期参数（本地便利开关等）
-    ...localBinPathEnv(),
-    HOME: home,
-    PI_CODING_AGENT_DIR: staging,
-    PI_OFFLINE: "1",
-    AGENT_NAME: manifest.agent ?? null,
-    AGENT_RUN_MODE: runMode,
-    AGENT_TRACE_CONTENT: contentMode,
+  const env = buildChildEnv({
+    values: {
+      ...extraEnv,
+      HOME: home,
+      PI_CODING_AGENT_DIR: staging,
+      PI_OFFLINE: "1",
+      AGENT_NAME: manifest.agent ?? null,
+      AGENT_RUN_MODE: runMode,
+      AGENT_TRACE_CONTENT: contentMode,
     // 包组合（L4）：**解析后的**激活集合与可用集合要进子进程 —— 轨迹（run.meta.bundles）与
     // 运行期都用它，免得各处再解释一遍 `AGENT_BUNDLES`（两处解释必然漂移）。
     ...(stagedEnv?.AGENT_BUNDLES_ACTIVE !== undefined ? { AGENT_BUNDLES_ACTIVE: stagedEnv.AGENT_BUNDLES_ACTIVE } : {}),
@@ -201,8 +201,10 @@ export async function runAgent({
     ...(sessionId ? { AGENT_SESSION_ID: sessionId } : {}),
     ...(continueSession ? { AGENT_RESUMED: "1" } : {}),
     ...(manifest.modelProviders?.[0] ? { AGENT_MODEL_ROUTE: manifest.modelProviders[0] } : {}),
-    ...(traceFile ? { AGENT_TRACE_DEST: traceFile } : {}),
-  };
+      ...(traceFile ? { AGENT_TRACE_DEST: traceFile } : {}),
+    },
+    platform: localBinPathEnv(),
+  });
 
   const args = ["--mode", "json", "-p", prompt, "--no-skills"];
   // 会话：给目录才落盘；给 id 才可复现；续跑加 --continue（三者都由调用方决定，基座不猜）
@@ -235,6 +237,14 @@ export async function runAgent({
     child.kill("SIGTERM");
     await new Promise((r) => setTimeout(r, 400));
   }
+
+  // The harness can exit before Node observes every stdio close event.  Release
+  // the parent-side pipes explicitly so repeated selftests do not leave a live
+  // libuv handle behind after the child has already terminated.
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+  child.stdin?.destroy();
+  child.unref?.();
 
   // 运行时把会话身份作为**第一行**输出（`{"type":"session","id":…}`）—— 这是"事实"来源。
   // 核验：给了期望 id（基座持有）就对一下；不一致 = 续跑接错了会话，**响亮失败**（不许静默）。
@@ -280,6 +290,10 @@ export function piRpc({ env, cwd, staging, requests, timeoutMs = 20000, untilMes
     const want = new Set(requests.map((r) => r.type));
     const done = () => {
       try { proc.kill("SIGKILL"); } catch { /* 已退出 */ }
+      proc.stdout?.destroy();
+      proc.stderr?.destroy();
+      proc.stdin?.destroy();
+      proc.unref?.();
       resolve({ responses, messages, stderr, complete: [...want].every((t) => responses.has(t)) });
     };
     const timer = setTimeout(done, timeoutMs);
@@ -337,7 +351,10 @@ export async function observeLoaded(renderDir, { timeoutMs = 20000 } = {}) {
   const { staging } = stageRenderDir(renderDir, "http://127.0.0.1:9/v1"); // 端点无关紧要：RPC 不发模型请求
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "agent-obshome-"));
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agent-obscwd-"));
-  const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: staging, PI_OFFLINE: "1", ...localBinPathEnv() };
+  const env = buildChildEnv({
+    values: { HOME: home, PI_CODING_AGENT_DIR: staging, PI_OFFLINE: "1" },
+    platform: localBinPathEnv(),
+  });
   const rpc = await piRpc({ env, cwd, staging, requests: [{ id: "o1", type: "get_state" }, { id: "o2", type: "get_commands" }], timeoutMs });
   const commands = rpc.responses.get("get_commands")?.data?.commands ?? [];
   return {

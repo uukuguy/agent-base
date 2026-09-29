@@ -186,3 +186,4 @@ if (failures) {
   process.exit(1);
 }
 console.log("✅ 能力通用桥自检（本运行时）：全绿");
+process.exit(0);

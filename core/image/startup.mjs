@@ -35,6 +35,9 @@ import YAML from "yaml";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { buildChildEnv } from "./child-env.mjs";
+import { verifyManifest } from "./manifest-integrity.mjs";
+import { crashTail } from "../trace/sanitize.mjs";
 
 // 能力包（L4/B1）：运行期的**选择**在这一层校验与解析（选择型参数，与环境型分开记账）
 import { BUNDLES_ENV, availableIds, bundleDigest, defaultSelection, loadBundles, parseSelection } from "../bundles/index.mjs";
@@ -62,6 +65,13 @@ function parseArgs(argv) {
 }
 
 const mask = (v) => (v === undefined || v === null || v === "" ? "(空)" : "***");
+
+function validateRelativePath(value, label) {
+  if (value === null || value === undefined) return;
+  if (typeof value !== "string" || path.isAbsolute(value) || value.split(/[\\/]+/).includes("..")) {
+    die(`${label} 必须是安全的相对路径：${String(value)}`);
+  }
+}
 
 // --------------------------------------------------------------------------
 // ① 参数解析：环境变量 → `…_FILE` 指向的文件 → 清单里的默认值 → 失败
@@ -336,8 +346,16 @@ function prepare({ artifact, runDir }) {
   if (!fs.existsSync(artifact)) die(`找不到产物目录：${artifact}`);
   const manifestFile = path.join(artifact, "render-manifest.json");
   if (!fs.existsSync(manifestFile)) die(`找不到产物清单：${manifestFile}（产物不完整？）`);
-  const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+  let manifest;
+  try { manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8")); }
+  catch (error) { die(`产物清单不是合法 JSON：${error.message}`); }
+  const integrity = verifyManifest(manifest);
+  if (!integrity.ok) die(`产物清单完整性校验失败：${integrity.reason}（请重新渲染，不使用被篡改的运行计划）`);
   const plan = manifest.runtimePlan ?? {};
+  validateRelativePath(plan.configDir, "runtimePlan.configDir");
+  for (const rel of plan.copy ?? []) validateRelativePath(rel, "runtimePlan.copy");
+  for (const rel of Object.values(plan.env ?? {})) validateRelativePath(rel, "runtimePlan.env");
+  validateRelativePath(plan.cwd, "runtimePlan.cwd");
 
   const { declared, resolved, problems } = resolveParams(manifest);
   if (problems.length) {
@@ -398,14 +416,14 @@ function prepare({ artifact, runDir }) {
     // 放在启动期（而不是渲染期）有三个好处：产物保持可搬、本地与容器同一条路径、只有一处实现。
     const selfConnectors = (() => {
       const surface = manifest.connectorSurface;
-      if (!surface || !surface.path) return { resolved: [] };
+      if (!surface || surface.kind !== "json-mcp-servers" || !surface.path) return { resolved: [] };
       const file = path.join(effectiveRunDir, surface.path);
       if (!fs.existsSync(file)) return { resolved: [] };
       let doc;
-      try { doc = JSON.parse(fs.readFileSync(file, "utf8")); } catch { return { resolved: [] }; }
+      try { doc = JSON.parse(fs.readFileSync(file, "utf8")); }
+      catch (error) { die(`连接器清单 ${surface.path} 不是合法 JSON：${error.message}`); }
       const servers = doc && typeof doc.mcpServers === "object" && doc.mcpServers ? doc.mcpServers : {};
-      const layoutRels = Object.values(plan.env ?? {});
-      const stagingRoot = layoutRels.length ? path.join(effectiveRunDir, layoutRels[0]) : effectiveRunDir;
+      const stagingRoot = plan.configDir ? path.join(effectiveRunDir, plan.configDir) : effectiveRunDir;
       const resolved = [];
       let changed = false;
       const absolutize = (value) => {
@@ -508,7 +526,7 @@ function prepare({ artifact, runDir }) {
   // 接入缝：上层镜像带进来的业务代码与钩子（**只改暂存副本**；产物仍然只读）。
   // 落点是**该运行时的配置目录** —— 它由 runtimePlan 的 env 声明（例如某运行时是 `<运行目录>/agent-dir`），
   // 不是运行目录根。写错根目录的表现是"overlay 生效了但产物里找不到 enhancements.yaml"。
-  const stagingRel = Object.values(plan.env ?? {})[0] ?? null;
+  const stagingRel = plan.configDir ?? null;
   const stagingDir = stagingRel ? path.join(effectiveRunDir, stagingRel) : effectiveRunDir;
   const overlay = applyOverlay(stagingDir, manifest.harness, process.env.AGENT_OVERLAY_DIR ?? "/opt/agent-base/overlay", manifest.hookEvents ?? null);
 
@@ -524,6 +542,7 @@ function prepare({ artifact, runDir }) {
   return {
     manifest,
     plan,
+    configDir: stagingDir,
     declared,
     resolved,
     values,
@@ -579,6 +598,7 @@ function jsonOut(r) {
   return JSON.stringify({
     agent: r.manifest.agent, harness: r.manifest.harness,
     runDir: r.runDir, cwd: r.cwd, env: r.env,
+    configDir: r.configDir,
     copied: r.copied, rendered: r.rendered,
     // 接入缝是否生效（上层镜像带的业务代码/钩子）：让日志与自检看得见，而不是"悄悄合了"
     ...(r.overlay ? { overlay: r.overlay } : {}),
@@ -633,9 +653,13 @@ if (sub === "run") {
 
   // 运行期参数必须进子进程环境：`…_FILE` 形式的凭据要在这里变成真值，
   // 否则原生走 `process.env` 插值的运行时会读到空（"配了没生效"的经典形态）。
-  const env = { ...process.env, ...r.env };
-  for (const [k, v] of Object.entries(r.values)) env[k] = v;
-  if (r.effectiveConfigDigest && !env.AGENT_EFFECTIVE_CONFIG_DIGEST) env.AGENT_EFFECTIVE_CONFIG_DIGEST = r.effectiveConfigDigest;
+  const env = buildChildEnv({
+    values: {
+      ...r.env,
+      ...r.values,
+      ...(r.effectiveConfigDigest ? { AGENT_EFFECTIVE_CONFIG_DIGEST: r.effectiveConfigDigest } : {}),
+    },
+  });
 
   // 为什么是 spawn 而不是 execve：**退出码契约要求"崩溃留证据"**（§6.7 / C10）——
   // 被信号杀掉（≥128）要映射成退出码 50，并把轨迹末 N 行 + 生效配置摘要打到 stderr。
@@ -670,7 +694,8 @@ if (sub === "run") {
       `  effectiveConfigDigest=${r.effectiveConfigDigest ?? "（未设置）"}\n`);
     if (trace && fs.existsSync(trace)) {
       const lines = fs.readFileSync(trace, "utf8").split("\n").filter(Boolean);
-      process.stderr.write(`  轨迹末 ${tail} 行（${trace}）：\n${lines.slice(-tail).join("\n")}\n`);
+      const records = lines.map((line) => { try { return JSON.parse(line); } catch { return { type: "invalid-json" }; } });
+      process.stderr.write(`  轨迹末 ${tail} 行（${trace}，已脱敏）：\n${crashTail(records, { lines: tail })}\n`);
     } else {
       process.stderr.write("  （没有轨迹文件：AGENT_TRACE_DEST 未设置或未产出）\n");
     }

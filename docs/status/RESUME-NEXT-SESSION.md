@@ -1,19 +1,19 @@
-# Next-Session Handoff
+# Recovered Session Checkpoint
 
-> Updated: 2026-09-30 02:40 end of session.
+> Updated: 2026-09-30. 本文件由本轮实现更新；本地 OrbStack 完整回归已全绿，生产 Docker 验收仍需在 CI runner 留存证据。
 
 ## TL;DR
 
 1. **L4 能力包整条闭合**（`B1 → C4 → B2 → C3 → C5` 全做完）：包定义 → 运行期选择（写错包名启动即响亮失败）→ **激活真的生效**（未激活包的连接器/技能/插件从暂存产物里摘除）→ 期望集合 = 声明 ∩ 当前启用 → 证据自带组合 → 发现面 `/project bundles` → 内容（3 个编码技能）→ 默认（新智能体开箱就能编码）→ 插件类目。
 2. **另收口三件**：**Q4** 本地预装镜像有锁（按同一份锁装入 + 可复算指纹 + 回归里的检查）；**另一侧两条能力包豁免实测推翻后删除**（原写「重写会破坏 `!!js`」不成立）；**候选运行时容器内起不来**已修（根因：它的原生加载器把 `.node` 复制到 `$TMPDIR`（tmpfs）再 `require` ⇒ `failed to map segment`；修法 = 该适配器设 `NARB_DISABLE_NATIVE_CACHE=1` 就地加载）。
 3. **一条设计边界已定**（用户口径 ⇒ `DECISIONS.md` 2026-09-28）：**运行环境与开发环境是两套，不提供「会话内即时改代码」**；改完**重启即生效**（实测 `run-local` 会**自动重渲染**）。据此 **C7 关闭**、**开发容器工作线 W1–W4 降级**。
-4. **无进行中的包**。若要继续，优先 **E10**（另一侧事件集合穷举）或 **C8**（另一侧 coding 包插件内容）。
+4. **本轮新增加固和 CI 验收路径**：环境 allowlist、trace 脱敏、manifest 完整性、验证 fail-closed、凭据 hygiene，以及 Docker/QEMU/回环网络生产验收工作流。
 
 ## Where things stand
 
-- **最新实测**：`make regression` **37 项全绿** · 闸门 1 **34 项（带定义 51）** · 两侧 conformance **10/10** · **两侧**加固容器内自证通过（`verify-container --no-cache`，含开 `coding`）· 三个示例容器内自证通过
+- **本轮最新实测**：OrbStack 上四个镜像变体已按源码指纹重建，OCI manifest 已重新落盘；`node tools/regression.mjs --json` 退出码 0，Pi/DSH C1–C10 全过，失败与跳过均为空。生产验收仍需在 CI runner 运行同一工作流并上传证据。
 - 规模：`core/` 125 文件 · `adapters/` 46 · `tools/` 36 · Makefile **66 目标**（**28 个自检**）· 编号文档 16 篇
-- 工作树**干净**；本弧 **20 个提交**全部在本地（**未配远端**，无推送概念）
+- 工作树包含本轮加固、评审文档、计划文档和 CI 工作流改动；尚未提交。本弧 **20 个历史提交**全部在本地（**未配远端**，无推送概念）
 - 状态文件：`CURRENT-STATE.md` 已按真相刷新（结构快照）；本文件即交接；`JOURNAL.md` 只追加
 
 ## What this session delivered
@@ -31,9 +31,9 @@
 
 ## Next steps (immediate, action-level)
 
-1. **E10 · 另一侧事件集合穷举**：把该运行时可订阅的事件名补全（**从运行时代码/实测取名字，不许猜**），填进 `adapters/dsh/adapter.yaml` 的 `hookEvents`（去掉 `enumerated: false`）⇒ 那边写钩子也能被名字层面的判据拦住。入口：`grep -n "hookEvents" adapters/dsh/adapter.yaml`、`make dsh-approval-probe`
-2. **C8 · 另一侧 `coding` 包的插件内容**：换成一个在该侧无头用法下真的有用的插件，并实测「它真的进了会话」（闸门 2 启动自证 + 工具/命令名单）
-3. 或者**停在这里**：L1–L5 + 三轮走查 + 全部已知留白闭合，可作交付点
+1. 在具备 Docker 和回环网络的 Linux CI runner 触发 `.github/workflows/production-acceptance.yml`，确认 `node tools/regression.mjs --json` 退出码为 0，并保存上传的 `regression.json`。
+2. 运营侧轮换已暴露的 API Key，并决定是否清理 Git 历史；本轮只移除了工作树 `.env`，没有伪装成历史清理完成。
+3. 后续再处理 E10（另一侧事件集合穷举）或 C8（另一侧 coding 包插件内容）。
 
 ## Don't go down these paths again (ruled out)
 
@@ -49,8 +49,11 @@
 ## Ready-to-paste commands / configs
 
 ```bash
-# 收尾三连（本轮每次都用）
-make regression                                          # 37 项（含两侧 conformance）
+# 收尾三连（生产验收需要 Docker + 回环网络）
+make regression FAST=1                                  # 宿主快检；重项明确跳过，不等于生产通过
+node core/image/build.mjs --all --debug
+node core/image/build.mjs --manifest
+node tools/regression.mjs --json
 node conformance/run.mjs --harness pi                    # 或 dsh
 node tools/verify-container.mjs examples/idea-to-proof --harness pi --no-cache
 

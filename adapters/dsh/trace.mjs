@@ -24,6 +24,7 @@
 // ============================================================================
 
 import { digestOf } from "../../core/trace/emit.mjs";
+import { sanitizeNativeRecord } from "../../core/trace/sanitize.mjs";
 
 /** `native.raw` 的 reason 必须自足：读的人只看这一条也要明白为什么没映射。 */
 const RAW_REASONS = {
@@ -108,11 +109,11 @@ export function mapEventStream(records, ctx, opts = {}) {
       case "status":
       case "text":
       case "final":
-        done({ ...base(r, i), type: "native.raw", nativeType: String(r.type), reason: RAW_REASONS[r.type], raw: r });
+        done({ ...base(r, i), type: "native.raw", nativeType: String(r.type), reason: RAW_REASONS[r.type], raw: sanitizeNativeRecord(r, { mode: ctx.contentMode === "full" ? "full" : "digest" }) });
         return;
 
       default:
-        done({ ...base(r, i), type: "native.raw", nativeType: String(r?.type ?? "unknown"), reason: RAW_REASONS.unknown, raw: r });
+        done({ ...base(r, i), type: "native.raw", nativeType: String(r?.type ?? "unknown"), reason: RAW_REASONS.unknown, raw: sanitizeNativeRecord(r, { mode: ctx.contentMode === "full" ? "full" : "digest" }) });
     }
   });
 

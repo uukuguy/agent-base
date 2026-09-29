@@ -218,3 +218,6 @@ if (failures) {
   process.exit(1);
 }
 console.log("✅ 能力通用桥自检：全绿");
+// The native runtime may retain stdio handles after its child session exits.
+// End the selftest explicitly once all assertions have completed.
+process.exit(0);

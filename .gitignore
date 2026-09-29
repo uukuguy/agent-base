@@ -5,6 +5,13 @@ dist/
 **/.render/
 *.log
 
+# 本地凭据（禁止进入工作树提交）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
 # 系统与编辑器
 .DS_Store
 .idea/
