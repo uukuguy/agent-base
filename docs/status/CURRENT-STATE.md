@@ -108,7 +108,7 @@
 - **镜像未推任何 registry**：多架构归档可落盘；推送路径仍待确认（I2 已答"仅运行期无外网"）
 - **预装清单未定稿**：`core/image/preinstall.yaml` 有候选与 npm 存活表，"预装哪些进镜像"待定；本地对应物 `.local-packages` 现在**从同一份锁装入并有可复算指纹**（`.local-packages.lock.json`，含"锁变了而镜像没重刷"检测）
 - **上游版本漂移**：dsh `0.1.7-rc.1` 为预发布、pi 迭代快；pin 之外的回归网已建立（两侧 conformance 均生效）
-- **候选运行时在容器内起不来**（已声明，2026-09-28 实测）：镜像里缺它的 Linux 版原生插件二进制（`require_builtin.node`）⇒ 该侧探针/冒烟在容器内必然失败；`core/env/parity.mjs` 的 `GATE_DIFFERENCE_CLASS` 已登记，归因给出「已声明差异」而不是「未声明」。**影响口径："容器内可用"这条结论目前只对主运行时成立**
+- ~~候选运行时在容器内起不来~~ ⇒ **已修**（2026-09-28）：根因实测是它的原生加载器默认把 `.node` 复制到 `$TMPDIR/.../native-cache/` 再 `require`，加固容器里 `/tmp` 是 tmpfs ⇒ `failed to map segment from shared object`。修法是**让该适配器设 `NARB_DISABLE_NATIVE_CACHE=1`（就地加载）**，于是从镜像的普通文件系统映射。**两侧现在都能在加固容器内自证**（`verify-container` 实测通过，含开 `coding` 包）；此前那条「已声明差异」已从 `core/env/parity.mjs` **撤掉**（实测推翻就改声明）
 - ~~`CLAUDE.md` 尚未创建~~ ⇒ **已创建**（2026-09-27）：新会话入口，含"这是什么/怎么验/纪律/状态在哪/已知的坑"
 
 ## Key Files

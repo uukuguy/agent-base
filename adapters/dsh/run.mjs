@@ -121,6 +121,14 @@ export function envFor({ manifest, dshHome, endpoint, home, traceDest, bundles =
     HOME: home,
     DSH_HOME: dshHome,
     AGENT_RUN_MODE: process.env.AGENT_RUN_MODE ?? "oneshot",
+    // 原生二进制**就地加载**，不往缓存目录复制。
+    // 为什么（2026-09-28 实测，容器内）：该运行时的原生加载器默认把 `.node` 复制到
+    // `$TMPDIR/node-addon-native-custom-loader-<uid>/native-cache/...` 再 require；加固容器里
+    // `/tmp` 是 tmpfs，复制后 `require` 报 **failed to map segment from shared object**（从 tmpfs 映射失败），
+    // 于是启动期 "host preparation failed: No usable native binding" ⇒ 容器内根本起不来
+    // （可写根的对照实验中同一份产物正常 ⇒ 与只读根/tmpfs 相关）。
+    // 就地加载则从镜像的普通文件系统映射 ✓；本地（可写）也不受影响。
+    NARB_DISABLE_NATIVE_CACHE: "1",
     // 包组合（L4）：解析后的激活集合也要进子进程（轨迹 run.meta.bundles 用它）。
     // ⚠️ 从**参数**进（本函数是辅助函数，看不到 runAgent 里的 stagedEnv —— 我第一版直接引用它，
     // 结果是 dsh 侧一跑就 ReferenceError；自检当场抓到）。

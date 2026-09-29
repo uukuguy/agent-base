@@ -47,23 +47,6 @@ export const DIFFERENCE_CLASSES = [
     why: "宿主是 macOS 构建的原生模块，进 Linux 容器会炸 ⇒ 容器用镜像自带的依赖",
     precheckable: false,
   },
-  // ⑤ 候选运行时在容器内跑不起来：镜像里那份缺 **Linux 版原生插件二进制**
-  //
-  // 实测（2026-09-28，业务方/文档走查顺带撞到，容器内直接调用该运行时）：
-  //   容器内报 `Cannot find module .../node-addon-require-builtin/build/napi/napi-v9-linux-arm64-gnu/require_builtin.node`
-  //   ⇒ 它在**容器里根本起不来**，于是该侧的闸门 3/4 在容器内无法成立（本地正常，实测 tools=19）。
-  //
-  // **对照实验**：把能力包选择换成"不摘任何内容"，容器内**同样** tools=0 ⇒
-  //   与本轮的能力包改动无关，是一处**既有的**未声明差异（此前从没在容器里真跑过这一侧的智能体）。
-  //
-  // 影响与结论口径：**"容器内可用"这条结论目前只对主运行时成立**；候选运行时容器内的结论**未验**。
-  // 解除条件：镜像里把该原生的 Linux 版装齐（构建期按容器平台装/重建），并让容器内的探针/冒烟通过。
-  {
-    id: "candidate-runtime-native-addon-missing",
-    label: "候选运行时在容器内缺 Linux 版原生插件二进制（起不来）",
-    why: "镜像是 Linux、安装时随包带的原生二进制没有对应 Linux 变体 ⇒ 容器内该运行时无法启动；本地（macOS）正常",
-    precheckable: false,
-  },
 ];
 
 export const DECLARED_IDS = DIFFERENCE_CLASSES.map((c) => c.id);
@@ -71,18 +54,17 @@ export const DECLARED_IDS = DIFFERENCE_CLASSES.map((c) => c.id);
 /**
  * 闸门 → 已声明差异类（供失败归因用，见 `core/verify/attribution.mjs`）。
  *
- * **现在有一条**：候选运行时的原生二进制缺失 ⇒ 该侧闸门 3/4 在容器内必然失败
- * （已声明为 `candidate-runtime-native-addon-missing`；主运行时不适用）。
- * 除此之外仍为空 —— 空缺意味着"容器挂、本地过"时归因会落到 `unknown` 并**响亮上报**，
+ * **现在显式为空**（2026-09-28）：曾经短暂登记过一条「候选运行时的原生二进制在容器内不可用」，
+ * 根因与修法都实测清楚了 ⇒ **修掉、撤声明**（纪律 7：实测推翻就改声明）：
+ *   根因 = 该运行时的原生加载器默认把 `.node` 复制到 `$TMPDIR/.../native-cache/` 再 `require`；
+ *          加固容器里 `/tmp` 是 tmpfs，复制后映射失败（`failed to map segment from shared object`）。
+ *   修法 = 让**该适配器**设 `NARB_DISABLE_NATIVE_CACHE=1`（就地加载，从镜像的普通文件系统映射）。
+ * 空缺意味着"容器挂、本地过"时归因会落到 `unknown` 并**响亮上报**，
  * 而不是被一句含糊的"环境差异"糊过去。
  * 这一点很重要 —— 空缺意味着"容器挂、本地过"时归因会落到 `unknown` 并**响亮上报**，
  * 而不是被一句含糊的"环境差异"糊过去。等真遇到并搞清楚了，就在**这里**登记它和理由。
  */
-export const GATE_DIFFERENCE_CLASS = {
-  // 候选运行时的探针/冒烟在容器内必然失败：它起不来（缺 Linux 版原生二进制）
-  probes: "candidate-runtime-native-addon-missing",
-  smoke: "candidate-runtime-native-addon-missing",
-};
+export const GATE_DIFFERENCE_CLASS = {};
 
 /**
  * 把"发现"归类成 已声明 / 未声明。
