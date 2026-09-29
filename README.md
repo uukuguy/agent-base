@@ -1,22 +1,22 @@
 # agent-base
 
-**Build an AI agent once, run it the same way locally, in CI, and in Docker.**
+**Turn a folder of agent instructions and tools into a tested Docker image.**
 
 [中文说明](README.zh-CN.md)
 
 ## What is agent-base?
 
-`agent-base` is a toolkit and base Docker image for teams that build AI agents.
+`agent-base` is the build and test kit for an AI agent project.
 
-You describe an agent in a small folder: its instructions, model settings, tools, connectors, and skills. `agent-base` supplies the commands and runtime adapters around that folder:
+You put an agent's instructions, model settings, tools, connectors, and skills in a folder. This repository gives you commands to:
 
 1. check that the definition is valid;
-2. turn it into the files a runtime needs;
-3. run it against a fake gateway or a real endpoint;
+2. prepare the files needed by the program that runs it;
+3. run it against the built-in test gateway or a real model endpoint;
 4. test that the declared tools and permissions actually work;
-5. package the same definition as a Docker/OCI image for CI or deployment.
+5. package the same definition as a Docker image (OCI format) for CI or deployment.
 
-The goal is simple: the agent you tested on a laptop should be the agent you test and ship in a container.
+The goal is simple: the agent you test on your laptop is the same agent you test and ship in a container.
 
 `agent-base` is **not** a model, a hosted chatbot, an API gateway, or a multi-tenant application. It is the build, run, and verification layer for those applications.
 
@@ -25,10 +25,10 @@ The goal is simple: the agent you tested on a laptop should be the agent you tes
 Use it when you need to:
 
 - build several agents from a consistent project layout;
-- keep an agent definition separate from the runtime that executes it;
+- keep the agent's files separate from the program that executes them;
 - run the same agent locally and in a restricted container;
 - catch missing tools, wrong permissions, broken connectors, and leaked credentials before release;
-- compare two supported runtimes without pretending they behave identically.
+- compare the two supported execution programs when you need to check compatibility.
 
 If you only need to call a model from a short script, this repository is probably more than you need.
 
@@ -50,7 +50,7 @@ agent.yaml + connectors + skills
        Docker image + CI    Rebuild and verify the same artifact before release
 ```
 
-The checks are deliberately separate. A process starting is not enough: the checks also inspect what was loaded, which tools are available, whether the runtime can reach the expected gateway, and whether the final request produces a usable report and trace.
+The checks are deliberately separate. A process starting is not enough: they also inspect what was loaded, which tools are available, whether the execution program can reach the expected gateway, and whether the final request produces a usable report and trace.
 
 ## Quick start
 
@@ -96,9 +96,9 @@ make run-local \
 
 `make verify` runs four checks:
 
-1. **Validate** — the definition, references, capabilities, and parameter layers are valid.
-2. **Doctor** — the runtime reports what the rendered agent actually contains.
-3. **Probe** — the runtime starts and reaches the zero-credential fake gateway.
+1. **Validate** — the agent files, references, tools, and settings are valid.
+2. **Doctor** — the execution program reports what the prepared agent actually contains.
+3. **Probe** — the execution program starts and reaches the built-in test gateway without a provider key.
 4. **Smoke** — one end-to-end request produces a report and trace.
 
 For release acceptance, build both image architectures and run the complete regression:
@@ -111,34 +111,36 @@ node tools/regression.mjs --json
 
 A complete acceptance run must exit with `0`, `failed: []`, and `skipped: []`. `npm test` is intentionally faster and does not replace this command.
 
-## Supported runtimes
+## The two programs that can run an agent
 
-A runtime is the program that reads the rendered agent and talks to the model. This repository currently pins two:
+The files in an agent project are not a model or a command-line program by themselves. They are read by an execution program, which loads the instructions and tools and then talks to the model. `agent-base` currently supports two such programs:
 
-| Runtime | Package | Why it is here |
+Most users should start with **Pi**. Choose **DSH** when you specifically need its DeepSeek command-line or MCP behavior. You do not need to understand either program before using the basic `make validate`, `make verify`, and `make run-local` workflow.
+
+| Program | Package | Use it when |
 |---|---|---|
-| **Pi** | `@earendil-works/pi-coding-agent@0.87.1` | Main runtime and first verification path |
-| **DSH** | `@deepseek-ai/dsh@0.1.7-rc.1` | Second runtime used to test compatibility and differences |
+| **Pi** | `@earendil-works/pi-coding-agent@0.87.1` | You want the default path |
+| **DSH** | `@deepseek-ai/dsh@0.1.7-rc.1` | You need the DeepSeek CLI/MCP path |
 
-Both runtimes go through the same C1–C10 conformance checks. Runtime-specific code stays under `adapters/`; the shared validation, trace, gate, and image code stays under `core/`.
+Both programs are checked against the same C1–C10 behavior checklist. Their integration code stays under `adapters/`; the shared checking and image code stays under `core/`.
 
 ## How the pieces fit
 
 ```mermaid
 flowchart LR
   A[Agent project\nagent.yaml, connectors, skills] --> B[Validate]
-  B --> C[Adapter\nPi or DSH]
-  C --> D[Render and run]
+  B --> C[Choose Pi or DSH]
+  C --> D[Prepare and run]
   D --> E[Verify\nprobe + smoke]
-  E --> F[Docker/OCI image]
+  E --> F[Docker image]
   G[Endpoint, model, credentials] --> D
 ```
 
-The agent project contains intent. The adapter translates that intent for one runtime. The verification gates test the result. The image packages the result without copying host credentials into it.
+The agent project contains the instructions and tool choices. Pi or DSH reads those files and talks to the model. The checks test the result. The image packages the result without copying host credentials into it.
 
 ## Repository map
 
-- `core/` — runtime-neutral schemas, gates, traces, image startup, and security checks.
+- `core/` — shared schemas, checks, traces, image startup, and security checks.
 - `adapters/` — the Pi and DSH integrations.
 - `template/` — the starting layout for a new agent project.
 - `examples/` — complete agent definitions you can inspect and run.
@@ -149,8 +151,8 @@ Read [`AGENTS.md`](AGENTS.md) before changing the repository. Start with [`docs/
 
 ## Security and deployment notes
 
-- Build steps may download pinned dependencies; runtime checks support offline execution.
-- Runtime values such as endpoint, model, and credentials are passed at run time and are not baked into the image.
+- Build steps may download pinned dependencies; execution checks support offline operation.
+- Endpoint, model, and credentials are passed when the agent runs and are not baked into the image.
 - Child processes receive an explicit environment allowlist.
 - Images run as an unprivileged user. Container verification uses a read-only root, dropped capabilities, and an explicit temporary filesystem.
 - The fake gateway lets CI exercise the full flow without a provider key.
@@ -160,7 +162,7 @@ Read [`AGENTS.md`](AGENTS.md) before changing the repository. Start with [`docs/
 
 `.github/workflows/production-acceptance.yml` runs the checks that require a real Linux runner: Docker, loopback networking, QEMU, both image architectures, the OCI manifest, and the complete regression. It uploads the structured regression report as a workflow artifact.
 
-The local OrbStack checks are useful development evidence. The GitHub workflow is the release gate because it runs in the environment that the production contract requires.
+The local OrbStack checks are useful during development. The GitHub workflow is the release check because it runs in the environment required by production.
 
 ## License
 
