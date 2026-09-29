@@ -44,7 +44,7 @@ import { findProvider, loadProviders } from "../../core/catalog/providers.mjs";
 import { dshRenderInputsDigest } from "./render-inputs.mjs";
 // 能力的**描述契约与双通道调用**只有一份实现（core），两个运行时的渲染器都用它做装载/就位校验
 import { loadCapabilities, checkImplementation, toSchemaDocument } from "../../core/capabilities/registry.mjs";
-import { availableIds, bundleOwnedSkills, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
+import { availableIds, bundleOwnedPlugins, bundleOwnedSkills, defaultSelection, loadBundles } from "../../core/bundles/index.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** 仓库根：`core/` 下的共享实现（事件写入器等）要从这里取，注入产物而不是让产物去猜基座目录。 */
@@ -301,6 +301,8 @@ function main() {
   }
 
   const CAPABILITY_BUNDLES = loadBundles();
+  // 预装清单：包插件要翻成**包坐标**（byId）；读一次放函数作用域
+  const PREINSTALL_DOC = loadPreinstall(PREINSTALL_PATH);
   const declaredSkills = fs.existsSync(skillsSrc)
     ? fs.readdirSync(skillsSrc, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()
     : [];
@@ -434,7 +436,9 @@ function main() {
     name: `dsh-profile-${agent.name}`,
     private: true,
     dependencies: {},
-    dsh: { profile: { bundles: BUNDLES } },
+    // 能力包（L4/C5）：本侧的编码插件也进 bundles（产物与组合无关地带全部包插件；
+    // 运行期由 startup 按激活集合摘除 —— 与连接器/技能同一套纪律）。
+    dsh: { profile: { bundles: [...new Set([...BUNDLES, ...bundleOwnedPlugins(CAPABILITY_BUNDLES.bundles, path.basename(HERE)).units.flatMap((id) => PREINSTALL_DOC?.byId?.get(id)?.install?.package ?? [])])] } },
   }));
   writeFile(path.join(profileDir, "cordis.yml"), [
     "# dsh profile 根 —— 空入口列表。组合树由 patch 构成（bundles → cordis.patch.yml）。",
@@ -464,6 +468,11 @@ function main() {
     // ⚠️ 变量名用 CAPABILITY_BUNDLES：本文件里的 `BUNDLES` 是**插件包列表**（同词不同物，
     // 撞过一次 —— 表现为渲染期 `bundles.map is not a function`）。
     // 技能落点（能力包按激活集合摘除时读它）
+    // 连接器落点：本侧把连接器表达成 **insert row**（不是 JSON 对象）⇒ 用 YAML 落点。
+    // 「匹配哪一列」也由清单声明（core 不认运行时）：这里按 `config.serverName` 匹配。
+    connectorSurface: { path: `dsh-home/profiles/${agent.name}/cordis.patch.yml`, kind: "yaml-insert-rows", match: { path: "config.serverName" } },
+    // 插件落点：本侧插件列表在 profile 的 package.json 里（点分字段）
+    pluginSurface: { path: `dsh-home/profiles/${agent.name}/package.json`, kind: "json-packages", field: "dsh.profile.bundles" },
     skillSurface: { path: "skills", kind: "skill-dirs" },
     bundles: {
       available: availableIds(CAPABILITY_BUNDLES),
@@ -476,6 +485,9 @@ function main() {
         plugins: [...(b.plugins?.[HARNESS] ?? [])],
       }])),
       baseSkills: baseSkillNames,
+      // 插件条目 id → 包坐标（startup 据此摘除；与另一侧同名字段，跨侧比对不用翻译）
+      pluginPackages: Object.fromEntries(bundleOwnedPlugins(CAPABILITY_BUNDLES.bundles, path.basename(HERE)).units
+        .map((id) => [id, { source: PREINSTALL_DOC.byId.get(id)?.install?.package ?? null, localPackage: null }])),
       // 产物携带的基座技能（由包决定是否加载；不是定义声明 ⇒ 不进 declaredSkills）
       defaults: defaultSelection(CAPABILITY_BUNDLES),
     },

@@ -38,7 +38,7 @@ import { spawn } from "node:child_process";
 
 // 能力包（L4/B1）：运行期的**选择**在这一层校验与解析（选择型参数，与环境型分开记账）
 import { BUNDLES_ENV, availableIds, bundleDigest, defaultSelection, loadBundles, parseSelection } from "../bundles/index.mjs";
-import { enforceConnectorSurface, enforcePluginSurface, enforceSkillSurface } from "../bundles/filter.mjs";
+import { enforceConnectorSurface, enforcePluginSurface, enforceSkillSurface, enforceYamlInsertRows } from "../bundles/filter.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXIT_USAGE = 2;
@@ -383,7 +383,13 @@ function prepare({ artifact, runDir }) {
       // 属于某个包 ⇒ 只有激活了才留；不属于任何包 ⇒ 那是智能体自己声明的，照留
       if (!ownedBySomeBundle.has(ref) || activeRefs.has(ref)) keep.push(c.serverName ?? ref);
     }
-    const res = enforceConnectorSurface({ runDir: effectiveRunDir, surface: manifest.connectorSurface ?? null, keep });
+    // 按清单声明的**格式**分派（core 不认运行时）：
+    //   json-mcp-servers  ⇒ 产物是 JSON 的 mcpServers 对象（一侧）
+    //   yaml-insert-rows  ⇒ 产物是 YAML 的 insert row 数组（另一侧）
+    const connectorSurface = manifest.connectorSurface ?? null;
+    const res = connectorSurface?.kind === "yaml-insert-rows"
+      ? enforceYamlInsertRows({ runDir: effectiveRunDir, surface: connectorSurface, keep })
+      : enforceConnectorSurface({ runDir: effectiveRunDir, surface: connectorSurface, keep });
 
     // ---- 自研连接器（业务代码）：把产物里的**相对路径**解析成**暂存后的绝对路径** ----
     // 为什么必须做：产物里写的是 `mcp-servers/corpus/index.js`（相对、可搬），运行时起服务器时

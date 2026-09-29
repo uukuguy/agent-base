@@ -210,11 +210,10 @@ function main() {
   const composed = composedConnectors(entries);
   // 期望集合 = **声明 ∩ 当前启用**（L4 能力包；该侧暂未实际摘除 ⇒ 这里同样只按期望集合断言，
   // 摘除未实现的差异由 startup 的 enforced=false 如实记录，不在闸门里假装）
-  // ⚠️ 本侧的期望集合 = **声明的全量**，不是「声明 ∩ 激活」。理由与解除条件写在 `exemptions.yaml` 的
-  // `bundle-connector-removal-not-enforced`：本侧连接器是构建期烤进 patch 的 insert row（文件里有 `!!js` 表达式，
-  // 解析后重写会破坏运行期插值），所以**激活集合不会真的摘除内容**。
-  // 激活集合仍然进轨迹与生效配置摘要（两侧一致）；只有另一侧真的摘。
-  const declaredConn = (manifest.connectors ?? []).map((c) => c.serverName).sort();
+  // 期望集合 = **声明 ∩ 当前启用**（与另一侧同一份共享实现）。
+  // 早期这里按旧豁免写成「声明全量」—— 那条豁免的技术理由（YAML 里 `!!js` 会被重写破坏）已被实测推翻：
+  // Document API + `lineWidth: 0` 能逐字保留、并带保真校验 ⇒ 按**真实行为**断言，而不是按「我们做不到」断言。
+  const declaredConn = expectedConnectorNames({ manifest, bundles: loadBundles().bundles, rawSelection: process.env[BUNDLES_ENV] ?? null }).expected;
   if (JSON.stringify(composed) === JSON.stringify(declaredConn)) {
     report.pass(GATE, "resolution/connectors-set", `硬断言 2：实际启用的连接器集合等于声明集合（${composed.length} 项）`);
   } else {

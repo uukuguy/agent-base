@@ -4,10 +4,10 @@
 
 - Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，两侧均可用）
 - Current branch: `main`
-- Theme-level focus: **环境与验证权威性（L3）** —— 本地迭代为主、容器取证交给 AI；阶段一（`verify-plan` / 接入缝事件名 / 本地预检）已完成，进入阶段二（受控容器入口与归因）
+- Theme-level focus: **L1–L5 全部闭合**（最近闭合的是 L4 能力包：包定义 → 运行期选择 → 真的生效 → 期望集合 → 证据 → 发现面 → 内容 → 默认 → 插件；以及 Q4 本地预装镜像有锁、三轮真实走查（基础用法 / 写业务代码 / 只看文档））
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **等两个契约/选型决策**（O6 已完成：`docs/14` 的判据也纳入复核）（① 主运行时选型 ② 能力描述契约分叉 A/B）；本轮已把 L6 的契约提案写好（`docs/design/2026-09-27-capability-description-contract.md`）；（决策门事实材料已备：`docs/design/2026-09-27-runtime-selection-facts.md`，机器生成 + 同步检查）；L5 已闭合（O1–O4 + P5 + `CLAUDE.md`；O5 并入 E5–E8）；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
+- Active work package: **无进行中的包**（L1–L5 已闭合；剩余为已知留白，见下行）。最近已知留白与处置：dsh 侧的两条能力包豁免**已实测推翻并落地**（连接器/插件按激活集合真的摘除，豁免条目删除）；走查中发现的**dsh 容器内跑不起来**（镜像里缺该运行时的 Linux 版原生二进制）**已声明**在 `core/env/parity.mjs` 并入了归因，解除条件写在声明里。历史：**等两个契约/选型决策**（O6 已完成：`docs/14` 的判据也纳入复核）（① 主运行时选型 ② 能力描述契约分叉 A/B）；本轮已把 L6 的契约提案写好（`docs/design/2026-09-27-capability-description-contract.md`）；（决策门事实材料已备：`docs/design/2026-09-27-runtime-selection-facts.md`，机器生成 + 同步检查）；L5 已闭合（O1–O4 + P5 + `CLAUDE.md`；O5 并入 E5–E8）；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
 
 ## Current Architecture
 
@@ -56,8 +56,8 @@
 
 | 闸门 | 实现 | 退出码 |
 |---|---|---|
-| 1 静态校验 | `tools/validate.mjs`（基座自洽 29 项；带定义 43–44 项） | 10 |
-| 2 解析自证 | `adapters/<h>/doctor.mjs`（零凭据真跑 harness） | 20 |
+| 1 静态校验 | `tools/validate.mjs`（基座自洽 **34 项**；带定义 **51 项**） | 10 |
+| 2 解析自证 | `adapters/<h>/doctor.mjs`（零凭据真跑 harness；含 **`resolution/connectors-start`**：逐个真启动 stdio 连接器并要一次握手，起不来就红并给 stderr 尾巴） | 20 |
 | 3 集成探针 | `tools/probe.mjs`（默认零凭据假网关） | 30 |
 | 4 端到端冒烟 | `tools/smoke.mjs` | 40 |
 
@@ -65,7 +65,7 @@
 
 ### 轨迹：双来源、同一 schema
 
-- 统一轨迹 `core/trace/schema.json`：**10 类事件**（含 `approval.decision`：谁、对哪个动作、放行/拒绝/无应答者），每条带 `emitter: hook | post-hoc`
+- 统一轨迹 `core/trace/schema.json`：**12 类事件**（含 `approval.decision` 与 `hook.error`），每条带 `emitter: hook | post-hoc`；枚举**从 schema 现算**（不许在别处手写一份）
 - **回调式（主路径）**：扩展订阅 loop 回调，能拿到实际请求体（tools 数组、stream 标志）⇒ `emitter=hook`
 - **事后映射（兜底）**：解析原生事件流/会话文件 ⇒ `emitter=post-hoc`（离线可复盘，拿不到请求体）
 - 闸门 3 的 `probe/hooks-evidenced`：**每条**声明的 `kind: hook` 都要留下带自己 id 的痕迹（事件字段 `enhancement`）⇒ 声明 N 个就有 N 条可指认证据；哑掉的钩子会被点名（纯函数 `core/gates/hooks.mjs`，自检 `probe-selftest` 含真跑负例）；
@@ -101,13 +101,14 @@
 - **dsh 侧事件集合未穷举**：`hookEvents.enumerated: false` ⇒ 那边写钩子只能标「未验证」，没有名字层面的判据
 - **L3 loop 定制与 L4 服务形态无声明面与判据**：长驻会话、多会话并发、审批通道、成本/网关
 - **dsh 侧接入缝未实现**：overlay 只支持"扩展目录 + settings 登记"这一种装载形态，其余响亮失败
-- **多语言共享业务代码未实现**（D-0012/D-0013 已登记）：语言中立的描述符 + 进程边界执行 + 通用桥
+- ~~多语言共享业务代码未实现~~ ⇒ **已实现并实测**（D-0012/D-0013/D-0018）：语言中立的描述符 + 进程边界执行 + 每运行时通用桥；走查用一个 **Python** 能力验证「零胶水」（闸门 3 真调通、`details` 按描述校验、确定性复算）
 - **pi 的"已加载"口径仍不到"已加载"**：已堵住"未声明的接入件被加载"，但"声明了却没加载"仍观测不到
 - **`tool.call.decision` 恒为 `unobserved`**：轨迹观测不到别的 handler 是否阻断（诚实近似，非等价）
 - **每用户鉴权与参数层模型不匹配**：连接器只有单一服务凭据 `credentialRef`，per-user OAuth 无表达
 - **镜像未推任何 registry**：多架构归档可落盘；推送路径仍待确认（I2 已答"仅运行期无外网"）
-- **预装清单未定稿**：`core/image/preinstall.yaml` 有候选与 npm 存活表，"预装哪些进镜像"待定
+- **预装清单未定稿**：`core/image/preinstall.yaml` 有候选与 npm 存活表，"预装哪些进镜像"待定；本地对应物 `.local-packages` 现在**从同一份锁装入并有可复算指纹**（`.local-packages.lock.json`，含"锁变了而镜像没重刷"检测）
 - **上游版本漂移**：dsh `0.1.7-rc.1` 为预发布、pi 迭代快；pin 之外的回归网已建立（两侧 conformance 均生效）
+- **候选运行时在容器内起不来**（已声明，2026-09-28 实测）：镜像里缺它的 Linux 版原生插件二进制（`require_builtin.node`）⇒ 该侧探针/冒烟在容器内必然失败；`core/env/parity.mjs` 的 `GATE_DIFFERENCE_CLASS` 已登记，归因给出「已声明差异」而不是「未声明」。**影响口径："容器内可用"这条结论目前只对主运行时成立**
 - ~~`CLAUDE.md` 尚未创建~~ ⇒ **已创建**（2026-09-27）：新会话入口，含"这是什么/怎么验/纪律/状态在哪/已知的坑"
 
 ## Key Files

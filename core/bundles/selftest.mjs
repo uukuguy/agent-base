@@ -15,7 +15,7 @@ import {
   BUNDLES_ENV, availableIds, bundleDigest, defaultSelection, describeSelection,
   loadBundles, materialize, parseSelection,
 } from "./index.mjs";
-import { enforcePluginSurface } from "./filter.mjs";
+import { enforcePluginSurface, enforceYamlInsertRows } from "./filter.mjs";
 
 let failures = 0;
 const check = (name, cond, extra = "") => {
@@ -107,6 +107,56 @@ console.log("── E. 一条如实边界：**不承诺热插拔**（写在代�
     enforcePluginSurface({ runDir: dir, surface: null }).note);
   check("未知格式 ⇒ enforced=false（不猜格式）",
     enforcePluginSurface({ runDir: dir, surface: { path: "settings.json", kind: "unknown-kind" } }).enforced === false);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
+// G. YAML insert-row 落点（L4：另一侧把连接器表达成 insert row）
+//    关键不是"能删"，而是**删除时其余内容逐字保留**（含 `!!js` 长标量）—— 旧豁免的技术理由就栽在这里。
+// ---------------------------------------------------------------------------
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yaml-rows-"));
+  const file = path.join(dir, "patch.yml");
+  const JS_LINE = '    policy: !!js "(process.env.AGENT_PERMISSION_MODE ?? \'workspace-write\') === \'danger-full-access\' ? \'never\' : \'ask\'"';
+  const seed = () => fs.writeFileSync(file, [
+    "- insert:",
+    "    - id: mcp-a",
+    "      config:",
+    "        serverName: a",
+    "    - id: mcp-b",
+    "      config:",
+    "        serverName: b",
+    "- id: permission",
+    "  config:",
+    JS_LINE,
+    "",
+  ].join("\n"));
+  const surface = { path: "patch.yml", kind: "yaml-insert-rows", match: { path: "config.serverName" } };
+  seed();
+  const r = enforceYamlInsertRows({ runDir: dir, surface, keep: ["b"] });
+  const out = fs.readFileSync(file, "utf8");
+  check("未激活的 insert row 被摘掉、激活的留下", r.enforced && r.removed.includes("a") && out.includes("serverName: b") && !out.includes("serverName: a"),
+    JSON.stringify({ removed: r.removed, kept: r.kept }));
+  check("**其余内容逐字保留**（含 `!!js` 长标量）—— 旧豁免的技术理由就栽在这里", out.includes(JS_LINE));
+  check("幂等（再摘一次无变化）", enforceYamlInsertRows({ runDir: dir, surface, keep: ["b"] }).removed.length === 0);
+  check("全激活 ⇒ 一条都不摘", (() => { seed(); return enforceYamlInsertRows({ runDir: dir, surface, keep: ["a", "b"] }).removed.length === 0; })());
+  check("没声明落点 ⇒ enforced=false", enforceYamlInsertRows({ runDir: dir, surface: null }).enforced === false);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
+// H. 插件落点支持**点分字段**（两侧把插件列表放在不同深度）
+// ---------------------------------------------------------------------------
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dotted-"));
+  const file = path.join(dir, "package.json");
+  fs.writeFileSync(file, JSON.stringify({ name: "x", profile: { bundles: ["base", "plug-a"] } }, null, 2) + "\n");
+  const r = enforcePluginSurface({ runDir: dir, surface: { path: "package.json", kind: "json-packages", field: "profile.bundles" },
+    ownedSources: ["plug-a"], keepSources: [] });
+  const after = JSON.parse(fs.readFileSync(file, "utf8"));
+  check("点分字段：深层数组里的未激活插件被摘掉，其余字段原样",
+    r.enforced && !after.profile.bundles.includes("plug-a") && after.profile.bundles.includes("base") && after.name === "x",
+    JSON.stringify(after));
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
