@@ -526,3 +526,6 @@
 - 14:25 我自己在修的过程中犯了两个错，都被当场抓到：① 判断"是不是 stdio"只看 `transport` 字段，而产物里的 stdio 条目**只写 command/args** ⇒ 一个都没处理，"改了代码行为没变"；② 报告块写在了计算**之前** ⇒ 闸门直接崩成 `crash/resolution`。两条都写进注释，免得下次再犯
 - 14:25 文档层：设计稿里 `stdio: {command…}` 的**嵌套写法过不了 schema**（真源是平铺）⇒ 改正；模板**完全没有"怎么写业务代码"的指引、也没有可照抄的最小 MCP server** ⇒ 新增 `docs/15-business-code-cookbook.md`（每段都跑通过：决策表 · 能力两文件 · 自研连接器 · 三条验证命令 · 常见坑）+ 模板 README 指过去
 - 14:25 回归 **37 项全绿**；走查智能体 + 三个示例的**容器验证全过**（新断言在容器内同样成立）
+- 14:40 **文档自足性走查（只看 docs/ 不看代码）**：主干路径**自足** —— `make dev-env` → `new-agent` → `validate` → `verify` → `verify JSON=1`（合法报告）· `HARNESS=dsh` 同样过 · `render && doctor` 正常 · `examples/README` 可照做。
+- 14:40 抓到 **4 处文档与现实不符**（都按文档逐字做、当场撞到）：① 生成物清单写了 `trace-labels.yaml`（实际不派生，是可选自建）② 容器片段把产物指到 `dist/pi/<名字>`（派生目录里在 `.render/<运行时>`）、镜像 tag 也写死 ⇒ 改成"用 docker images 取本机 tag + 挂 .render/pi"并指向 `make verify-container`，**改后逐字实测可跑**（可用·镜像内自证通过）③ `make image`/`image-all` 是**基座仓库**的目标，派生目录里跑会 `No rule to make target` ⇒ 写明"智能体不产镜像"④ `make run-local` 变体没写"要告诉它端点"（不给会响亮失败，行为正确、文档缺一句）⇒ 补上
+- 14:40 另修一处"数出来的就会腐烂"：`docs/README.md` 自称"12 篇"（实际 00–15）⇒ 改为按范围表述。**教训**：文档里的数字同源问题与代码里的 pin 一样，迟早对不上

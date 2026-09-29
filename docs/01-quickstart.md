@@ -27,12 +27,14 @@ make new-agent NAME=my-agent DESCRIPTION="一句话说明它做什么"
 ```
 my-agent/
   agent.yaml          它是谁、用哪个模型、边界
-  connectors.yaml     能连哪些系统（默认空）
+  connectors.yaml     能连哪些系统（默认启用开发常用子集：filesystem / git / repomix）
   skills/example/     一个能跑的示例技能
-  trace-labels.yaml   业务给轨迹起的说法（可选）
-  Makefile            薄转发层，不用改
+  Makefile            薄转发层，不用改（BUNDLES=… 选能力包、HARNESS=… 选运行时）
   README.md
 ```
+
+> `trace-labels.yaml`（业务给轨迹起的说法）**不是派生的**：需要时自己新建这一个文件，
+> 渲染器会原样带进产物（见 `docs/14-how-to-verify.md` 的轨迹一节）。
 
 ### 3. 改定义
 
@@ -155,15 +157,27 @@ make run-local PROMPT="说一句话"                      # 真跑：端点用�
 - **换成别的供应商**：`model.provider` 改成 `openai` 就用 `OPENAI_API_KEY`，其余照旧。
 - **内部网关**：在 `providers.yaml` 里加一条（`baseUrlParam: CORP_GATEWAY_BASE_URL` 表示端点由部署给），
   或直接用内置的 `corp-gateway` 并设 `CORP_GATEWAY_BASE_URL`。
-- **装进容器**：`docker run -e HARNESS=pi -e DEEPSEEK_API_KEY=… -e DEEPSEEK_BASE_URL=… \
-   -v "$PWD/dist/pi/my-ds-agent:/opt/agent-base/artifact:ro" agent-base:0.1.0-arm64`
+- **装进容器**：派生目录里的产物在 `.render/<运行时>`（基座自己跑才用 `dist/<运行时>/<名字>`）。
+  自己起容器时把**渲染产物目录**挂到 `/opt/agent-base/artifact`，镜像 tag 用本机实际有的那个
+  （`docker images | grep agent-base`）：
+
+  ```bash
+  IMAGE=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep '^agent-base:' | head -1)
+  docker run --rm -e HARNESS=pi -e DEEPSEEK_API_KEY=… -e DEEPSEEK_BASE_URL=… \
+    -v "$PWD/.render/pi:/opt/agent-base/artifact:ro" "$IMAGE"
+  ```
+
+  更省事：**不用自己拼 docker 参数** —— 在基座仓库里跑
+  `make verify-container AGENT_DIR=<你的智能体目录>`（绑定面与安全下限都由基座给，失败还会自动归因）。
 
 ## 常用变体
 
 ```bash
-# 本地交互跑一次（不需要容器）
-make run-local                      # 交互
-make run-local PROMPT="把这段话拆成可验证的断言"   # 一次性
+# 本地交互跑一次（不需要容器）—— **要告诉它端点**（定义里只写引用名，不写端点）
+make local ENDPOINT=https://your-endpoint.example/v1 API_KEY=…      # 进交互会话（最常用）
+make run-local ENDPOINT=https://… API_KEY=… PROMPT="把这段话拆成可验证的断言"   # 一次性
+#   ⚠️ 不给端点会**响亮失败**并列出三种给法（这是刻意的：不会替你编一个端点）
+#   用本地模型（ollama/vllm/local）时端点来自内置目录，可省 —— 见上面「用本地模型跑」一节
 
 # 换运行时（定义不用改）
 make verify HARNESS=dsh
@@ -175,10 +189,11 @@ make verify ENDPOINT=https://your-endpoint.example/v1
 # 只想知道"运行时实际加载了什么"
 make render && make doctor RENDER_DIR=.render/pi
 
-# 出镜像（可选）
-make image                # 当前架构
-make image-all            # 两个架构分别构建 + 合并多架构 manifest
 ```
+
+> **`make image` / `make image-all` 是基座仓库的目标**（出的是"运行时 + 闸门"的镜像），
+> 派生出来的智能体目录里**没有**它们 —— 智能体不产生新镜像，它的产物（`.render/<运行时>`）
+> 是**挂进**基座镜像的。在派生目录里跑会得到 `No rule to make target`。
 
 ## 拿到结论之后
 
@@ -186,8 +201,10 @@ make image-all            # 两个架构分别构建 + 合并多架构 manifest
 「继续投入 / 放弃 / 进入生产化」的决策。
 
 ```bash
-make image-all            # 产出镜像与多架构 manifest（默认落在 dist/image/）
-make verify JSON=1        # §6.7 报告
+make verify JSON=1        # §6.7 报告（机器可读，交给别人评审用这个）
+#   要"容器里也成立"的结论：在基座仓库里跑
+#   make verify-container AGENT_DIR=<你的智能体目录>
+#   要在基座侧出镜像（可选）：基座仓库里 make image-all
 ```
 
 ## 出错了怎么办
