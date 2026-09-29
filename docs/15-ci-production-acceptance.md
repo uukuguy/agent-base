@@ -37,6 +37,8 @@ node -e 'require("node:net").createServer().listen(0, "127.0.0.1").close()'
 
 工作流会把 `ci-artifacts/regression.json` 上传为构建产物。只有该命令退出码为 0，才可把本次提交视为生产验收通过。`FAST=1` 只能证明宿主快速路径，不能替代 Docker 生产验收。
 
+生产 job 的总上限是 50 分钟。双架构镜像构建、OCI manifest 构建和完整回归各自有 15 分钟硬上限；Docker 或 QEMU 卡住时，工作流会指出卡住的阶段并尽快失败，不会等 90 分钟才返回结果。
+
 ## 本地复现
 
 在具备 Docker 和回环网络的主机上（包括 macOS + OrbStack），从仓库根目录执行：

@@ -43,7 +43,10 @@ jobs:
     name: Docker production acceptance
     runs-on: ubuntu-latest
     needs: static
-    timeout-minutes: 90
+    # Keep a hung Docker/QEMU build from occupying a runner for 90 minutes.
+    # Each expensive step has its own deadline below, so failures identify the
+    # phase that stalled instead of looking like an undifferentiated timeout.
+    timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -92,15 +95,15 @@ jobs:
           NODE
 
       - name: Build both production and debug image variants
-        run: node core/image/build.mjs --all --debug
+        run: timeout --signal=TERM --kill-after=30s 15m node core/image/build.mjs --all --debug
 
       - name: Build the multi-architecture OCI manifest
-        run: node core/image/build.mjs --manifest
+        run: timeout --signal=TERM --kill-after=30s 15m node core/image/build.mjs --manifest
 
       - name: Run complete production regression
         run: |
           mkdir -p ci-artifacts
-          node tools/regression.mjs --json > ci-artifacts/regression.json
+          timeout --signal=TERM --kill-after=30s 15m node tools/regression.mjs --json > ci-artifacts/regression.json
 
       - name: Upload structured acceptance evidence
         if: always()
