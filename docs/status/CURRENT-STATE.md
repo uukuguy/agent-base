@@ -2,12 +2,12 @@
 
 ## Project Snapshot
 
-- Project: `agent-base` —— 一套企业智能体基座 + 多个 harness 运行时（pi 与 dsh 并列可选，两侧均可用）
+- Project: `agent-base` —— 企业智能体基座 + 两个 harness 运行时（**主运行时定 `pi`**，另一侧并列可用）
 - Current branch: `main`
-- Theme-level focus: **L1–L5 全部闭合**（最近闭合的是 L4 能力包：包定义 → 运行期选择 → 真的生效 → 期望集合 → 证据 → 发现面 → 内容 → 默认 → 插件；以及 Q4 本地预装镜像有锁、三轮真实走查（基础用法 / 写业务代码 / 只看文档））
+- Theme-level focus: **L1–L5 全部闭合 + 「运行/开发」边界已定**。最近一段收口：L4 能力包（包定义 → 激活真的生效 → 期望集合 → 证据 → 发现面 → 内容 → 默认 → 插件）· Q4 本地预装镜像有锁 · 三轮真实走查（基础用法 / 写业务代码 / 只看文档）· 另一侧两条能力包豁免**实测推翻**后落地 · 候选运行时在**加固容器内起不来**的根因修复（两侧现在都能容器内自证）
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **无进行中的包**（L1–L5 已闭合；剩余为已知留白，见下行）。最近已知留白与处置：dsh 侧的两条能力包豁免**已实测推翻并落地**（连接器/插件按激活集合真的摘除，豁免条目删除）；走查中发现的**dsh 容器内跑不起来**（镜像里缺该运行时的 Linux 版原生二进制）**已声明**在 `core/env/parity.mjs` 并入了归因，解除条件写在声明里。历史：**等两个契约/选型决策**（O6 已完成：`docs/14` 的判据也纳入复核）（① 主运行时选型 ② 能力描述契约分叉 A/B）；本轮已把 L6 的契约提案写好（`docs/design/2026-09-27-capability-description-contract.md`）；（决策门事实材料已备：`docs/design/2026-09-27-runtime-selection-facts.md`，机器生成 + 同步检查）；L5 已闭合（O1–O4 + P5 + `CLAUDE.md`；O5 并入 E5–E8）；**L3 已整体闭合**（阶段一 A1/V2/E1b/Q1/Q2 + A2–A6 + A6b-1/A6b-2）；E2b 之后 = L5 小活（O1/O3/O2 + P5 + `CLAUDE.md`），能力包线（L4）等用户择机
+- Active work package: **无进行中的包**。仍开着的 4 条（E10 另一侧事件集合穷举 · C8 另一侧 coding 包插件内容 · O5 深定制样例契约 · Q5 容器内交互可选）见文末 Open Problems；边界决策见 `DECISIONS.md` 2026-09-28（运行环境与开发环境是两套）
 
 ## Current Architecture
 
@@ -22,9 +22,9 @@
 |---|---|---|
 | L0 | 声明式配置（定义/provider/连接器/技能） | ✅ 闭环（两侧） |
 | L1 | 薄接入（工具/命令注册） | ✅ 闭环（业务代码共享，接入各写各的） |
-| L2 | 钩子（生命周期介入） | ⚠️ 传输 + **发射路径可验**；事件名校验与逐条自证未做 |
-| L3 | loop 定制（轮次/终止/编排） | ❌ 空白（某运行时原生支持整体替换，基座无声明面） |
-| L4 | 服务形态（长驻/多会话/审批） | ❌ 空白 |
+| L2 | 钩子（生命周期介入） | ✅ 闭环（事件名校验 + **逐条自证**，哑掉的钩子被点名）；另一侧事件集合未穷举 ⇒ **E10** |
+| L3 | loop 定制（轮次/终止/编排） | ⚠️ 部分：**预算与续跑**已做并进闸门 4；终止条件/委派深度等剩余项 ⇒ **E6** |
+| L4 | 服务形态（长驻/多会话/审批） | ⚠️ 部分：**审批通道**已做（两侧审批门 + `approval.decision` 留痕）；会话生命周期/并发/状态外置 ⇒ **E5 · E7** |
 
 ### 规范措辞原则：保证 / 允许 / 不管（D-0015、D-0016）
 
@@ -42,6 +42,15 @@
 - **参数层**：部署期只注入端点/凭据/模型名/权限模式/工作区根，不注入行为
 - 三条贯穿原则：P-a 能力/选择分离 · P-b 文件系统隔离 · P-c 后验统一
 - 核心判据：**行为烤进制品，参数下放运行期**
+
+### 能力包（L4，已落地）
+
+- **三层**：能力**实体**（任意语言；`kind: process` 走 stdin/stdout 一行 JSON）· **包定义** `core/catalog/bundles.yaml`（`verify-baseline` 默认开 · `coding` 默认关 · `browser` planned）· **激活**是运行期选择（`AGENT_BUNDLES`；写错包名**启动即响亮失败**并列出允许集合）
+- 合法取值集合**烤在产物清单**（`bundles.{available,defaults,members,baseSkills,pluginPackages}`）；激活集合进轨迹 `run.meta.bundles` 与**生效配置摘要**（同一产物不同组合 ⇒ 不同摘要）
+- **激活真的生效**：启动期按激活集合从暂存产物里摘除未激活包的**连接器 / 技能 / 插件**；摘法由清单声明**落点与格式**（`connectorSurface` / `skillSurface` / `pluginSurface`，core 不认运行时）。JSON 落点直接改写；YAML 的 insert row 用 Document API 加 `lineWidth: 0` **逐字保留**其余内容（含 `!!js`）并带**保真校验**（语义不符就拒绝写）
+- **期望集合 = 声明 ∩ 当前启用**：`expectedConnectorNames()` / `expectedSkillNames()` 一份实现，startup 与两侧闸门 2 **共用**
+- **发现面**：会话内 `/project bundles`（可用包 / 当前激活 / 默认组合 / 包里有什么 / 怎么开 + 「切换需重载」）；技能页显示**本组合实际加载**的那套
+- **内容与默认**：3 个编码技能（`core/skills/`）由 `coding` 包携带；模板默认组合 = `coding` ⇒ 新智能体开箱就能编码（端点侧工具名实测变化）
 
 ### 接入缝与镜像内自证（P1–P3）
 
@@ -74,9 +83,10 @@
 
 ### 仓库拓扑
 
-`core/`（91 文件）· `adapters/{pi,dsh}/`（24）· `tools/`（23）· `conformance/`（9）· `template/`（6）·
-`docs/`（16 篇 + `design/`、`plans/`、`status/`）；`dist/` 是构建产物（已 gitignore）。
-**Makefile 46 个目标全部已实现**（无 `NOT_YET` 桩；17 个 `*-selftest` 目标，回归循环里连 `validate` 共 18 项）。
+`core/`（125 文件）· `adapters/{pi,dsh}/`（46）· `tools/`（36）· `conformance/` · `template/` ·
+`docs/`（16 篇编号文档 + `design/`、`plans/`、`status/`）；`dist/` 是构建产物（已 gitignore）。
+**Makefile 66 个目标全部已实现**（28 个 `*-selftest`；`make regression` 共 37 项）。
+（数字按 2026-09-28 实测；这类数字会腐烂 —— 引用时以现场命令为准。）
 
 ### 契约与检查（近期收紧，均带负例）
 
@@ -95,22 +105,29 @@
 
 ## Open Problems (theme-level)
 
-- **L3 已闭合**（2026-09-27）：两侧都有受控容器验证入口 + 审批门（主运行时侧扩展 `/verify-container`、另一侧 cordis 插件 `/verify-container`），审批决定都进统一轨迹 `approval.decision`，`unavailable` 一律 fail-closed；量到的接口事实与越界声明校正都在 harness 设计文档里
-- **只有宿主侧的结论**：`verify --json` 已带 `environment.where` 与 `notCoveredHere`，但**交付口径尚未强制"容器内自证为准"**（§28 Q3 = §30 A3）
-- ~~钩子只能证明「发射路径在工作」~~ ⇒ **已解决**（§23 E2b）：逐条自证，哑掉的钩子被点名；证据是事件字段 `enhancement`（哪个声明写的）
-- **dsh 侧事件集合未穷举**：`hookEvents.enumerated: false` ⇒ 那边写钩子只能标「未验证」，没有名字层面的判据
-- **L3 loop 定制与 L4 服务形态无声明面与判据**：长驻会话、多会话并发、审批通道、成本/网关
-- **dsh 侧接入缝未实现**：overlay 只支持"扩展目录 + settings 登记"这一种装载形态，其余响亮失败
-- **运行环境与开发环境是两套**（决策，2026-09-28）：**不提供「会话内即时改代码」**。运行跑制品（冻结），开发在正式研发环境做，改完**重启即生效**（实测：改定义后重跑 `run-local` 会自动重渲染）；会话 cwd 保持中立临时目录。据此 C7 关闭、开发容器工作线（W1–W4）降级为「容器侧只做环境一致性与交付自证」
-- ~~多语言共享业务代码未实现~~ ⇒ **已实现并实测**（D-0012/D-0013/D-0018）：语言中立的描述符 + 进程边界执行 + 每运行时通用桥；走查用一个 **Python** 能力验证「零胶水」（闸门 3 真调通、`details` 按描述校验、确定性复算）
-- **pi 的"已加载"口径仍不到"已加载"**：已堵住"未声明的接入件被加载"，但"声明了却没加载"仍观测不到
+**仍开着的（都有正式待办号，判据写在路线图）**
+
+- **另一侧的事件集合未穷举**（`hookEvents.enumerated: false`）⇒ 那边写钩子只能标「未验证」，没有名字层面的判据 —— **E10**
+- **另一侧 `coding` 包里的插件内容**：当前是计划模式类插件，无头模式下意义有限 —— **C8**
+- **业务层深定制的样例契约**：钩子 / loop / 服务各一个最小样例，并入 E5–E8 一起做 —— **O5**
+- **容器内交互**（可选）：`-debug` 变体只给诊断 shell，没在容器里跑真正的运行时会话 —— **Q5**
+- **服务形态与 loop 的剩余判据**：会话生命周期 / 并发上限 / 状态外置 / 终止条件 / 委派深度 / 租户隔离 / 成本归因到人（预算与续跑已做）—— **E5–E8**
+- **每用户鉴权与参数层不匹配**：连接器只有单一服务凭据（`credentialRef` → 一个环境变量），per-user OAuth 无表达 —— `preinstall.yaml` 的 `missing-capabilities`
+- **pi 的「已加载」口径仍不到「已加载」**：堵住了"未声明的接入件被加载"，但"声明了却没加载"仍观测不到
 - **`tool.call.decision` 恒为 `unobserved`**：轨迹观测不到别的 handler 是否阻断（诚实近似，非等价）
-- **每用户鉴权与参数层模型不匹配**：连接器只有单一服务凭据 `credentialRef`，per-user OAuth 无表达
-- **镜像未推任何 registry**：多架构归档可落盘；推送路径仍待确认（I2 已答"仅运行期无外网"）
-- **预装清单未定稿**：`core/image/preinstall.yaml` 有候选与 npm 存活表，"预装哪些进镜像"待定；本地对应物 `.local-packages` 现在**从同一份锁装入并有可复算指纹**（`.local-packages.lock.json`，含"锁变了而镜像没重刷"检测）
-- **上游版本漂移**：dsh `0.1.7-rc.1` 为预发布、pi 迭代快；pin 之外的回归网已建立（两侧 conformance 均生效）
-- ~~候选运行时在容器内起不来~~ ⇒ **已修**（2026-09-28）：根因实测是它的原生加载器默认把 `.node` 复制到 `$TMPDIR/.../native-cache/` 再 `require`，加固容器里 `/tmp` 是 tmpfs ⇒ `failed to map segment from shared object`。修法是**让该适配器设 `NARB_DISABLE_NATIVE_CACHE=1`（就地加载）**，于是从镜像的普通文件系统映射。**两侧现在都能在加固容器内自证**（`verify-container` 实测通过，含开 `coding` 包）；此前那条「已声明差异」已从 `core/env/parity.mjs` **撤掉**（实测推翻就改声明）
-- ~~`CLAUDE.md` 尚未创建~~ ⇒ **已创建**（2026-09-27）：新会话入口，含"这是什么/怎么验/纪律/状态在哪/已知的坑"
+- **另一侧接入缝只支持一种装载形态**（扩展目录 + settings 登记），其余响亮失败
+- **镜像未推任何 registry**：多架构归档可落盘，推送路径待定（I2 已答"仅运行期无外网"）
+- **预装清单未定稿**：「预装哪些进镜像」仍可调；本地对应物 `.local-packages` 已**从同一份锁装入且有可复算指纹**（`.local-packages.lock.json`，含"锁变了而镜像没重刷"检测）
+- **上游版本漂移**：另一侧 `0.1.7-rc.1` 是预发布、主运行时迭代快；pin 之外的回归网是两侧 conformance
+
+**已闭合（保留结论，供下一次会话别重复推导）**
+
+- **L3 环境与验证**：两侧受控容器验证入口 + 审批门；审批决定进 `approval.decision`；`unavailable` fail-closed
+- **两侧都能在加固容器内自证**：候选运行时原先起不来是因为它的原生加载器把 `.node` 复制到 `$TMPDIR`（加固容器里是 tmpfs）再 `require` ⇒ `failed to map segment`；修法 = 该适配器设 `NARB_DISABLE_NATIVE_CACHE=1`（**就地加载**）。临时声明已从 `core/env/parity.mjs` 撤掉
+- **钩子逐条自证**（E2b）：哑掉的钩子被点名，证据是事件字段 `enhancement`
+- **多语言业务代码**（D-0012/D-0013/D-0018）：语言中立的描述符 + 进程边界执行 + 每运行时通用桥；**两侧实测**闸门 3 真调通一个 **Python** 能力（零胶水）
+- **运行环境与开发环境是两套**（决策 2026-09-28）：不提供「会话内即时改代码」；运行跑制品，开发在正式研发环境做，改完**重启即生效**（实测：改定义后重跑 `run-local` 自动重渲染）；会话 cwd 保持中立临时目录。据此 **C7 关闭**、开发容器工作线（**W1–W4**）降级为「容器侧只做环境一致性与交付自证」
+- **`CLAUDE.md` 已创建**：新会话入口（这是什么 / 怎么验 / 纪律 / 状态在哪 / 已知的坑）
 
 ## Key Files
 
@@ -124,7 +141,7 @@
 - `docs/status/CURRENT-STATE.md` —— 本文件
 - `docs/status/INDEX.md` —— `docs/status/` 发现入口（含外部锚点表）
 - `docs/status/JOURNAL.md` —— 只追加事件日志
-- `docs/status/DECISIONS.md` —— D-0001–D-0017（D-0012/13 登记未实现；D-0014 两层模型；D-0015 保证/允许/不管；D-0016 开发者契约；D-0017 harness 层契约随基座版本演进）
+- `docs/status/DECISIONS.md` —— D-0001–D-0018（D-0012/13/18 多语言能力契约；D-0014 两层模型；D-0015 保证/允许/不管；D-0016 开发者契约；D-0017 harness 层契约随基座版本演进；**2026-09-28 运行/开发两套环境**）
 
 ### Design truth source
 
@@ -133,7 +150,8 @@
 - `docs/design/2026-09-25-{pi,dsh}-harness-design.md` —— 各自 harness 专有实测约束的唯一事实来源
 - `docs/design/2026-09-26-harness-customization.md` —— **可定制点实测调研**（两侧钩子/loop/服务形态、层次模型 L0–L4、7 处实证缺陷）
 - `docs/design/2026-09-26-base-value-and-openness.md` —— 基座价值定义（保证/允许/不管三段式、全生命周期表）
-- `docs/design/2026-09-26-capability-bundles.md` —— **能力包设计稿（未实现）**：包的概念与动态使能、能力实体/包定义/包激活的归属、与闸门/轨迹/`/project` 的接线、未决项
+- `docs/design/2026-09-26-capability-bundles.md` —— **能力包设计稿（已实现，L4）**：包的概念与动态使能、能力实体/包定义/包激活的归属、与闸门/轨迹/`/project` 的接线
+- `core/catalog/bundles.yaml` + `core/bundles/{index,filter,selftest}.mjs` —— **能力包真源与机制**：包定义 · 选择解析 · 物化 · 期望集合（与闸门共用）· 按落点/格式摘除未激活内容（含 YAML 保真校验）
 - `docs/13-developer-contract.md` —— 开发者契约（起点与保证、跨版本稳定性承诺、不约束清单）
 - `docs/14-how-to-verify.md` —— 能做什么 / 怎么做 / 怎么确认（每条的期望与边界、负例表）
 - `docs/06-deploy.md` —— 部署与派生镜像（接入缝、镜像内自证、权限坑）
@@ -143,7 +161,7 @@
 
 ### Implementation entry points
 
-- `Makefile` —— 全部命令的唯一边界（38 个目标，全部已实现）
+- `Makefile` —— 全部命令的唯一边界（66 个目标，全部已实现）
 - `tools/{validate,probe,smoke,verify}.mjs` —— 闸门 1/3/4 与四道闸门编排
 - `core/verify/attribution.mjs` —— **失败归因**（容器挂≠缺陷：本地可复现 / 已声明差异 / 容器专有 / **本地没跑到** / 未声明差异）
 - `adapters/dsh/approval-probe.mjs` —— 探针：另一侧原生流/会话文件里有没有审批记录、相对路径插件 row 能不能加载（`make dsh-approval-probe`）
@@ -160,11 +178,15 @@
 - `examples/` —— 6 个示例项目（**不是基座的一部分，可整体删除**），两侧"可用"，各自 README 载同一条开发循环
 - `adapters/pi/{adapter.yaml,render.mjs,doctor.mjs,trace.mjs,run.mjs}` —— 适配器 SPI（`run.mjs` 是 probe/smoke/自检共用运行器）
 - `tools/gen-selection-facts.mjs` + `docs/design/2026-09-27-runtime-selection-facts.md` —— **选型决策的事实材料**（生成物 + 闸门 1 守同步）
+- `tools/local-packages.mjs` + `.local-packages.lock.json` —— 本地预装镜像**按锁装入 + 可复算指纹**（`make local-packages[-lock|-check]`；回归里有检查）
+- `core/skills/{code-navigation,debugging,verification}/` + `core/skills/selftest.mjs` —— **基座编码技能**（由 `coding` 包携带；自检拒绝占位骨架）
+- `docs/15-business-code-cookbook.md` —— **业务代码怎么写**（能力 / 自研连接器 / 怎么验 / 常见坑；每段都跑通过）
+- `adapters/<h>/exemptions.yaml` + `core/env/parity.mjs` —— **两类「已声明差异」的唯一登记处**（当前豁免表只剩**当前**不对称；临时声明一旦被实测推翻就撤）
 - `core/spec/capability-judgements.mjs` —— **能力 → 判据**的可执行清单（O4）：解析 `docs/13` §1/§2 每行的判据，落到真实的 `make` 目标 / 脚本 / 路径 / 检查 id；`make selfcheck` 与闸门 1 共用它
 - `core/spec/open-namespace.mjs` —— **开放命名空间**的单一实现（`x-*` / `customizations:` / `kind: x-*`）：闸门 1 的 `open/unverified-declarations` 与两个渲染器的清单字段共用它
 - `adapters/{pi,dsh}/seed/` 与 `enhancements.yaml` —— 基座不变量（**两种落地形态**：一侧是扩展 `extensions/*.ts`，另一侧是 cordis 插件 `plugins/*/index.js` + insert row，都由渲染器注入事件写入器）：安全姿态 + 轨迹 + 会话内自省命令 `project-info` + **受控容器验证入口 `verify-container`（需审批）**
 - `core/gates/` —— 四闸门框架：编排 / 断言语言 / §6.7 报告与 `ok`≠`usable` / 退出码唯一处 / 确定性摘要 / CLI 解析
-- `core/trace/` —— 统一轨迹：`schema.json`（真源，10 类事件 + `emitter` + `enhancement`[哪个声明写的]）· `emit.mjs` · 业务级 logger · 自检
+- `core/trace/` —— 统一轨迹：`schema.json`（真源，**12 类事件** + `emitter` + `enhancement`[哪个声明写的]）· `emit.mjs` · 业务级 logger · 自检
 - `CLAUDE.md` —— **新会话入口**（这是什么/怎么验/纪律/状态在哪/已知的坑）
 - `core/spec/` —— 中性定义 schema（**public contract**，含开放命名空间 `x-*`/`customizations`）+ **增强 schema**（`kind` 允许 `x-*`）+ fixtures（1 合法 + **13** 注入式非法 + **1 正例**）
 - `core/catalog/{capabilities,params,providers}.yaml` —— 三个执法点：字段所属层 · 参数层清单 · provider 目录
@@ -181,7 +203,7 @@
 2. Read `RESUME-NEXT-SESSION.md`（在飞意图 + 下一个具体动作）。
 3. `git status --short` 与 `git log --oneline -5`。
 4. CLAUDE.md（若已创建）+ 运行时记忆自动加载。
-5. 自检全貌：`make -s help`；十四个自检目标 + `make conformance`（两侧都预期全绿）。
+5. 自检全貌：`make -s help`；28 个自检目标 + `make regression`（37 项，含两侧 conformance）。
 6. 需要实现细节时按需读统一设计正文（勿全文加载）：§0.2 决策、§2 架构、§4 定义单元、§5 适配契约、§6 四闸门、§8 交付契约与轨迹、§12 落地。
 
 ## 镜像与同源校验（不记逐次构建的 ID）
