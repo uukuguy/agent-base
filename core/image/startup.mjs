@@ -384,6 +384,44 @@ function prepare({ artifact, runDir }) {
       if (!ownedBySomeBundle.has(ref) || activeRefs.has(ref)) keep.push(c.serverName ?? ref);
     }
     const res = enforceConnectorSurface({ runDir: effectiveRunDir, surface: manifest.connectorSurface ?? null, keep });
+
+    // ---- 自研连接器（业务代码）：把产物里的**相对路径**解析成**暂存后的绝对路径** ----
+    // 为什么必须做：产物里写的是 `mcp-servers/corpus/index.js`（相对、可搬），运行时起服务器时
+    // cwd 不是那个目录 ⇒ **服务器静默起不来、工具不出现**，而闸门当时只说「包就位」。
+    // 本轮业务方走查实测到这一条：相对路径时端点侧没有 `mcp__corpus`，改成绝对路径立刻出现。
+    // 放在启动期（而不是渲染期）有三个好处：产物保持可搬、本地与容器同一条路径、只有一处实现。
+    const selfConnectors = (() => {
+      const surface = manifest.connectorSurface;
+      if (!surface || !surface.path) return { resolved: [] };
+      const file = path.join(effectiveRunDir, surface.path);
+      if (!fs.existsSync(file)) return { resolved: [] };
+      let doc;
+      try { doc = JSON.parse(fs.readFileSync(file, "utf8")); } catch { return { resolved: [] }; }
+      const servers = doc && typeof doc.mcpServers === "object" && doc.mcpServers ? doc.mcpServers : {};
+      const layoutRels = Object.values(plan.env ?? {});
+      const stagingRoot = layoutRels.length ? path.join(effectiveRunDir, layoutRels[0]) : effectiveRunDir;
+      const resolved = [];
+      let changed = false;
+      const absolutize = (value) => {
+        if (typeof value !== "string" || value.startsWith("/") || value.startsWith("-")) return value;
+        // 只解析**确实在暂存产物里存在**的相对路径（不是参数、不是包名、不是 URL）
+        const candidate = path.join(stagingRoot, value);
+        if (!value.includes("/") || !fs.existsSync(candidate)) return value;
+        resolved.push(value);
+        return candidate;
+      };
+      for (const [name, cfg] of Object.entries(servers)) {
+        // ⚠️ 判断"是不是 stdio"不能只看 `transport`：产物里的 stdio 条目**只写 command/args**
+        // （`transport` 在渲染时就消掉了）—— 第一版按 `transport === "stdio"` 过滤，等于一个都没处理，
+        // 表现为"改了代码、行为没变"。以 `command` 有无为准。
+        if (!cfg || typeof cfg.command !== "string") continue;
+        const before = JSON.stringify(cfg.args ?? []);
+        const nextArgs = (cfg.args ?? []).map(absolutize);
+        if (JSON.stringify(nextArgs) !== before) { servers[name] = { ...cfg, args: nextArgs }; changed = true; }
+      }
+      if (changed) fs.writeFileSync(file, JSON.stringify({ ...doc, mcpServers: servers }, null, 2) + "\n");
+      return { resolved };
+    })();
     // 技能同一条纪律：属于某个包的技能，只有该包激活才留（技能是纯目录，两侧都能真的摘）
     const activeSkills = new Set(bundleSelection.active.flatMap((id) => byId.get(id)?.skills ?? []).map(String));
     const ownedSkills = new Set(bundleSelection.doc.bundles.flatMap((b) => b.skills ?? []).map(String));
@@ -446,6 +484,7 @@ function prepare({ artifact, runDir }) {
     })();
     return {
       active: [...bundleSelection.active].sort(), keep: [...keep].sort(),
+      selfConnectors: selfConnectors.resolved,
       skills: { keep: keepSkills.sort(), ...skillRes },
       plugins: { keep: [...activeSources].sort(), ...pluginRes, localRewrite: pluginRewrite.rewrote },
       ...res,
@@ -496,6 +535,7 @@ function prepare({ artifact, runDir }) {
       defaults: defaultSelection(bundleSelection.doc),
       digest: bundleDigest(bundleSelection.active),
       // 摘除结果：**真的摘了谁**（没声明落点时 enforced=false —— 不假装已生效）
+      selfConnectors: bundleApplied.selfConnectors ?? null,
       filter: {
         connectors: { enforced: bundleApplied.enforced, kind: bundleApplied.kind, kept: bundleApplied.kept, removed: bundleApplied.removed, note: bundleApplied.note },
         skills: { enforced: bundleApplied.skills?.enforced ?? false, kept: bundleApplied.skills?.kept ?? [], removed: bundleApplied.skills?.removed ?? [], note: bundleApplied.skills?.note ?? null },

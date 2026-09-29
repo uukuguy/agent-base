@@ -323,6 +323,31 @@ async function main() {
           : "no-client-extension";
         ctx.observedConnectors = hasClient ? mcpServers.sort() : [];
 
+        // ---- 连接器**真的起得来**吗（不只是"配置就位"）----
+        // 为什么加这条：本轮业务方走查实测到——自研连接器（`mcp-servers/…`）在产物里是**相对路径**，
+        // 运行时 cwd 不对 ⇒ 服务器静默起不来、工具不出现，而当时闸门只说"包就位"（自研连接器没有包，
+        // 那条断言对它形同虚设）。于是这里**逐个真启动一次**，要一次合法握手（initialize + tools/list）。
+        // 起不来 ⇒ 红，并带上该服务器的 stderr 尾巴（否则"为什么起不来"要靠猜）。
+        ctx.connectorStarts = fs.existsSync(mcpFile)
+          ? await Promise.all(Object.entries(JSON.parse(fs.readFileSync(mcpFile, "utf8")).mcpServers ?? {})
+              .filter(([, cfg]) => cfg && typeof cfg.command === "string")
+              .map(([name, cfg]) => probeStdioServer(name, cfg)))
+          : [];
+        // 报告放在**计算之后**（第一版放在前面 ⇒ 读 undefined ⇒ 闸门直接崩成 crash/resolution）。
+        // 起不来就红，并带上该服务器的 stderr 尾巴 —— 「为什么起不来」必须能一眼看到。
+        {
+          const startsBad = ctx.connectorStarts.filter((x) => !x.ok);
+          if (!ctx.connectorStarts.length) {
+            report.pass(GATE, "resolution/connectors-start", "没有 stdio 连接器，无需启动自证");
+          } else if (startsBad.length) {
+            report.fail(GATE, "resolution/connectors-start",
+              `${startsBad.length}/${ctx.connectorStarts.length} 个连接器起不来：${startsBad.map((x) => `${x.name}（${x.detail}）`).join("；")}`);
+          } else {
+            report.pass(GATE, "resolution/connectors-start",
+              `${ctx.connectorStarts.length} 个 stdio 连接器都真起来了（${ctx.connectorStarts.map((x) => `${x.name}:${x.ms}ms`).join(" · ")}）`);
+          }
+        }
+
         // ---- 字段 5：扩展（已加载的业务级增强 id）----
         // 声明来自渲染产物的 enhancements.yaml；"已加载"目前只能观测到会注册命令/工具的那类扩展，
         // 因此这里同时报告 rendered（产物里确实打包了）与 observable（harness 报出来的）。
@@ -554,4 +579,46 @@ function piAgentDir() {
   const explicit = process.env.PI_CODING_AGENT_DIR;
   if (explicit) return explicit;
   return path.join(os.homedir(), ".pi", "agent");
+}
+
+/**
+ * 真启动一次 stdio 连接器，要一次合法握手。**只用于闸门 2 的自证**，不影响运行期。
+ * @returns {Promise<{name: string, ok: boolean, ms: number, detail: string}>}
+ */
+async function probeStdioServer(name, cfg) {
+  const started = Date.now();
+  return await new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(cfg.command, cfg.args ?? [], { stdio: ["pipe", "pipe", "pipe"] });
+    } catch (e) {
+      return resolve({ name, ok: false, ms: 0, detail: `无法启动：${String(e?.message ?? e)}` });
+    }
+    let out = "";
+    let err = "";
+    let settle = null;
+    const done = (ok, detail) => { if (!settle) { settle = true; try { child.kill("SIGTERM"); } catch { /* 已退出 */ } resolve({ name, ok, ms: Date.now() - started, detail }); } };
+    const timer = setTimeout(() => done(false, `20s 内没有完成握手（stderr 尾：${err.trim().slice(-200) || "（空）"}）`), 20000);
+    child.on("error", (e) => { clearTimeout(timer); done(false, `启动失败：${String(e?.message ?? e)}`); });
+    child.on("exit", (code) => { clearTimeout(timer); done(false, `握手前退出（退出码 ${code}；stderr 尾：${err.trim().slice(-200) || "（空）"}）`); });
+    child.stderr.on("data", (d) => { err += String(d); });
+    child.stdout.on("data", (d) => {
+      out += String(d);
+      for (const line of out.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (msg.id === 1 && msg.result) {
+            // 握手成功（initialize 有回）⇒ 再问一次 tools/list，确认它真能列工具
+            child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }) + "\n");
+          }
+          if (msg.id === 2 && msg.result) { clearTimeout(timer); done(true, `握手成功，列出 ${(msg.result.tools ?? []).length} 个工具`); }
+          if (msg.error) { clearTimeout(timer); done(false, `协议错误：${JSON.stringify(msg.error).slice(0, 160)}`); }
+        } catch { /* 非 JSON 行（日志等）忽略 */ }
+      }
+    });
+    try {
+      child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "agent-base-doctor", version: "0" } } }) + "\n");
+    } catch (e) { clearTimeout(timer); done(false, `写入握手请求失败：${String(e?.message ?? e)}`); }
+  });
 }

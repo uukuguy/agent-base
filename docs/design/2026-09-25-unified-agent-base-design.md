@@ -470,7 +470,7 @@ mcpServers:
 
 1. **`urlRef` / `credentialRef` 只写引用名**（N18）。取值来自参数层（§2.3）。适配器负责把它解析成 harness 原生字段——dsh 用 `!!js process.env.X`（原生支持），pi 需要在启动期渲染（§10.2 约束 1）。这个差异由适配器的"参数化能力"声明吸收，业务定义不变。
 2. **`stdio` 的 `command`/`args` 属于制品**：它决定"能连什么"，且是可执行内容，必须可评审、可 pin 版本。
-3. **自研连接器**：当内部系统没有现成 MCP server 时，业务把 server 代码放进 `mcp-servers/<name>/`，`stdio.command` 用相对路径引用它（如 `command: node`、`args: ["mcp-servers/corp-internal/index.js"]`）。渲染器把相对引用解析成镜像内固定路径（§8.1）；这套代码是**业务代码**，随制品一起烤、一起 digest（N19），不是外部依赖。
+3. **自研连接器**：当内部系统没有现成 MCP server 时，业务把 server 代码放进 `mcp-servers/<name>/`，在 `connectors.yaml` 里**平铺**写 `transport: stdio` + `command: node` + `args: ["mcp-servers/corp-internal/index.js"]`（**没有 `stdio:` 这一层** —— 真源是 `core/spec/connectors.schema.json`，早期本文写的嵌套形状过不了校验）。相对引用由**启动期**解析成暂存产物的绝对路径（§8.1）：放在启动期而不是渲染期，产物才能保持可搬、本地与容器同一条路径；这套代码是**业务代码**，随制品一起烤、一起 digest（N19），不是外部依赖。
 
 4. **按名引用基座预装条目（`ref` 形态）**——**这是「开发智能体便捷」的关键一条**。上例是完整形态，要求业务方写全 `transport` + `command`/`args` + 包名版本；对非专家这等于要求先懂 MCP。因此定义单元支持第二种形态：
 
