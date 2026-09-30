@@ -1,107 +1,163 @@
 # agent-base
 
-**Turn a folder of agent instructions and tools into a tested Docker image.**
+**Tools and base images for building, running, and testing AI agents.**
 
-[中文说明](README.zh-CN.md)
+[中文](README.zh-CN.md)
 
-## What is agent-base?
+With agent-base, you can build an agent for contract review, code review, or data redaction, give it instructions, models, tools, and skills, then try it locally and test it in Docker.
 
-`agent-base` is the build and test kit for an AI agent project.
+You write the agent's business logic. agent-base provides project templates, run commands, automated checks, traces, and a container environment. Each agent has its own project and uses the same development commands.
 
-You put an agent's instructions, model settings, tools, connectors, and skills in a folder. This repository gives you commands to:
+## What can you build?
 
-1. check that the definition is valid;
-2. prepare the files needed by the program that runs it;
-3. run it against the built-in test gateway or a real model endpoint;
-4. test that the declared tools and permissions actually work;
-5. package the same definition as a Docker image (OCI format) for CI or deployment.
+The repository includes complete examples. Start with one close to your use case:
 
-The goal is simple: the agent you test on your laptop is the same agent you test and ship in a container.
+| Task | Example |
+|---|---|
+| Review contract clauses and connect to external systems | [Contract review](examples/contract-review/) |
+| Assess change risk and add custom business tools | [Change risk review](examples/change-risk-review/) |
+| Identify sensitive data and check redaction results | [Privacy redaction](examples/privacy-redaction/) |
+| Use local model services such as Ollama or vLLM | [Local model development](examples/local-model-dev/) |
+| Use the same agent configuration across environments | [Multiple environments](examples/multi-env-rollout/) |
 
-`agent-base` is **not** a model, a hosted chatbot, an API gateway, or a multi-tenant application. It is the build, run, and verification layer for those applications.
+These are reference projects. Adapt the instructions, skills, or code to your business and evaluate the results on your own tasks.
 
-## Who should use it?
+## Why use agent-base?
 
-Use it when you need to:
+Building an agent involves more than writing a prompt. You also need to install tools, connect to models and services, manage permissions, record calls, and check that the agent still works in a container.
 
-- build several agents from a consistent project layout;
-- keep the agent's files separate from the program that executes them;
-- run the same agent locally and in a restricted container;
-- catch missing tools, wrong permissions, broken connectors, and leaked credentials before release;
-- compare the two supported execution programs when you need to check compatibility.
+agent-base handles the repeated work:
 
-If you only need to call a model from a short script, this repository is probably more than you need.
+- **Reuse the setup.** Templates, common tools, and connectors give each project the same starting point and commands.
+- **Check that configuration took effect.** Automated checks inspect loaded skills, tools, and connectors and report missing components.
+- **Reduce dependence on personal machine settings.** Separate configuration directories keep local credentials and extra skills from being picked up unintentionally.
+- **Test the container before release.** Checks compare the image with its source and exercise offline operation, an unprivileged user, and permission limits.
+- **Keep evidence for debugging.** Reports and call traces show where a run failed.
+- **Compare agent software.** Run the same business definition with Pi or DSH; incompatibilities are reported explicitly.
 
-## The workflow
+These checks cover configuration and execution. Whether a contract analysis is correct or a risk assessment is useful still requires business-specific tests.
+
+## Design
+
+### Each agent is a separate project
+
+An agent project typically contains:
 
 ```text
-agent.yaml + connectors + skills
-              │
-              ▼
-       make validate        Is the definition complete and consistent?
-              │
-              ▼
-       make verify          Does the rendered agent really start and work?
-              │
-              ▼
-       make run-local       Try it with a fake gateway or your endpoint
-              │
-              ▼
-       Docker image + CI    Rebuild and verify the same artifact before release
+my-agent/
+├── agent.yaml       # Instructions, model choice, and tool restrictions
+├── connectors.yaml  # External service connections
+├── skills/          # Task instructions and business scripts
+└── Makefile         # Commands: validate, verify, run-local
 ```
 
-The checks are deliberately separate. A process starting is not enough: they also inspect what was loaded, which tools are available, whether the execution program can reach the expected gateway, and whether the final request produces a usable report and trace.
+Business development happens in your project. The base supplies shared tools, so adding an agent does not require copying the infrastructure.
+
+### Define, run, and check
+
+agent-base reads the project files, generates configuration for the chosen agent software, then starts and checks it. This lets the checks compare what the project declares with what the program actually loaded.
+
+### Keep credentials out of the build
+
+Instructions, skills, and tool configuration are versioned with the project. Model service addresses and credentials are supplied when it runs, keeping test credentials out of the image.
 
 ## Quick start
 
-Requirements: Node.js 24+, GNU Make, and Docker. OrbStack works on macOS. Full production acceptance runs on a Linux CI runner with Docker, QEMU, and loopback networking.
+Requirements: Node.js 24+, GNU Make, and Docker. On macOS, you can use OrbStack.
 
-From this repository:
+### 1. Install development dependencies
 
 ```bash
+git clone https://github.com/uukuguy/agent-base.git
+cd agent-base
 npm ci
 make dev-env
 make local-packages
 make local-packages-check
-
-# Check the base repository itself
-make validate
-make validate-selftest
-
-# Fast local regression. It marks selected container checks as skipped.
-npm test
 ```
 
-Create an agent project outside the base repository:
+`make dev-env` installs the pinned Pi and DSH versions. `make local-packages` installs the connector dependencies used by local checks.
+
+### 2. Create and check an agent
 
 ```bash
-make new-agent NAME=release-review DESCRIPTION="Review release risk"
-cd ../release-review
+make new-agent NAME=my-agent DESCRIPTION="My business assistant"
+cd ../my-agent
 
 make validate
-make verify HARNESS=pi
-make run-local PROMPT="Review this release for operational risk"
+make verify
 ```
 
-For a real model endpoint, pass deployment values at invocation time. Do not put secrets in `agent.yaml`, generated files, or Git:
+The new project is created beside `agent-base`. Edit its instructions and model settings in `agent.yaml`, then add skills and connectors as needed.
+
+`make validate` checks files and references. `make verify` uses a local test gateway to check startup and requests without a real model key. It does not assess the correctness of business answers.
+
+### 3. Try a real model
+
+First configure your provider and model in `agent.yaml`. For adding a provider or querying available models, see the [quickstart](docs/01-quickstart.md) and [model configuration](docs/02-concepts.md). Then run:
 
 ```bash
 make run-local \
   ENDPOINT=https://your-gateway.example/v1 \
   API_KEY='<secret>' \
-  PROMPT='Review this release for operational risk'
+  PROMPT='Complete my test task'
 ```
 
-## What gets checked?
+`make run-local` needs a working model endpoint. Keep real credentials out of project files and Git.
+
+## What are Pi and DSH?
+
+They are two existing agent programs. They call the model, execute the tools it selects, and continue processing the results. They are distinct from **model providers** such as DeepSeek and OpenAI.
+
+agent-base supplies common project files and checking commands on top of these programs. **Pi** is the default. To check the same project with **DSH**, change the command argument:
+
+```bash
+make verify HARNESS=pi
+make verify HARNESS=dsh
+```
+
+`HARNESS` selects the agent program. Use the default for the basic workflow; changing a model or provider does not necessarily require switching Pi/DSH.
+
+| Program | Pinned version |
+|---|---|
+| Pi | `@earendil-works/pi-coding-agent@0.87.1` |
+| DSH | `@deepseek-ai/dsh@0.1.7-rc.1` |
+
+Both use the same admission checks, but their extension mechanisms and some capabilities differ. See the [runtime comparison](docs/design/2026-09-27-runtime-selection-facts.md).
+
+## Architecture
+
+```mermaid
+flowchart LR
+  A[Agent project<br/>instructions, models, skills, connectors] --> B[agent-base<br/>checks and configuration generation]
+  B --> C[Pi / DSH<br/>model and tool calls]
+  C --> D[Reports and traces]
+  B --> E[Docker image<br/>container verification]
+```
+
+| Directory | Purpose |
+|---|---|
+| `core/` | Shared definition rules, checks, reports, traces, and image logic |
+| `adapters/` | Translate project files for Pi and DSH and integrate their execution and traces |
+| `template/` | Template for new agent projects |
+| `examples/` | Complete business reference projects |
+| `tools/` | Command entry points |
+| `docs/` | Usage, design, and verification guides |
+
+## Verification and containers
 
 `make verify` runs four checks:
 
-1. **Validate** — the agent files, references, tools, and settings are valid.
-2. **Doctor** — the execution program reports what the prepared agent actually contains.
-3. **Probe** — the execution program starts and reaches the built-in test gateway without a provider key.
-4. **Smoke** — one end-to-end request produces a report and trace.
+| Check | Question |
+|---|---|
+| Validate | Is the definition valid, and do its references exist? |
+| Doctor | Does the generated configuration contain the expected components? |
+| Probe | Does the program start, load its tools, and reach the test gateway? |
+| Smoke | Does a test request complete and produce a report and trace? |
 
-For release acceptance, build both image architectures and run the complete regression:
+Container checks also exercise a read-only root filesystem, an unprivileged user, dropped Linux capabilities, and offline execution. Base images support `linux/amd64` and `linux/arm64`; debug images are built separately.
+
+When maintaining the base, run the complete regression from its repository root:
 
 ```bash
 node core/image/build.mjs --all --debug
@@ -109,61 +165,28 @@ node core/image/build.mjs --manifest
 node tools/regression.mjs --json
 ```
 
-A complete acceptance run must exit with `0`, `failed: []`, and `skipped: []`. `npm test` is intentionally faster and does not replace this command.
+A passing run exits with `0`, `failed: []`, and `skipped: []`. `npm test` is a faster development check; it still requires Docker and explicitly skips selected container checks.
 
-## The two programs that can run an agent
+The GitHub [acceptance workflow](.github/workflows/production-acceptance.yml) builds and checks images on Linux and saves a structured report. Building images downloads dependencies. Offline checks verify that container dependencies are available; real model calls still need access to a model service.
 
-The files in an agent project are not a model or a command-line program by themselves. They are read by an execution program, which loads the instructions and tools and then talks to the model. `agent-base` currently supports two such programs:
+## Scope
 
-Most users should start with **Pi**. Choose **DSH** when you specifically need its DeepSeek command-line or MCP behavior. You do not need to understand either program before using the basic `make validate`, `make verify`, and `make run-local` workflow.
+agent-base is intended for teams that develop, test, and compare business agents over time. It provides verification conditions close to deployment and a foundation for building application images.
 
-| Program | Package | Use it when |
-|---|---|---|
-| **Pi** | `@earendil-works/pi-coding-agent@0.87.1` | You want the default path |
-| **DSH** | `@deepseek-ai/dsh@0.1.7-rc.1` | You need the DeepSeek CLI/MCP path |
+Authentication, multi-tenancy, human approval, high availability, and long-running service orchestration belong to the application or deployment platform. For a short script that calls a model, a provider SDK may be sufficient.
 
-Both programs are checked against the same C1–C10 behavior checklist. Their integration code stays under `adapters/`; the shared checking and image code stays under `core/`.
+## Further reading
 
-## How the pieces fit
+The detailed guides are currently in Chinese.
 
-```mermaid
-flowchart LR
-  A[Agent project\nagent.yaml, connectors, skills] --> B[Validate]
-  B --> C[Choose Pi or DSH]
-  C --> D[Prepare and run]
-  D --> E[Verify\nprobe + smoke]
-  E --> F[Docker image]
-  G[Endpoint, model, credentials] --> D
-```
-
-The agent project contains the instructions and tool choices. Pi or DSH reads those files and talks to the model. The checks test the result. The image packages the result without copying host credentials into it.
-
-## Repository map
-
-- `core/` — shared schemas, checks, traces, image startup, and security checks.
-- `adapters/` — the Pi and DSH integrations.
-- `template/` — the starting layout for a new agent project.
-- `examples/` — complete agent definitions you can inspect and run.
-- `tools/` — command-line entry points such as `validate`, `verify`, `run-local`, and `regression`.
-- `docs/` — design decisions, verification details, and the production CI contract.
-
-Read [`AGENTS.md`](AGENTS.md) before changing the repository. Start with [`docs/14-how-to-verify.md`](docs/14-how-to-verify.md) when you need the full verification contract.
-
-## Security and deployment notes
-
-- Build steps may download pinned dependencies; execution checks support offline operation.
-- Endpoint, model, and credentials are passed when the agent runs and are not baked into the image.
-- Child processes receive an explicit environment allowlist.
-- Images run as an unprivileged user. Container verification uses a read-only root, dropped capabilities, and an explicit temporary filesystem.
-- The fake gateway lets CI exercise the full flow without a provider key.
-- If a credential has ever been committed, remove it from Git history **and** revoke or rotate it in the provider account.
-
-## Production acceptance
-
-`.github/workflows/production-acceptance.yml` runs the checks that require a real Linux runner: Docker, loopback networking, QEMU, both image architectures, the OCI manifest, and the complete regression. It uploads the structured regression report as a workflow artifact.
-
-The local OrbStack checks are useful during development. The GitHub workflow is the release check because it runs in the environment required by production.
+- [Quickstart](docs/01-quickstart.md): model configuration, local execution, and login options.
+- [Capability catalog](docs/03-capability-catalog.md): available tools and capabilities.
+- [Troubleshooting](docs/07-troubleshooting.md): diagnose configuration that did not take effect.
+- [Deployment](docs/06-deploy.md): application images and runtime parameters.
+- [Verification](docs/14-how-to-verify.md): commands, expected results, and limits.
+- [CI acceptance](docs/15-ci-production-acceptance.md): runner requirements and check order.
+- [AGENTS.md](AGENTS.md): working conventions for changes to this repository.
 
 ## License
 
-See [`LICENSE`](LICENSE).
+See [LICENSE](LICENSE).
