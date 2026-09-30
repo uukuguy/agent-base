@@ -78,7 +78,8 @@ let imageReady = false;
     record("镜像与源码同源", false, "发布镜像缺失或与源码不同源；需要重新加载此次 OCI 构建产物，发布验收不自动重建");
   } else {
     log(`▶ 镜像过期（LABEL ${lbl ? `${lbl.slice(0, 12)}…` : "缺失"} ≠ 源码 ${expected.slice(0, 12)}…）⇒ 先重建（这是 D13 的教训：不重建就谈不上"验过"）`);
-    const b = run(process.execPath, [path.join(REPO, "core/image/build.mjs"), "--all", "--debug"], 3000000);
+    const localArch = process.arch === "x64" ? "amd64" : "arm64";
+    const b = run(process.execPath, [path.join(REPO, "core/image/build.mjs"), "--arch", localArch], 1800000);
     if (b.status !== 0) {
       record("镜像与源码同源", false, "重建失败，后续容器相关项不可信");
     } else {

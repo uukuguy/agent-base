@@ -46,7 +46,7 @@ node -e 'require("node:net").createServer().listen(0, "127.0.0.1").close()'
 
 GHCR 新包默认私有。首次发布后需要在包设置中改为 public，并验证不登录也能拉取；仅有上传成功不能称为公开发布完成。
 
-本地日常开发只需构建当前主机架构（`make image`）。双架构、调试变体和多架构归档的完整验收由云端 runner 执行；本地仅在需要复现跨架构问题时运行下面的完整流程。
+本地日常开发和回归只构建、测试当前主机架构（`make image`）。双架构生产镜像和多架构归档只在发布 CI 中验收；本地不需要构建四个变体。
 
 生产 job 的总上限是 50 分钟。多架构 OCI 构建、镜像加载和完整回归各自有硬上限；Docker 或 QEMU 卡住时，工作流会指出卡住的阶段并尽快失败，不会等 90 分钟才返回结果。
 
@@ -57,9 +57,10 @@ GHCR 新包默认私有。首次发布后需要在包设置中改为 public，�
 ```bash
 npm ci
 make local-packages local-packages-lock
-node core/image/build.mjs --all --debug
-node core/image/build.mjs --manifest
+node core/image/build.mjs --arch arm64
 node tools/regression.mjs --json > regression.json
 ```
+
+在 amd64 主机上把 `--arch arm64` 换成 `--arch amd64`；`make regression` 会按当前主机架构自动选择生产镜像。需要排查跨架构问题时，再单独运行 `make image-all` 或 `make image-manifest`。
 
 若镜像构建失败，先检查 Docker daemon、Buildx builder 和 QEMU；若 gateway/provider 自检失败，先检查 runner 是否禁止监听 `127.0.0.1`。不要用 `--allow-stale-image` 作为 CI 修复手段：它会使镜像与当前源码不可比。

@@ -179,7 +179,9 @@ export function runImageChecks({ version, arch = hostArch() } = {}) {
 
   // ⑥b 双架构：另一个架构也必须真的能跑、且硬化生效（用户明确要求同时支持 arm64/amd64）
   // 不能只看"构建成功" —— 模拟架构下最典型的坑是"构建过了但跑不起来"。所以真跑。
-  {
+  if (!mode.requireOtherArchRuntime) {
+    add("dual-arch-image", true, "本地验收只覆盖当前主机架构；发布验收才运行另一平台");
+  } else {
     const other = arch === "arm64" ? "amd64" : "arm64";
     const otherTag = `agent-base:${version}-${other}`;
     const expectMachine = other === "amd64" ? "x86_64" : "aarch64";
@@ -202,7 +204,9 @@ export function runImageChecks({ version, arch = hostArch() } = {}) {
   //
   // 注意归档是**两层**的：顶层 index.json 里那一条是 manifest list 本身
   // （mediaType = oci.image.index），平台条目在它指向的 blob 里。只读顶层会得出"0 个平台"的错觉。
-  {
+  if (!mode.requireMultiarch) {
+    add("multiarch-manifest", true, "本地验收只构建当前主机架构；发布验收才要求 OCI 多架构归档");
+  } else {
     const archive = path.join(REPO, "dist/image", `agent-base-${version}.oci.tar`);
     if (!fs.existsSync(archive)) {
       add("multiarch-manifest", false, `缺多架构归档 dist/image/agent-base-${version}.oci.tar —— 跑 make image-manifest`);
@@ -250,8 +254,7 @@ export function runImageChecks({ version, arch = hostArch() } = {}) {
     // 「改了闸门代码但没重建镜像」必须在这里被抓住 —— 否则会表现为"容器挂、本地过"的假差异（D13）。
     const expected = imageInputsDigest(REPO);
     const productionTags = ["arm64", "amd64"].map((cpu) => `agent-base:${version}-${cpu}`);
-    const debugTags = ["arm64", "amd64"].map((cpu) => `agent-base:${version}-debug-${cpu}`);
-    const tags = mode.release ? productionTags : [...productionTags, ...debugTags];
+    const tags = mode.release ? productionTags : [base];
     const seen = [];
     const stale = [];
     for (const t of tags) {
