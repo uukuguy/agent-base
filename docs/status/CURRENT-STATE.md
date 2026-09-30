@@ -2,12 +2,12 @@
 
 ## Project Snapshot
 
-- Project: `agent-base` —— 企业智能体基座 + 两个 harness 运行时（**主运行时定 `pi`**，另一侧并列可用）
+- Project: `agent-base` —— 给业务团队复用的智能体运行基座；提供统一契约、能力包、验证闸门和可直接运行的 Docker 镜像，当前接入 `pi` 与 `dsh` 两个 harness（**主运行时定 `pi`**）
 - Current branch: `main`
-- Theme-level focus: **L1–L5 全部闭合 + 「运行/开发」边界已定**。最近一段收口：L4 能力包（包定义 → 激活真的生效 → 期望集合 → 证据 → 发现面 → 内容 → 默认 → 插件）· Q4 本地预装镜像有锁 · 三轮真实走查（基础用法 / 写业务代码 / 只看文档）· 另一侧两条能力包豁免**实测推翻**后落地 · 候选运行时在**加固容器内起不来**的根因修复（两侧现在都能容器内自证）
+- Theme-level focus: **基座契约、当前架构本地验收、发布架构验收和 GHCR 交付边界已定**。本地只构建并验证当前主机的 production 镜像；版本发布由 GitHub Actions 一次构建生产 OCI 多架构镜像，验收 `linux/arm64` 与 `linux/amd64` 后推送 GHCR；debug 变体只在明确诊断时使用。L1–L5、能力包、镜像内自证和两侧 conformance 保持为现有基线。
 - Project route: managed
 - Canonical worklist: `docs/plans/IMPLEMENTATION-ROADMAP.md`（**看 §1.1 工作线总览**：L1 钩子与定制 · L2 发现面 · L3 环境与验证 · L4 能力包 · L5 基座自陈 · L6 可移植业务代码）
-- Active work package: **无进行中的包**。仍开着的 4 条（E10 另一侧事件集合穷举 · C8 另一侧 coding 包插件内容 · O5 深定制样例契约 · Q5 容器内交互可选）见文末 Open Problems；边界决策见 `DECISIONS.md` 2026-09-28（运行环境与开发环境是两套）
+- Active work package: **无进行中的包**。仍开着的事项见文末 Open Problems；边界决策见 `DECISIONS.md` 2026-09-28（运行环境与开发环境是两套）。交付入口为公开 GHCR 镜像 `ghcr.io/uukuguy/agent-base:0.1.0`。
 
 ## Current Architecture
 
@@ -15,6 +15,12 @@
 
 - **基座层**（本仓库）：不变量（轨迹 schema、参数分层、产物只读、不静默失败）+ 契约（定义/渲染/启动）+ 闸门 + 基座镜像
 - **业务层**（`FROM agent-base`，派生镜像）：业务代码、钩子、loop 定制、服务形态；**深度定制发生在这里**
+
+### 构建与交付边界
+
+- **本地开发与回归**：`node core/image/build.mjs --arch <host-arch>` 只构建当前主机的 production 镜像；`tools/regression.mjs` 自动复用或重建该架构并执行本地回归，不要求四份变体或多架构归档。
+- **版本发布**：版本 tag 或手动发布工作流在 Linux runner 上执行一次 production OCI 多架构构建，加载两个平台分别做完整容器验收，再用 `skopeo copy --all` 推送 GHCR。用户通过同一个 tag `docker pull ghcr.io/uukuguy/agent-base:<version>`，Docker 根据主机架构选择镜像。
+- **诊断变体**：`--debug` / `image-debug` 保留给显式排障，不属于默认本地回归和生产发布验收。
 
 ### 定制分层（基座对每层的承诺与判据）
 
@@ -83,10 +89,9 @@
 
 ### 仓库拓扑
 
-`core/`（125 文件）· `adapters/{pi,dsh}/`（46）· `tools/`（36）· `conformance/` · `template/` ·
-`docs/`（16 篇编号文档 + `design/`、`plans/`、`status/`）；`dist/` 是构建产物（已 gitignore）。
-**Makefile 66 个目标全部已实现**（28 个 `*-selftest`；`make regression` 共 37 项）。
-（数字按 2026-09-28 实测；这类数字会腐烂 —— 引用时以现场命令为准。）
+`core/` · `adapters/{pi,dsh}/` · `tools/` · `conformance/` · `template/` ·
+`docs/`（编号文档 + `design/`、`plans/`、`status/`）；`dist/` 是构建产物（已 gitignore）。
+Makefile 目标、自检数量和回归项目以 `make help`、`make regression` 现场输出为准，避免把会随实现变化的数量写成契约。
 
 ### 契约与检查（近期收紧，均带负例）
 
@@ -116,7 +121,7 @@
 - **pi 的「已加载」口径仍不到「已加载」**：堵住了"未声明的接入件被加载"，但"声明了却没加载"仍观测不到
 - **`tool.call.decision` 恒为 `unobserved`**：轨迹观测不到别的 handler 是否阻断（诚实近似，非等价）
 - **另一侧接入缝只支持一种装载形态**（扩展目录 + settings 登记），其余响亮失败
-- **镜像未推任何 registry**：多架构归档可落盘，推送路径待定（I2 已答"仅运行期无外网"）
+- **发布后的镜像治理**：`ghcr.io/uukuguy/agent-base` 已公开提供 `0.1.0`；后续版本需要继续保持 tag、OCI 多架构索引、两个平台验收和发布元数据的一致性。
 - **预装清单未定稿**：「预装哪些进镜像」仍可调；本地对应物 `.local-packages` 已**从同一份锁装入且有可复算指纹**（`.local-packages.lock.json`，含"锁变了而镜像没重刷"检测）
 - **上游版本漂移**：另一侧 `0.1.7-rc.1` 是预发布、主运行时迭代快；pin 之外的回归网是两侧 conformance
 
@@ -161,7 +166,7 @@
 
 ### Implementation entry points
 
-- `Makefile` —— 全部命令的唯一边界（66 个目标，全部已实现）
+- `Makefile` —— 全部命令的唯一边界（目标以 `make help` 为准）
 - `tools/{validate,probe,smoke,verify}.mjs` —— 闸门 1/3/4 与四道闸门编排
 - `core/verify/attribution.mjs` —— **失败归因**（容器挂≠缺陷：本地可复现 / 已声明差异 / 容器专有 / **本地没跑到** / 未声明差异）
 - `adapters/dsh/approval-probe.mjs` —— 探针：另一侧原生流/会话文件里有没有审批记录、相对路径插件 row 能不能加载（`make dsh-approval-probe`）
@@ -190,7 +195,12 @@
 - `CLAUDE.md` —— **新会话入口**（这是什么/怎么验/纪律/状态在哪/已知的坑）
 - `core/spec/` —— 中性定义 schema（**public contract**，含开放命名空间 `x-*`/`customizations`）+ **增强 schema**（`kind` 允许 `x-*`）+ fixtures（1 合法 + **13** 注入式非法 + **1 正例**）
 - `core/catalog/{capabilities,params,providers}.yaml` —— 三个执法点：字段所属层 · 参数层清单 · provider 目录
-- `core/image/` —— 基座镜像与调试变体 + `verify-in-image.mjs`（镜像内自证）+ `derived/Dockerfile`（派生骨架）
+- `core/image/` —— 基座镜像、当前架构本地构建、生产 OCI 多架构 manifest、调试变体 + `verify-in-image.mjs`（镜像内自证）+ `derived/Dockerfile`（派生骨架）
+- `core/image/host-arch.mjs` —— 主机架构映射；本地构建和回归只选择当前平台
+- `.github/workflows/production-acceptance.yml` —— 版本发布时的单次生产多架构构建、双平台容器验收和 GHCR 推送
+- `conformance/image-acceptance-mode.mjs` / `conformance/image-checks.mjs` —— 本地 current-platform 与 release multiarch 验收模式
+- `conformance/container-fixture-dir.mjs` —— Linux 容器夹具目录权限与非 root 验收
+- `tools/regression.mjs` —— 本地自动重建当前架构；发布模式拒绝隐式重建并要求双架构产物
 - `core/config/dotenv.mjs` —— 环境文件加载（真实环境变量优先；永不打印值）
 - `tools/fake-gateway/` —— 零凭据假网关（协议无关核心 + 协议适配）
 - `tools/trace-view/` —— 轨迹查看器参考实现（业务附加协议 + 机械回退；源码不含业务词汇）
@@ -203,15 +213,16 @@
 2. Read `RESUME-NEXT-SESSION.md`（在飞意图 + 下一个具体动作）。
 3. `git status --short` 与 `git log --oneline -5`。
 4. CLAUDE.md（若已创建）+ 运行时记忆自动加载。
-5. 自检全貌：`make -s help`；28 个自检目标 + `make regression`（37 项，含两侧 conformance）。
+5. 自检全貌：`make -s help`；按现场列出的 selftest 目标运行 `make regression`（含两侧 conformance）。
 6. 需要实现细节时按需读统一设计正文（勿全文加载）：§0.2 决策、§2 架构、§4 定义单元、§5 适配契约、§6 四闸门、§8 交付契约与轨迹、§12 落地。
 
 ## 镜像与同源校验（不记逐次构建的 ID）
 
-交付四份变体（arm64/amd64 × 普通/调试）+ 一份多架构 OCI 归档。
+本地交付当前主机架构的 production 镜像；版本发布交付一份包含 `linux/arm64` 与 `linux/amd64` 的 production OCI 多架构镜像。debug 变体仅按需生成。
 
 - **同源指纹**：`core/image/inputs-digest.mjs` 对构建输入算 sha256，构建期烤进 LABEL `agent-base.inputs-digest`；
   C9 用同一份实现重算比对 —— **改了输入不重建镜像 ⇒ C9 直接红**
+- **发布索引**：GHCR 的版本 tag 指向 OCI index；Docker pull 时按宿主架构选择对应 manifest，用户无需手工指定架构。
 - 查当前值：`node -e "import('./core/image/inputs-digest.mjs').then(m=>console.log(m.imageInputsDigest('dist/image/context')))"`
   与 `docker image inspect <镜像> --format '{{index .Config.Labels "agent-base.inputs-digest"}}'`
 - 不在此处记录逐次构建的镜像 ID：它每次重建都变，记在这里只会变成过期数字
