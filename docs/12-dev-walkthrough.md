@@ -65,6 +65,7 @@ make walkthrough LIVE=1 ENDPOINT=https://… API_KEY=…    # 再打真实端点
 ```bash
 cd examples/idea-to-proof && make local     # 进交互会话
 > /project              # 分类目录（只列出可查询的子命令）
+> /project overview     # 显示项目根目录 PROJECT.md（Markdown 原样交给运行时渲染）
 > /project all          # 显式查看完整报告
 > /project skills       # 只看一类：skills | connectors | enhancements | hooks | model | trace | portability
 > /project <Tab>        # 补全列出分类；再 <Tab> 补**这个项目里真实存在的值**
@@ -84,6 +85,13 @@ cd examples/idea-to-proof && make local     # 进交互会话
 
 **补全本身就是"一个项目应该有哪些信息"的目录** —— 这是这条命令最容易被低估的用途：
 想不起该有什么时，敲 `/project ` 按 Tab。
+
+### 给项目写一份可执行的入口说明
+
+在智能体定义根目录放一个 `PROJECT.md` 即可约定项目入口，不限制 Markdown 内容格式。渲染时文件会随产物进入 Pi/DSH，
+会话内用 `/project overview` 查看。示例项目都带有这份文件；可以从 `examples/idea-to-proof/PROJECT.md` 开始改写，放入
+本项目的验证命令、验收标准和几个真实输入例子。Pi 的交互消息会渲染 Markdown；DSH 的 Web UI 会渲染 Markdown，
+无头输出则保留 Markdown 文本。
 
 ## 没验的部分（诚实清单）
 

@@ -45,6 +45,7 @@ function renderAgent({ name, skills = ["alpha", "beta"], hookEnhancement = null 
   fs.writeFileSync(path.join(agent, "agent.yaml"),
     `apiVersion: agent-base/v1\nname: ${name}\ndescription: 自省命令自检\npersona: { instructions: 自检。 }\n`
     + `model: { provider: corp-gateway, name: corp-think }\nconnectorsFile: connectors.yaml\n`);
+  fs.writeFileSync(path.join(agent, "PROJECT.md"), "# 自省项目指南\n\n先运行 `make verify`。\n");
   fs.writeFileSync(path.join(agent, "connectors.yaml"), "apiVersion: agent-base/v1\nmcpServers: []\n");
   for (const s of skills) {
     fs.mkdirSync(path.join(agent, "skills", s), { recursive: true });
@@ -99,6 +100,9 @@ check("skills 报出产物里真实存在的两个技能",
   skillsText.includes("alpha") && skillsText.includes("beta"), skillsText.slice(0, 200));
 const skillsText2 = render("skills", facts);   // 幂等
 check("同一输入渲染两次结果相同（可复算）", skillsText === skillsText2);
+const overviewText = render("overview", facts);
+check("overview 直接显示项目根 PROJECT.md 的 Markdown",
+  overviewText === "# 自省项目指南\n\n先运行 `make verify`。\n", overviewText);
 
 const indexText = renderIndex(facts);
 check("无参数 `/project` 只显示分类目录，不叠加各分类正文",

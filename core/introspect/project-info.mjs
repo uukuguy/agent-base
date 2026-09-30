@@ -93,6 +93,11 @@ export function collect({ productDir, artifactDir, gatesDir, layout } = {}) {
       + "应设 AGENT_ARTIFACT_DIR=<渲染输出根>（清单在产物根，暂存的运行目录里没有它）");
   }
   if (productDir && !existsSync(productDir)) problems.push(`产物配置目录不存在：${productDir}`);
+  let projectOverview = null;
+  if (artifact && existsSync(path.join(artifact, "PROJECT.md"))) {
+    try { projectOverview = readFileSync(path.join(artifact, "PROJECT.md"), "utf8"); }
+    catch (e) { problems.push(`项目概览 PROJECT.md 无法读取：${e.message}`); }
+  }
 
   // 运行期专有的产物读法（可选）：没有 layout 时，一切以清单为准。
   const reads = (productDir && existsSync(productDir) && typeof layout?.read === "function")
@@ -113,6 +118,7 @@ export function collect({ productDir, artifactDir, gatesDir, layout } = {}) {
     problems,
     productDir: productDir ?? null,
     artifact,
+    projectOverview,
     layoutId: layout?.id ?? null,
     manifest,
     // 能力包（L4）：激活集合来自**运行期**（基座解析后放在平台变量里），可用集合/成员表来自**清单**。
@@ -192,6 +198,7 @@ export function render(category, facts) {
 
   switch (category) {
     case "overview":
+      if (facts.projectOverview !== null) return facts.projectOverview;
       return [
         `智能体        ${say(manifest?.agent)}`,
         `运行时        ${say(manifest?.harness)} ${say(manifest?.harnessVersion)}`,

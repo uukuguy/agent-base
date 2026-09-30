@@ -147,6 +147,10 @@ function main() {
   fs.rmSync(outRoot, { recursive: true, force: true });
   fs.mkdirSync(agentOut, { recursive: true });
 
+  // 项目概览是用户可编辑的 Markdown；随产物携带，供会话内 `/project overview` 原样展示。
+  const projectOverview = path.join(agentDir, "PROJECT.md");
+  if (fs.existsSync(projectOverview)) fs.copyFileSync(projectOverview, path.join(outRoot, "PROJECT.md"));
+
   // ---- 1. 人设 → AGENTS.md（§10.2）----
   let persona;
   if (agent.persona?.instructionsFile) {

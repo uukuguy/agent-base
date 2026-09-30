@@ -35,6 +35,7 @@ function scaffold() {
   fs.writeFileSync(path.join(agent, "agent.yaml"),
     "apiVersion: agent-base/v1\nname: pi-selftest-agent\ndescription: 自省自检\n"
     + "persona: { instructions: 自检。 }\nmodel: { provider: corp-gateway, name: corp-think }\nconnectorsFile: connectors.yaml\n");
+  fs.writeFileSync(path.join(agent, "PROJECT.md"), "# DSH 自省指南\n\n先运行 `make verify`。\n");
   fs.writeFileSync(path.join(agent, "connectors.yaml"), "apiVersion: agent-base/v1\nmcpServers: []\n");
   fs.writeFileSync(path.join(agent, "skills", "alpha", "SKILL.md"), "---\nname: alpha\ndescription: 一句话\n---\n正文\n");
   const renderDir = path.join(root, "render");
@@ -90,6 +91,9 @@ console.log("── B. 真报告（同一份自省逻辑 + 本运行时布局）
   check("报告里带智能体名与运行时", /pi-selftest-agent/.test(all.text) && /dsh/.test(all.text));
   const skills = (await invoke("skills")).result;
   check("单分类可用（skills）", skills.kind === "success" && /· alpha/.test(skills.text), String(skills.text).slice(0, 120));
+  const overview = (await invoke("overview")).result;
+  check("overview 直接显示项目根 PROJECT.md 的 Markdown",
+    overview.kind === "success" && /# DSH 自省指南/.test(overview.text) && /make verify/.test(overview.text), String(overview.text).slice(0, 160));
   const plan = (await invoke("plan")).result;
   check("验证计划分类可用（与 `make verify-plan` 同源）", plan.kind === "success" && /验证计划/.test(plan.text), String(plan.text).slice(0, 120));
   const bad = (await invoke("nope")).result;

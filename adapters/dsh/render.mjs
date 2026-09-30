@@ -274,7 +274,12 @@ function main() {
 
   const outRoot = assertSafeOutputRoot(path.resolve(values["--out"] ?? path.join("dist", HARNESS, agent.name)), { repoRoot: REPO });
   fs.rmSync(outRoot, { recursive: true, force: true });
+  fs.mkdirSync(outRoot, { recursive: true });
   const profileDir = path.join(outRoot, "dsh-home", "profiles", agent.name);
+
+  // 项目概览是用户可编辑的 Markdown；随产物携带，供会话内 `/project overview` 原样展示。
+  const projectOverview = path.join(agentDir, "PROJECT.md");
+  if (fs.existsSync(projectOverview)) fs.copyFileSync(projectOverview, path.join(outRoot, "PROJECT.md"));
 
   // ---- 技能 ----
   const skillsSrc = path.join(agentDir, agent.skillsDir ?? "skills");
