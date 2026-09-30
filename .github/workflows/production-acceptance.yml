@@ -54,6 +54,7 @@ jobs:
     name: Docker production acceptance
     runs-on: ubuntu-latest
     needs: static
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
     # Keep a hung Docker/QEMU build from occupying a runner for 90 minutes.
     # Each expensive step has its own deadline below, so failures identify the
     # phase that stalled instead of looking like an undifferentiated timeout.

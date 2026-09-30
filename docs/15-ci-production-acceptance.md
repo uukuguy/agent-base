@@ -39,7 +39,7 @@ node -e 'require("node:net").createServer().listen(0, "127.0.0.1").close()'
 
 ## 发布到 GHCR
 
-普通 main 提交和 PR 只做验收。推送与 `package.json` 版本相同的版本 tag（例如 `v0.1.0`），或在 main 上手动运行工作流并勾选 `publish`，才会在验收通过后发布。
+普通 main 提交和 PR 只做静态与策略检查，不启动完整 Docker/QEMU 验收。推送与 `package.json` 版本相同的版本 tag（例如 `v0.1.0`），或在 main 上手动运行工作流并勾选 `publish`，才会启动完整验收，并在通过后发布。
 
 发布要求报告中 `ok: true`、`failed: []`、`skipped: []` 同时成立。生产 job 保存已验证的 OCI 归档和源码指纹；独立发布 job 用 `GITHUB_TOKEN` 的 `packages: write` 权限，把这份归档的所有架构复制到 `ghcr.io/uukuguy/agent-base:<版本>`，确认 ARM64 和 AMD64 均存在后更新 `latest`。发布 job 限时 15 分钟，首次上传限时 8 分钟。
 
