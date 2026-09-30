@@ -20,7 +20,7 @@
 
 import fs from "node:fs";
 
-import { collect, render, renderAll, summaryLine, CATEGORIES } from "./_project-info.mjs";
+import { collect, render, renderIndex, CATEGORIES } from "./_project-info.mjs";
 import { projectLayout } from "./_project-layout.mjs";
 
 const readJson = (file) => {
@@ -48,7 +48,7 @@ export function apply(ctx) {
     name: "project",
     description: "查看当前项目的真实信息（技能/连接器/增强/钩子事件/模型/轨迹/可移植性/验证计划）",
     // 本运行时的接口只有"提示"，没有动态补全 ⇒ 把分类清单放在这里（最接近的等价物）
-    input: { hint: `分类：${CATEGORIES.map((c) => c.name).join(" | ")}（留空看全部）` },
+    input: { hint: `分类：${CATEGORIES.map((c) => c.name).join(" | ")}（留空看分类目录）` },
     handler: ({ rawInput }) => {
       const { artifactDir, manifest, productDir } = contextFromEnv(process.env, readJson);
       void manifest;
@@ -69,8 +69,8 @@ export function apply(ctx) {
     if (category && category !== "all" && !known.includes(category)) {
       return { kind: "error", text: `未知分类「${category}」—— 可用：${known.join(" | ")}` };
     }
-    const body = category && category !== "all" ? render(category, facts) : renderAll(facts);
-    const text = `${category && category !== "all" ? `/project ${category}` : summaryLine(facts)}\n\n${body}`;
+    const body = category && category !== "all" ? render(category, facts) : renderIndex(facts);
+    const text = category && category !== "all" ? `/project ${category}\n\n${body}` : body;
       return { kind: "success", text };
     },
   });

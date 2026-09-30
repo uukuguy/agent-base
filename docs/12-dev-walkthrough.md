@@ -64,7 +64,7 @@ make walkthrough LIVE=1 ENDPOINT=https://… API_KEY=…    # 再打真实端点
 
 ```bash
 cd examples/idea-to-proof && make local     # 进交互会话
-> /project              # 整份项目信息（就是"一个项目有哪些信息"的目录）
+> /project              # 分类目录（只列出可查询的子命令）
 > /project skills       # 只看一类：skills | connectors | enhancements | hooks | model | trace | portability
 > /project <Tab>        # 补全列出分类；再 <Tab> 补**这个项目里真实存在的值**
 ```

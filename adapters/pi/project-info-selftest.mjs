@@ -21,7 +21,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { CATEGORIES, collect, complete, render } from "../../core/introspect/project-info.mjs";
+import { CATEGORIES, collect, complete, render, renderIndex } from "../../core/introspect/project-info.mjs";
 // 本运行时的产物读法：与真实扩展**同一份**（自省逻辑运行时无关，读法由适配器给）
 import { projectLayout } from "./project-layout.mjs";
 import { piRpc, stageRenderDir } from "./run.mjs";
@@ -99,6 +99,13 @@ check("skills 报出产物里真实存在的两个技能",
   skillsText.includes("alpha") && skillsText.includes("beta"), skillsText.slice(0, 200));
 const skillsText2 = render("skills", facts);   // 幂等
 check("同一输入渲染两次结果相同（可复算）", skillsText === skillsText2);
+
+const indexText = renderIndex(facts);
+check("无参数 `/project` 只显示分类目录，不叠加各分类正文",
+  CATEGORIES.every((c) => indexText.includes(`/project ${c.name}`))
+    && !indexText.includes("provider      ")
+    && !indexText.includes("（来源：render-manifest.json + 产物目录）"),
+  indexText.slice(0, 400));
 
 // 定义变了 ⇒ 输出跟着变（这条就是"不是硬编码文案"的证据）
 const one = renderAgent({ name: "selftest-one", skills: ["alpha"] });

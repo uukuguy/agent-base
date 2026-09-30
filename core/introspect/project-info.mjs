@@ -357,10 +357,22 @@ export function render(category, facts) {
   }
 }
 
-/** 整份报告（不给参数时用）—— 顺带就是"这个项目有哪些信息"的目录。 */
+/** 整份报告（CLI 默认出口或显式 `all`）—— 会展开所有分类正文。 */
 export function renderAll(facts) {
   return [`${facts.manifest?.agent ?? "（未知智能体）"} · ${facts.manifest?.harness ?? "?"} 项目信息`,
     ...CATEGORIES.map((c) => `\n── ${c.name} ──\n${render(c.name, facts)}`)].join("\n");
+}
+
+/** 无参数的会话入口只展示目录；详细正文由 `/project <分类>` 按需展开。 */
+export function renderIndex(facts) {
+  return [
+    summaryLine(facts),
+    "",
+    "可用分类（查看详情：`/project <分类>`）：",
+    ...CATEGORIES.map((c) => `/project ${c.name}  — ${c.doc}`),
+    "",
+    "输入 `/project ` 后按 Tab 可补全分类；分类后的值可继续补全。",
+  ].join("\n");
 }
 
 /**

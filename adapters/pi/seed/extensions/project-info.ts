@@ -1,7 +1,7 @@
 // ============================================================================
 // 会话内项目自省命令（基座不变量 · 进 seed，不进任何智能体的业务层）
 //
-//   /project              → 整份项目信息（就是"这个项目有哪些信息"的目录）
+//   /project              → 分类目录（避免把所有分类正文一次性叠在一起）
 //   /project skills       → 只看某一类
 //   /project <Tab>        → **补全**列出分类；再 Tab 补该项目里真实存在的值
 //
@@ -20,7 +20,7 @@
 // 这样它可以被自检直接 import 断言，也能被将来 dsh 侧的等价入口复用。
 // ============================================================================
 
-import { collect, complete, render, renderAll, summaryLine } from "./_project-info.mjs";
+import { collect, complete, render, renderIndex } from "./_project-info.mjs";
 // 本运行时的产物读法（渲染器拷进同目录）：自省逻辑运行时无关，读法由各运行时提供
 import { projectLayout } from "./_project-layout.mjs";
 
@@ -56,8 +56,8 @@ export default function projectInfoExtension(pi) {
       }
 
       const category = String(args ?? "").trim().split(/\s+/)[0] ?? "";
-      const body = category && category !== "all" ? render(category, facts) : renderAll(facts);
-      const text = `${category && category !== "all" ? `/${COMMAND} ${category}` : summaryLine(facts)}\n\n${body}`;
+      const body = category && category !== "all" ? render(category, facts) : renderIndex(facts);
+      const text = category && category !== "all" ? `/${COMMAND} ${category}\n\n${body}` : body;
 
       try {
         // 送进会话（进记录、可回看、可复制），但**不触发一轮模型调用** —— 查信息不该花钱
