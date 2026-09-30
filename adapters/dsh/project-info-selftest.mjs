@@ -80,7 +80,12 @@ console.log("── A. 命令注册与「补全清单的等价物」 ──");
 
 console.log("── B. 真报告（同一份自省逻辑 + 本运行时布局）──");
 {
-  const all = (await invoke("")).result;
+  const index = (await invoke("")).result;
+  check("无参数只列分类目录，不展开技能和验证计划正文",
+    index.kind === "success" && index.text.includes("/project skills")
+      && index.text.includes("/project plan") && !index.text.includes("· alpha")
+      && !index.text.includes("本地要跑的四道闸门"), String(index.text));
+  const all = (await invoke("all")).result;
   check("整份报告成功返回", all.kind === "success", String(all.text).slice(0, 160));
   check("报告里带智能体名与运行时", /pi-selftest-agent/.test(all.text) && /dsh/.test(all.text));
   const skills = (await invoke("skills")).result;

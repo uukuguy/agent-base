@@ -246,18 +246,25 @@ if (integration.skipped) {
   // ---- 端到端：**真敲一次命令**（RPC 发 `/project skills`）----
   // 只验"注册了"是不够的：注册了但 handler 不产出、或产出的东西不是那份报告，用户照样用不了。
   // 用 `untilMessage` 命中注入的自定义消息即可收工（不必等超时）。
-  const e2e = await (async () => {
+  const invokeProject = async (message) => {
     const staged2 = stageRenderDir(two.out, null, { zeroCredential: true });
     const rpc2 = await piRpc({
       env: env(staged2.staging, two.out),
       cwd: os.tmpdir(),
       staging: staged2.staging,
-      requests: [{ id: "p1", type: "prompt", message: "/project skills" }],
+      requests: [{ id: "p1", type: "prompt", message }],
       timeoutMs: 30000,
       untilMessage: (r) => r?.type === "message_start" && r?.message?.customType === "agent-base.project-info",
     });
     return rpc2.messages.filter((m) => m?.message?.customType === "agent-base.project-info");
-  })();
+  };
+  const indexMessages = await invokeProject("/project");
+  const indexReport = String(indexMessages[0]?.message?.content ?? "");
+  check("真敲 `/project` ⇒ 只发一份分类目录，没有分类正文",
+    indexMessages.length === 1 && CATEGORIES.every((c) => indexReport.includes(`/project ${c.name}`))
+      && !indexReport.includes("· alpha") && !indexReport.includes("本地要跑的四道闸门"),
+    indexReport.slice(0, 400));
+  const e2e = await invokeProject("/project skills");
   const report = String(e2e[0]?.message?.content ?? "");
   check("真敲 `/project skills` ⇒ 会话里出现那份报告（端到端）", e2e.length === 1 && /alpha/.test(report), report.slice(0, 200));
   check("报告里说的是真实事实（技能名来自产物、不是模板）", /· alpha/.test(report) && /SKILL\.md/.test(report), report.slice(0, 200));

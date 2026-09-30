@@ -20,7 +20,7 @@
 
 import fs from "node:fs";
 
-import { collect, render, renderIndex, CATEGORIES } from "./_project-info.mjs";
+import { collect, render, renderAll, renderIndex, CATEGORIES } from "./_project-info.mjs";
 import { projectLayout } from "./_project-layout.mjs";
 
 const readJson = (file) => {
@@ -69,8 +69,9 @@ export function apply(ctx) {
     if (category && category !== "all" && !known.includes(category)) {
       return { kind: "error", text: `未知分类「${category}」—— 可用：${known.join(" | ")}` };
     }
-    const body = category && category !== "all" ? render(category, facts) : renderIndex(facts);
-    const text = category && category !== "all" ? `/project ${category}\n\n${body}` : body;
+    const body = category === "all" ? renderAll(facts)
+      : category ? render(category, facts) : renderIndex(facts);
+    const text = category ? `/project ${category}\n\n${body}` : body;
       return { kind: "success", text };
     },
   });

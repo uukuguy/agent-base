@@ -371,7 +371,7 @@ export function renderIndex(facts) {
     "可用分类（查看详情：`/project <分类>`）：",
     ...CATEGORIES.map((c) => `/project ${c.name}  — ${c.doc}`),
     "",
-    "输入 `/project ` 后按 Tab 可补全分类；分类后的值可继续补全。",
+    "查看完整报告：`/project all`。",
   ].join("\n");
 }
 
