@@ -11,7 +11,8 @@
 
 | 文件 | 放什么 | 依据 |
 |---|---|---|
-| `settings.json` | 基座不变量安全姿态：`defaultProjectTrust: "never"`（不信任项目本地文件）、关闭遥测与分析、安静启动 | §10.4 H5 / §7.2 |
+| `settings.json` | 基座不变量安全姿态：`defaultProjectTrust: "never"`（不信任项目本地文件）、关闭遥测与分析、安静启动、选择 `agent-base-dark` 主题 | §10.4 H5 / §7.2 |
+| `themes/agent-base-dark.json` | Pi 默认主题；自定义消息使用终端默认背景，避免 `/project` 铺满紫色背景 | Pi themes 配置 |
 | `enhancements.yaml` | 基座不变量增强的**声明清单**。基座不给自己开后门：闸门 2 的「已加载扩展 id 集合 == 声明集合」同样覆盖它 | §4.5 / §6.3 |
 | `extensions/trace.ts` | **基座轨迹扩展**：订阅 loop 回调产出统一轨迹。只订阅、不返回值、绝不抛异常（业务扩展会叠加同一批回调） | §8.3 / `../trace-mapping.md` |
 

@@ -61,6 +61,11 @@ check("跨输出路径 digest 相同", !!d1 && d1 === d2, `${d1} vs ${d2}`);
 check("产物含 agent-dir / settings / models 模板 / manifest",
   ["agent-dir/settings.json", "agent-dir/models.json.tmpl", "agent-dir/AGENTS.md", "render-manifest.json"]
     .every((f) => fs.existsSync(path.join(tmp, "out-a", f))));
+const renderedSettings = JSON.parse(fs.readFileSync(path.join(tmp, "out-a", "agent-dir", "settings.json"), "utf8"));
+const renderedTheme = path.join(tmp, "out-a", "agent-dir", "themes", "agent-base-dark.json");
+check("产物携带基座 Pi 主题并选中它", renderedSettings.theme === "agent-base-dark" && fs.existsSync(renderedTheme));
+check("基座 Pi 主题让自定义消息回到终端默认背景",
+  JSON.parse(fs.readFileSync(renderedTheme, "utf8")).vars?.customMsgBg === "");
 check("渲染不做模型配置解析（模板留待启动期，参数下放）",
   fs.readFileSync(path.join(tmp, "out-a", "agent-dir/models.json.tmpl"), "utf8").includes("${CORP_GATEWAY_BASE_URL}"));
 check("tools.deny 进 manifest 的运行参数（不烤进 settings）",

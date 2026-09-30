@@ -2,5 +2,6 @@
   "defaultProjectTrust": "never",
   "enableAnalytics": false,
   "enableInstallTelemetry": false,
-  "quietStartup": true
+  "quietStartup": true,
+  "theme": "agent-base-dark"
 }
