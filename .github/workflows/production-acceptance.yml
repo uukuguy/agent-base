@@ -183,11 +183,11 @@ jobs:
 
       - name: Publish and verify both architectures
         run: |
-          version=$(jq -r .version ci-artifacts/release.json)
-          test "$(jq -r .revision ci-artifacts/release.json)" = "$GITHUB_SHA"
+          version=$(jq -r .version release.json)
+          test "$(jq -r .revision release.json)" = "$GITHUB_SHA"
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           timeout --signal=TERM --kill-after=30s 8m skopeo copy --all \
-            "oci-archive:dist/image/agent-base-$version.oci.tar" "docker://$image:$version"
+            "oci-archive:agent-base-$version.oci.tar" "docker://$image:$version"
           skopeo inspect --raw "docker://$image:$version" > published-index.json
           jq -e '([.manifests[].platform | .os + "/" + .architecture]) as $platforms | ($platforms | index("linux/arm64")) != null and ($platforms | index("linux/amd64")) != null' published-index.json
           skopeo copy --all "docker://$image:$version" "docker://$image:latest"

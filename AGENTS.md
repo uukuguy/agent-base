@@ -49,6 +49,8 @@ node tools/hygiene-selftest.mjs
 ## CI 与提交
 
 - 生产验收工作流是 `.github/workflows/production-acceptance.yml`，在 Linux runner 上执行 Docker/QEMU、回环探针、双架构构建和完整回归。
+- 本地日常开发只构建当前架构；双架构和发布验收交给 CI。只有版本 tag 或 main 手动开启 publish 才发布 GHCR，且必须没有失败或跳过项。
+- 发布复制已验收的 OCI 归档，使用 `--all` 保留全部架构。首次发布后核实 GHCR 包可见性和匿名拉取，勿把私有上传成功报告为公开可用。
 - 本地若使用 OrbStack，先确认 `docker version` 的 Server 可用；沙箱限制不等同于代码失败。
 - 不要重置或覆盖其他协作者的修改。提交前保留评审文档、状态文档和验证证据的一致性。
 - 当前仓库是否配置 remote 以 `git remote -v` 为准；没有 remote 时不能从本地触发 GitHub Actions。

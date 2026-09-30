@@ -37,6 +37,16 @@ node -e 'require("node:net").createServer().listen(0, "127.0.0.1").close()'
 
 工作流会把 `ci-artifacts/regression.json` 上传为构建产物。只有该命令退出码为 0，才可把本次提交视为生产验收通过。`FAST=1` 只能证明宿主快速路径，不能替代 Docker 生产验收。
 
+## 发布到 GHCR
+
+普通 main 提交和 PR 只做验收。推送与 `package.json` 版本相同的版本 tag（例如 `v0.1.0`），或在 main 上手动运行工作流并勾选 `publish`，才会在验收通过后发布。
+
+发布要求报告中 `ok: true`、`failed: []`、`skipped: []` 同时成立。生产 job 保存已验证的 OCI 归档和源码指纹；独立发布 job 用 `GITHUB_TOKEN` 的 `packages: write` 权限，把这份归档的所有架构复制到 `ghcr.io/uukuguy/agent-base:<版本>`，确认 ARM64 和 AMD64 均存在后更新 `latest`。发布 job 限时 15 分钟，首次上传限时 8 分钟。
+
+GHCR 新包默认私有。首次发布后需要在包设置中改为 public，并验证不登录也能拉取；仅有上传成功不能称为公开发布完成。
+
+本地日常开发只需构建当前主机架构（`make image`）。双架构、调试变体和多架构归档的完整验收由云端 runner 执行；本地仅在需要复现跨架构问题时运行下面的完整流程。
+
 生产 job 的总上限是 50 分钟。双架构镜像构建、OCI manifest 构建和完整回归各自有 15 分钟硬上限；Docker 或 QEMU 卡住时，工作流会指出卡住的阶段并尽快失败，不会等 90 分钟才返回结果。
 
 ## 本地复现
