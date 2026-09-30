@@ -27,12 +27,13 @@ node -e 'require("node:net").createServer().listen(0, "127.0.0.1").close()'
 2. `make hygiene-selftest` 检查凭据文件、标准入口和测试脚本。
 3. 静态 job 执行 `validate` 和安全策略自检。`--fast` 仍执行含 C9 的 conformance，不能在没有镜像的干净 runner 上充当纯静态门禁。
 4. 生产 job 用 `make local-packages` 和 `make local-packages-lock` 安装、记录预装锁声明的宿主运行时和连接器；只执行 `npm ci` 不会安装这些包。
-5. `node core/image/build.mjs --all --debug` 构建 `amd64/arm64` 的生产和调试变体，并把源码输入指纹烤进镜像；`node core/image/build.mjs --manifest` 生成 C9 要求的双架构 OCI 归档。
-6. `node tools/regression.mjs --json` 执行完整验收：
+5. `node core/image/build.mjs --manifest` 一次构建生产用的 `linux/amd64` + `linux/arm64` OCI 归档；Skopeo 从同一归档加载两个平台的生产镜像供回归使用，不再重复构建。
+6. `node tools/regression.mjs --json` 执行完整生产验收：
    - 镜像与当前源码指纹一致；
    - 全部自检和真实 Docker 自检；
    - 两侧 conformance C1–C10；
-   - 双架构容器安全下限；
+   - 两个平台的容器安全下限；
+   - 发布镜像不包含调试变体；
    - `examples-check` 和能力判据自检。
 
 工作流会把 `ci-artifacts/regression.json` 上传为构建产物。只有该命令退出码为 0，才可把本次提交视为生产验收通过。`FAST=1` 只能证明宿主快速路径，不能替代 Docker 生产验收。
@@ -47,7 +48,7 @@ GHCR 新包默认私有。首次发布后需要在包设置中改为 public，�
 
 本地日常开发只需构建当前主机架构（`make image`）。双架构、调试变体和多架构归档的完整验收由云端 runner 执行；本地仅在需要复现跨架构问题时运行下面的完整流程。
 
-生产 job 的总上限是 50 分钟。双架构镜像构建、OCI manifest 构建和完整回归各自有 15 分钟硬上限；Docker 或 QEMU 卡住时，工作流会指出卡住的阶段并尽快失败，不会等 90 分钟才返回结果。
+生产 job 的总上限是 50 分钟。多架构 OCI 构建、镜像加载和完整回归各自有硬上限；Docker 或 QEMU 卡住时，工作流会指出卡住的阶段并尽快失败，不会等 90 分钟才返回结果。
 
 ## 本地复现
 

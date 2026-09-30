@@ -31,6 +31,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { runLlmConfigChecks } from "./image-capability-checks.mjs";
+import { acceptanceMode } from "./image-acceptance-mode.mjs";
 // 同一份指纹实现（构建端把它烤进 LABEL，这里重算比对）
 import { imageInputsDigest } from "../core/image/inputs-digest.mjs";
 
@@ -102,6 +103,7 @@ function declaredSecurity() {
  * @returns {{pending: string|null, checks: Array<{id:string, ok:boolean, detail:string}>}}
  */
 export function runImageChecks({ version, arch = hostArch() } = {}) {
+  const mode = acceptanceMode();
   const base = `agent-base:${version}-${arch}`;
   const debug = `agent-base:${version}-debug-${arch}`;
 
@@ -165,12 +167,14 @@ export function runImageChecks({ version, arch = hostArch() } = {}) {
     `退出码 ${dbgRefused.status}（期望 2）；stderr=${(dbgRefused.stderr ?? "").trim().slice(0, 140)}`);
 
   // ⑥ 调试变体给出诊断 shell
-  if (!imageExists(debug)) {
-    add("debug-variant-usable", false, `调试变体 ${debug} 未构建 —— 跑 make image DEBUG=1（第 ④ 道调试手段不能只是文档）`);
-  } else {
-    const dbg = spawnSync("docker", ["run", "--rm", "-e", "AGENT_RUN_MODE=debug", "-e", "HARNESS=x", debug, "x"], { encoding: "utf8", timeout: 120000 });
-    add("debug-variant-usable", /调试变体诊断 shell/.test(dbg.stderr ?? ""),
-      `stderr=${(dbg.stderr ?? "").trim().slice(0, 140)}`);
+  if (mode.requireDebug) {
+    if (!imageExists(debug)) {
+      add("debug-variant-usable", false, `调试变体 ${debug} 未构建 —— 跑 make image DEBUG=1（第 ④ 道调试手段不能只是文档）`);
+    } else {
+      const dbg = spawnSync("docker", ["run", "--rm", "-e", "AGENT_RUN_MODE=debug", "-e", "HARNESS=x", debug, "x"], { encoding: "utf8", timeout: 120000 });
+      add("debug-variant-usable", /调试变体诊断 shell/.test(dbg.stderr ?? ""),
+        `stderr=${(dbg.stderr ?? "").trim().slice(0, 140)}`);
+    }
   }
 
   // ⑥b 双架构：另一个架构也必须真的能跑、且硬化生效（用户明确要求同时支持 arm64/amd64）
@@ -245,7 +249,9 @@ export function runImageChecks({ version, arch = hostArch() } = {}) {
     // 指纹按**源码树**重算（不再依赖构建上下文是否存在）：
     // 「改了闸门代码但没重建镜像」必须在这里被抓住 —— 否则会表现为"容器挂、本地过"的假差异（D13）。
     const expected = imageInputsDigest(REPO);
-    const tags = [base, debug, `agent-base:${version}-amd64`, `agent-base:${version}-debug-amd64`];
+    const productionTags = ["arm64", "amd64"].map((cpu) => `agent-base:${version}-${cpu}`);
+    const debugTags = ["arm64", "amd64"].map((cpu) => `agent-base:${version}-debug-${cpu}`);
+    const tags = mode.release ? productionTags : [...productionTags, ...debugTags];
     const seen = [];
     const stale = [];
     for (const t of tags) {
@@ -263,5 +269,8 @@ export function runImageChecks({ version, arch = hostArch() } = {}) {
   // ⑤ 交付价值的最终检验：容器里能配好 LLM 并真跑通（含负向）
   for (const c of runLlmConfigChecks({ image: base })) add(c.id, c.ok, c.detail);
 
-  return { pending: null, checks, images: { base, debug } };
+  return {
+    pending: null, checks,
+    images: { base, ...(mode.requireDebug ? { debug } : {}), scope: mode.release ? "production-multiarch" : "production-and-debug" },
+  };
 }

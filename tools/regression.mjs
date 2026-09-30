@@ -31,7 +31,7 @@ const fast = flags.has("--fast");
 /** 自检清单：与 CLAUDE.md / docs/14 里那份一致（这里也就成了它的单一真源）。 */
 const SELFTESTS = [
   "validate", "validate-selftest", "hygiene-selftest", "child-env-selftest", "sanitize-selftest", "manifest-integrity-selftest", "host-arch-selftest", "dsh-staging-selftest", "capabilities-selftest", "bundles-selftest", "local-packages-check", "base-skills-selftest", "gates-selftest", "trace-selftest", "emit-selftest", "trace-view-selftest",
-  "container-fixture-dir-selftest", "gateway-selftest", "providers-selftest", "startup-selftest", "pi-selftest", "pi-trace-selftest",
+  "container-fixture-dir-selftest", "image-acceptance-mode-selftest", "gateway-selftest", "providers-selftest", "startup-selftest", "pi-selftest", "pi-trace-selftest",
   "pi-trace-ext-selftest", "pi-project-info-selftest", "pi-capabilities-selftest", "pi-session-selftest", "pi-verify-container-selftest",
   "dsh-verify-container-selftest", "dsh-project-info-selftest", "dsh-capabilities-selftest", "probe-selftest", "project-info-selftest", "env-check-selftest",
   "verify-container-selftest", "unattended-selftest", "new-agent-selftest", "local-selftest",
@@ -74,6 +74,8 @@ let imageReady = false;
     record("镜像与源码同源", true, `${tag}（${expected.slice(0, 15)}…）`);
   } else if (fast) {
     record("镜像与源码同源", false, `镜像过期（LABEL ${lbl ? lbl.slice(0, 12) : "缺失"}… ≠ 源码 ${expected.slice(0, 12)}…）—— --fast 不重建，相关项会跳过`, true);
+  } else if (process.env.AGENT_BASE_RELEASE_ACCEPTANCE === "1") {
+    record("镜像与源码同源", false, "发布镜像缺失或与源码不同源；需要重新加载此次 OCI 构建产物，发布验收不自动重建");
   } else {
     log(`▶ 镜像过期（LABEL ${lbl ? `${lbl.slice(0, 12)}…` : "缺失"} ≠ 源码 ${expected.slice(0, 12)}…）⇒ 先重建（这是 D13 的教训：不重建就谈不上"验过"）`);
     const b = run(process.execPath, [path.join(REPO, "core/image/build.mjs"), "--all", "--debug"], 3000000);

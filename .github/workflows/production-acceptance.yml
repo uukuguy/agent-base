@@ -42,6 +42,7 @@ jobs:
       - name: Run static and policy checks
         run: |
           make validate validate-selftest hygiene-selftest child-env-selftest sanitize-selftest manifest-integrity-selftest
+          make host-arch-selftest container-fixture-dir-selftest image-acceptance-mode-selftest
           node core/gates/output-path-selftest.mjs
           node core/gates/report-selftest.mjs
 
@@ -54,7 +55,7 @@ jobs:
     name: Docker production acceptance
     runs-on: ubuntu-latest
     needs: static
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main')
     # Keep a hung Docker/QEMU build from occupying a runner for 90 minutes.
     # Each expensive step has its own deadline below, so failures identify the
     # phase that stalled instead of looking like an undifferentiated timeout.
@@ -81,8 +82,8 @@ jobs:
           make local-packages-lock
           make local-packages-check
 
-      # make regression builds and runs both linux/amd64 and linux/arm64.
-      # QEMU is needed for the non-native architecture on the hosted x86 runner.
+      # The release artifact is built once as a production multi-architecture OCI image.
+      # QEMU is needed for arm64 on the hosted x86 runner.
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -106,10 +107,26 @@ jobs:
           });
           NODE
 
-      - name: Build both production and debug image variants
-        run: timeout --signal=TERM --kill-after=30s 15m node core/image/build.mjs --all --debug
+      - name: Build the production multi-architecture OCI image
+        run: timeout --signal=TERM --kill-after=30s 15m node core/image/build.mjs --manifest
+
+      - name: Install Skopeo for regression image extraction
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Load both production platforms from the OCI image
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          for arch in amd64 arm64; do
+            timeout --signal=TERM --kill-after=30s 3m skopeo --override-os linux --override-arch "$arch" copy \
+              "oci-archive:dist/image/agent-base-$version.oci.tar" \
+              "docker-daemon:agent-base:$version-$arch"
+          done
 
       - name: Run complete production regression
+        env:
+          AGENT_BASE_RELEASE_ACCEPTANCE: '1'
         run: |
           mkdir -p ci-artifacts
           timeout --signal=TERM --kill-after=30s 15m node tools/regression.mjs --json > ci-artifacts/regression.json
@@ -123,12 +140,10 @@ jobs:
           }
           const { version } = JSON.parse(fs.readFileSync("package.json", "utf8"));
           fs.writeFileSync("ci-artifacts/release.json", JSON.stringify({
-            version, revision: process.env.GITHUB_SHA, inputsDigest: imageInputsDigest()
+            version, revision: process.env.GITHUB_SHA, inputsDigest: imageInputsDigest(),
+            scope: "production-multiarch"
           }, null, 2));
           NODE
-
-      - name: Build the multi-architecture OCI manifest
-        run: timeout --signal=TERM --kill-after=30s 15m node core/image/build.mjs --manifest
 
       - name: Save the verified release image
         if: success() && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'))

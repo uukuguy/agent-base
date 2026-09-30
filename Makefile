@@ -20,7 +20,7 @@ BASE_IMAGE ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest local-packages-check capabilities-selftest bundles-selftest base-skills-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-staging-selftest dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent host-arch-selftest container-fixture-dir-selftest
+.PHONY: help new-agent new-agent-selftest validate validate-selftest local-packages-check capabilities-selftest bundles-selftest base-skills-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-staging-selftest dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent host-arch-selftest container-fixture-dir-selftest image-acceptance-mode-selftest
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -45,6 +45,9 @@ host-arch-selftest: ## 本地派生镜像架构标签映射自检
 
 container-fixture-dir-selftest: ## Linux CI 非 root 容器挂载测试目录权限自检
 	@node conformance/container-fixture-dir-selftest.mjs
+
+image-acceptance-mode-selftest: ## 发布单镜像验收模式自检
+	@node conformance/image-acceptance-mode-selftest.mjs
 
 sanitize-selftest: ## 轨迹原始事件脱敏自检
 	@node core/trace/sanitize-selftest.mjs
