@@ -1,12 +1,10 @@
 # agent-base
 
-**用于开发、运行和验证 AI 智能体的工具与基础镜像。**
+**把 AI 智能体做成可重复开发、可检查项目的起步套件。**
 
 [English](README.md)
 
-使用 agent-base，你可以创建一个合同审查、代码检查或数据脱敏智能体，为它配置工作说明、模型、工具和技能，在本地试跑，再放进 Docker 中验证。
-
-你负责智能体的业务内容；agent-base 提供项目模板、运行命令、自动检查、运行记录和容器环境。每个业务项目有自己的目录，通过同一套命令开发和测试。
+你在独立项目中写工作说明、选择模型、接入工具和技能；agent-base 提供模板、命令、检查流程和 Docker 基础镜像，让你先在本地运行，再确认部署前的配置和执行链路。
 
 ## 可以用它做什么？
 
@@ -123,9 +121,11 @@ make verify HARNESS=dsh
 | Pi | `@earendil-works/pi-coding-agent@0.87.1` |
 | DSH | `@deepseek-ai/dsh@0.1.7-rc.1` |
 
-两者使用同一套准入检查，但扩展机制和部分能力不同。差异见[运行时选型材料](docs/design/2026-09-27-runtime-selection-facts.md)。
+两者都经过同一套项目检查，但扩展方式和部分能力不同。差异见[运行时选型材料](docs/design/2026-09-27-runtime-selection-facts.md)。
 
 ## 架构
+
+流程很直接：业务项目定义智能体，agent-base 把定义转换成对应软件需要的配置，Pi 或 DSH 负责运行，报告、调用轨迹和 Docker 检查告诉你实际发生了什么。
 
 ```mermaid
 flowchart LR
@@ -184,7 +184,3 @@ agent-base 适合需要持续开发、测试和比较业务智能体的团队。
 - [验证指南](docs/14-how-to-verify.md)：命令、期望结果和边界。
 - [CI 验收说明](docs/15-ci-production-acceptance.md)：runner 要求和验收顺序。
 - [AGENTS.md](AGENTS.md)：修改本仓库时的协作约定。
-
-## License
-
-见 [LICENSE](LICENSE)。

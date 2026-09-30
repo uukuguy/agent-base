@@ -1,12 +1,10 @@
 # agent-base
 
-**Tools and base images for building, running, and testing AI agents.**
+**Build AI agents as repeatable, testable projects.**
 
 [中文](README.zh-CN.md)
 
-With agent-base, you can build an agent for contract review, code review, or data redaction, give it instructions, models, tools, and skills, then try it locally and test it in Docker.
-
-You write the agent's business logic. agent-base provides project templates, run commands, automated checks, traces, and a container environment. Each agent has its own project and uses the same development commands.
+You define the instructions, model, tools, and skills for an agent in its own project. agent-base gives you the template, commands, checks, and Docker images to run that project locally and verify it before deployment.
 
 ## What can you build?
 
@@ -123,9 +121,11 @@ make verify HARNESS=dsh
 | Pi | `@earendil-works/pi-coding-agent@0.87.1` |
 | DSH | `@deepseek-ai/dsh@0.1.7-rc.1` |
 
-Both use the same admission checks, but their extension mechanisms and some capabilities differ. See the [runtime comparison](docs/design/2026-09-27-runtime-selection-facts.md).
+Both go through the same project checks, but their extension methods and some capabilities differ. See the [runtime comparison](docs/design/2026-09-27-runtime-selection-facts.md).
 
 ## Architecture
+
+The flow is simple: your project defines the agent; agent-base turns that definition into the configuration each program needs; Pi or DSH runs it; reports, traces, and Docker checks show what happened.
 
 ```mermaid
 flowchart LR
@@ -186,7 +186,3 @@ The detailed guides are currently in Chinese.
 - [Verification](docs/14-how-to-verify.md): commands, expected results, and limits.
 - [CI acceptance](docs/15-ci-production-acceptance.md): runner requirements and check order.
 - [AGENTS.md](AGENTS.md): working conventions for changes to this repository.
-
-## License
-
-See [LICENSE](LICENSE).
