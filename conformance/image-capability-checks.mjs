@@ -15,10 +15,10 @@
 // ============================================================================
 
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createContainerFixtureDir } from "./container-fixture-dir.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -26,7 +26,7 @@ const GW_PORT = 49117;
 
 /** 渲染一份 pi 产物（用仓库里的示例定义）。 */
 function renderProduct() {
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), "llm-cfg-art-"));
+  const out = createContainerFixtureDir("llm-cfg-art-");
   const r = spawnSync(process.execPath, [path.join(REPO, "adapters/pi/render.mjs"), path.join(REPO, "examples/idea-to-proof"), "--out", out], { encoding: "utf8" });
   return r.status === 0 ? out : null;
 }
@@ -68,7 +68,7 @@ export function runLlmConfigChecks({ image }) {
   const artifact = renderProduct();
   if (!artifact) return [{ id: "agent-runs-with-injected-llm-config", ok: false, detail: "前置失败：渲染产物失败" }];
 
-  const okDir = fs.mkdtempSync(path.join(os.tmpdir(), "llm-cfg-out-"));
+  const okDir = createContainerFixtureDir("llm-cfg-out-", { writable: true });
   // **参数名从产物清单里取**（`runtimeParams[].backs` 就是这份契约），不许写死某个供应商的名字。
   // 教训：这里原来写死 CORP_GATEWAY_*，而本检查渲染的示例后来换了供应商 ——
   // 检查就变成"永远红"，而它先前被 C9 的前一步（镜像同源）挡住，没人发现。
@@ -90,7 +90,7 @@ export function runLlmConfigChecks({ image }) {
 
   // 正向①：容器内跑通
   add("agent-runs-with-injected-llm-config", ok.exit === 0,
-    `容器内退出码 ${ok.exit}（期望 0）${ok.exit !== 0 ? `；stderr 末 200：${ok.agentErr.trim().slice(-200)}` : ""}`);
+    `容器内退出码 ${ok.exit}（期望 0）${ok.exit !== 0 ? `；stderr 末 400：${(ok.agentErr || ok.stderr).trim().slice(-400)}` : ""}`);
 
   // 正向②：**端点侧**确实收到了请求（不是"进程没报错"就算数）
   const reqs = ok.trace.split("\n").filter(Boolean)
@@ -110,7 +110,7 @@ export function runLlmConfigChecks({ image }) {
     "产物根目录仍可读且清单在位（写入都发生在暂存副本里）");
 
   // 负向：不给凭据 → 退出码 2，且点名缺哪个引用名
-  const badDir = fs.mkdtempSync(path.join(os.tmpdir(), "llm-cfg-bad-"));
+  const badDir = createContainerFixtureDir("llm-cfg-bad-", { writable: true });
   const bad = runAgentInContainer(image, artifact, {
     [endpointParam]: injected[endpointParam],
     [modelParam]: injected[modelParam],

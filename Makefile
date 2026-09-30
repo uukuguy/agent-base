@@ -16,10 +16,11 @@ AGENT_DIR ?=
 RENDER_DIR ?=
 HARNESS ?= pi
 JSON ?=
+BASE_IMAGE ?=
 
 # 未实现目标的统一失败处理：说清「哪个包会做它」，然后非零退出退出。
 
-.PHONY: help new-agent new-agent-selftest validate validate-selftest local-packages-check capabilities-selftest bundles-selftest base-skills-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-staging-selftest dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent
+.PHONY: help new-agent new-agent-selftest validate validate-selftest local-packages-check capabilities-selftest bundles-selftest base-skills-selftest gates-selftest trace-selftest emit-selftest trace-view-selftest gateway-selftest render doctor pi-selftest pi-trace-selftest pi-trace-ext-selftest pi-project-info-selftest project-info project-info-selftest verify-plan env-check env-check-selftest verify-container verify-container-selftest unattended-selftest pi-verify-container-selftest dsh-approval-probe dsh-staging-selftest dsh-verify-container-selftest dsh-project-info-selftest dsh-capabilities-selftest probe-selftest selfcheck regression gen-docs gen-selection-facts conformance probe smoke verify image debug conformance dev-env run-local new-agent host-arch-selftest container-fixture-dir-selftest
 
 help: ## 列出可用命令
 	@echo "agent-base 命令面（统一设计 §12.3）"
@@ -27,7 +28,7 @@ help: ## 列出可用命令
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "参数：AGENT_DIR=<智能体目录>  RENDER_DIR=<渲染产物目录>  HARNESS=pi|dsh  JSON=1"
+	@echo "参数：AGENT_DIR=<智能体目录>  RENDER_DIR=<渲染产物目录>  HARNESS=pi|dsh  BASE_IMAGE=<基座镜像>  JSON=1"
 
 # --- 闸门 1：静态校验（S0 已交付）------------------------------------------
 validate: ## 闸门 1：schema + 引用 + 凭据引用 + 命名 + 层纪律
@@ -38,6 +39,12 @@ hygiene-selftest: ## 凭据文件和标准测试入口自检
 
 child-env-selftest: ## 子进程环境 allowlist 和权限默认值自检
 	@node core/image/child-env-selftest.mjs
+
+host-arch-selftest: ## 本地派生镜像架构标签映射自检
+	@node core/image/host-arch-selftest.mjs
+
+container-fixture-dir-selftest: ## Linux CI 非 root 容器挂载测试目录权限自检
+	@node conformance/container-fixture-dir-selftest.mjs
 
 sanitize-selftest: ## 轨迹原始事件脱敏自检
 	@node core/trace/sanitize-selftest.mjs
@@ -204,8 +211,8 @@ image-push: ## 构建并推送多架构镜像到 registry（需 IMAGE_REF=host/n
 	@test -n "$(IMAGE_REF)" || { echo "需要 IMAGE_REF，例如 IMAGE_REF=registry.example.com/ns/agent-base:0.1.0"; exit 2; }
 	@node core/image/build.mjs --push $(IMAGE_REF)
 
-image-derived: ## 构建派生镜像（业务层）并在镜像内自证（需 AGENT_DIR；可选 OVERLAY_DIR/IMAGE_REF/HARNESS）
-	@node tools/derived-image.mjs "$(AGENT_DIR)" $(if $(HARNESS),--harness $(HARNESS),) $(if $(IMAGE_REF),--ref $(IMAGE_REF),) $(if $(OVERLAY_DIR),--overlay $(OVERLAY_DIR),) $(if $(KEEP),--keep,)
+image-derived: ## 构建派生镜像（业务层）并在镜像内自证（需 AGENT_DIR；可选 BASE_IMAGE/OVERLAY_DIR/IMAGE_REF/HARNESS）
+	@node tools/derived-image.mjs "$(AGENT_DIR)" $(if $(HARNESS),--harness $(HARNESS),) $(if $(BASE_IMAGE),--base "$(BASE_IMAGE)",) $(if $(IMAGE_REF),--ref "$(IMAGE_REF)",) $(if $(OVERLAY_DIR),--overlay "$(OVERLAY_DIR)",) $(if $(KEEP),--keep,)
 
 image-manifest: ## 只产出多架构 manifest list（OCI 归档落盘，不推 registry）
 	@node core/image/build.mjs --manifest

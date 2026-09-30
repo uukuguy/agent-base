@@ -33,6 +33,7 @@ import { EXIT_CODES } from "../gates/index.mjs";
 import { parseArgs } from "../gates/cli.mjs";
 // 输入指纹：构建端与检查端**共用同一份实现**（core/image/inputs-digest.mjs）
 import { imageInputsDigest, IMAGE_CONTEXT_EXCLUDES, IMAGE_COPY_DIRS } from "./inputs-digest.mjs";
+import { hostImageArch } from "./host-arch.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "../..");
@@ -180,7 +181,7 @@ function docker(args, { capture = false } = {}) {
 
 function hostArch() {
   const m = spawnSync("uname", ["-m"], { encoding: "utf8" }).stdout.trim();
-  return m === "x86_64" ? "amd64" : m === "aarch64" || m === "arm64" ? "arm64" : m;
+  return hostImageArch(m);
 }
 
 function buildArch({ arch, tag, baseTag, debug, specs, ctx, noCache, inputsDigest }) {

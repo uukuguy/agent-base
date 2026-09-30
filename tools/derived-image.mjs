@@ -21,6 +21,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { EXIT_CODES, parseArgs } from "../core/gates/index.mjs";
+import { hostImageArch } from "../core/image/host-arch.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -37,7 +38,7 @@ if (errors.length || positionals.length !== 1) {
 const agentDir = path.resolve(positionals[0]);
 const harness = values["--harness"] ?? "pi";
 const agentName = path.basename(agentDir);
-const baseImage = values["--base"] ?? "agent-base:0.1.0-arm64";
+const baseImage = values["--base"] ?? `agent-base:0.1.0-${hostImageArch(process.arch)}`;
 const ref = values["--ref"] ?? `agent:${agentName}`;
 const overlaySrc = values["--overlay"] ? path.resolve(values["--overlay"]) : null;
 const keep = flags.has("--keep");
