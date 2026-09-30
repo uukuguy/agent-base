@@ -554,3 +554,4 @@
 - 10:34 调整 CI 触发边界：普通 PR/main 只跑静态检查，完整 Docker/QEMU 验收仅用于版本发布 [b66f1da]
 - 10:42 发布验收改为单次 production 多架构 OCI 构建，从同一归档加载两平台回归，移除发布期 debug/重复构建 [a4e5b70]
 - 10:58 本地回归改为只构建和测试当前主机 production 架构；debug、跨架构与 manifest 仅由发布 CI 验收 [462c18c]
+- 11:19 `v0.1.0` 发布验收成功：单次 OCI 多架构构建、两平台回归和 GHCR 发布通过；匿名 manifest 含 linux/arm64 与 linux/amd64，`latest` 同 digest
