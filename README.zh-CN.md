@@ -169,6 +169,25 @@ node tools/regression.mjs --json
 
 GitHub 的[验收工作流](.github/workflows/production-acceptance.yml)在 Linux runner 上构建和检查镜像，保存结构化报告。构建镜像需要下载依赖；断网检查验证的是容器内依赖是否齐备，不代表真实模型调用可以离线完成。
 
+### 发布一个同时支持两种架构的 tag
+
+如果有镜像仓库，只需发布一次多架构 tag：
+
+```bash
+make image-push IMAGE_REF=ghcr.io/OWNER/agent-base:0.1.0
+```
+
+用户在 ARM 或 AMD64 主机上都使用同一个地址，Docker 会自动选择匹配的镜像：
+
+```bash
+docker pull ghcr.io/OWNER/agent-base:0.1.0
+docker run --rm ghcr.io/OWNER/agent-base:0.1.0 shell -c 'node --version'
+```
+
+这条命令检查镜像中的 Node.js 版本。运行自己的智能体时，还需按[部署说明](docs/06-deploy.md)加入项目配置和模型凭据。基础镜像提供共享工具，本身不包含配置好的业务智能体。
+
+带 `-arm64`、`-amd64` 后缀的 tag 主要用于构建排错，拉取多架构 tag 时无需指定。`OWNER` 是镜像仓库账号的占位符，不是已发布的镜像地址。
+
 ## 适用范围
 
 agent-base 适合需要持续开发、测试和比较业务智能体的团队。它提供接近部署环境的验证条件，以及构建业务镜像的基础。

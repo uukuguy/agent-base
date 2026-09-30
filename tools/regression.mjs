@@ -46,6 +46,12 @@ const record = (name, ok, detail, skipped = false) => {
   log(`${skipped ? "⏭ " : ok ? "✅" : "❌"} ${name}${detail ? ` —— ${detail}` : ""}`);
 };
 
+const failureDetail = (r) => {
+  if (r.status === 0) return "";
+  const text = `${r.stderr ?? ""}\n${r.stdout ?? ""}`.trim().split("\n").filter(Boolean);
+  return `退出码 ${r.status}${text.length ? `；输出尾部：${text.slice(-12).join(" | ")}` : ""}`;
+};
+
 const run = (cmd, args, timeout = 1800000) =>
   spawnSync(cmd, args, { cwd: REPO, encoding: "utf8", timeout });
 
@@ -98,16 +104,16 @@ for (const t of SELFTESTS) {
 
 for (const h of ["pi", "dsh"]) {
   const r = run(process.execPath, [path.join(REPO, "conformance/run.mjs"), "--harness", h], 1800000);
-  record(`conformance(${h})`, r.status === 0, r.status === 0 ? "C1–C10 全过" : `退出码 ${r.status}`);
+  record(`conformance(${h})`, r.status === 0, r.status === 0 ? "C1–C10 全过" : failureDetail(r));
 }
 
 {
   const r = run("make", ["-s", "examples-check"], 1800000);
-  record("examples-check", r.status === 0, r.status === 0 ? "" : `退出码 ${r.status}`);
+  record("examples-check", r.status === 0, r.status === 0 ? "" : failureDetail(r));
 }
 {
   const r = run(process.execPath, [path.join(REPO, "tools/selfcheck.mjs")], 300000);
-  record("selfcheck（能力 → 判据）", r.status === 0, r.status === 0 ? "每条能力都能指向真实判据" : `退出码 ${r.status}`);
+  record("selfcheck（能力 → 判据）", r.status === 0, r.status === 0 ? "每条能力都能指向真实判据" : failureDetail(r));
 }
 
 // ---------------------------------------------------------------------------

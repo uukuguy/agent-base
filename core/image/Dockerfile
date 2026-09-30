@@ -32,7 +32,8 @@ FROM ${NODE_IMAGE}
 # 早前只在 FROM 之前声明，于是 LABEL 拿到空值（生产镜像没有指纹，调试镜像有）。
 ARG IMAGE_INPUTS_DIGEST=unknown
 LABEL agent-base.inputs-digest=${IMAGE_INPUTS_DIGEST} \
-      agent-base.variant=production
+      agent-base.variant=production \
+      org.opencontainers.image.source=https://github.com/uukuguy/agent-base
 
 # 版本 pin 来自**构建上下文里的坐标表** harnesses.lock.json
 # （由 core/image/build.mjs 从 adapters/*/adapter.yaml 生成 —— 单一真源仍在那里）。

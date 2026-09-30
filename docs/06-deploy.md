@@ -190,9 +190,22 @@ make image-builder         # 多架构 builder 就绪并设为当前（让手敲
 `agent-base.inputs-digest`，`conformance` 的 C9 会重算比对 —— **忘了重建会直接红**，
 不会再出现"镜像在跑旧行为而所有检查全绿"。
 
-**构建环境注意**：本机 Docker 由 OrbStack 管理，其 `docker` 驱动**不支持多平台构建** ——
-`make image-all` 会自动准备一个 `docker-container` 驱动的 builder 来完成。手敲多平台命令前先
-`make image-builder`。
+**构建环境注意**：当前 OrbStack 使用经典 `overlay2` 镜像存储。默认 `docker` builder 的多平台构建失败，不代表 Docker Buildx 无法构建多架构镜像。`make image-all` 会为多架构 OCI 导出准备 `docker-container` builder；手敲多平台命令前先执行 `make image-builder`。
+
+构建结果的保存方式是另一件事：经典镜像存储只能加载单架构镜像；支持 containerd 镜像存储的 Docker 才能在本地保留多架构索引。不要假定 `docker load -i <OCI归档>` 在所有环境中都能保留两个架构。常规分发使用 registry 的多架构 tag，Docker 拉取时会自动选择主机架构。
+
+已有 OCI 归档可直接上传，不需要先加载到本机镜像库。完整回归通过后，登录目标仓库并使用 Skopeo 复制全部平台：
+
+```bash
+skopeo login ghcr.io
+skopeo copy --all \
+  oci-archive:dist/image/agent-base-0.1.0.oci.tar \
+  docker://ghcr.io/OWNER/agent-base:0.1.0
+```
+
+`--all` 同时复制两种架构及其索引；省略时通常只复制当前主机架构。GHCR 的新包默认私有；公开分发前还需调整包可见性并验证匿名拉取。
+
+参考：[Docker 多平台镜像](https://docs.docker.com/build/building/multi-platform/)、[Skopeo copy](https://github.com/containers/skopeo/blob/main/docs/skopeo-copy.1.md)、[GHCR 使用说明](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)。
 
 ## 十、这份镜像是什么语义
 
@@ -238,4 +251,3 @@ make image-derived AGENT_DIR=examples/idea-to-proof OVERLAY_DIR=./my-overlay IMA
 
 **权限坑（已处理）**：`COPY` 保留源文件权限位；开发机上的文件可能是 0600，容器里以非 root 跑会读不到
 （本项目自己踩过一次）。派生骨架因此显式 `chmod -R a+rX` 产物/定义/接入缝。
-

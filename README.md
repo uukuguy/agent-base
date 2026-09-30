@@ -169,6 +169,25 @@ A passing run exits with `0`, `failed: []`, and `skipped: []`. `npm test` is a f
 
 The GitHub [acceptance workflow](.github/workflows/production-acceptance.yml) builds and checks images on Linux and saves a structured report. Building images downloads dependencies. Offline checks verify that container dependencies are available; real model calls still need access to a model service.
 
+### Publish one tag for both architectures
+
+When you have a container registry, publish the multi-architecture tag once:
+
+```bash
+make image-push IMAGE_REF=ghcr.io/OWNER/agent-base:0.1.0
+```
+
+Users can then use the same command on ARM or AMD64 hosts; Docker selects the matching image:
+
+```bash
+docker pull ghcr.io/OWNER/agent-base:0.1.0
+docker run --rm ghcr.io/OWNER/agent-base:0.1.0 shell -c 'node --version'
+```
+
+This command checks the installed Node.js version. To run your agent, add its project configuration and model credentials as described in the [deployment guide](docs/06-deploy.md). The base image contains shared tools, not a configured business agent.
+
+The `-arm64` and `-amd64` tags are useful for build diagnostics. Users pulling a multi-architecture tag do not need them. `OWNER` is a placeholder for your registry account; it is not a published image address.
+
 ## Scope
 
 agent-base is intended for teams that develop, test, and compare business agents over time. It provides verification conditions close to deployment and a foundation for building application images.

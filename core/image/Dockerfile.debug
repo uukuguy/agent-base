@@ -24,7 +24,8 @@ FROM ${BASE_IMAGE}
 # 调试变体自己也算"输入"（它只加装工具，但加装什么同样决定镜像内容）
 ARG IMAGE_INPUTS_DIGEST=unknown
 LABEL agent-base.inputs-digest=${IMAGE_INPUTS_DIGEST} \
-      agent-base.variant=debug
+      agent-base.variant=debug \
+      org.opencontainers.image.source=https://github.com/uukuguy/agent-base
 
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
